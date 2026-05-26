@@ -355,3 +355,173 @@ def get_trade_partner_matrix(con: sqlite3.Connection) -> dict[tuple[str, str], i
                     matrix[pair] = matrix.get(pair, 0) + 1
 
     return matrix
+
+
+# ---------------------------------------------------------------------------
+# Deep trade tree
+# ---------------------------------------------------------------------------
+
+@dataclass
+class TreeNode:
+    asset_type: str           # 'player', 'pick', or 'draft'
+    asset_name: str           # display name
+    player_id: str | None     # None for pick nodes
+    from_owner: str
+    to_owner: str
+    season: int
+    week: int | None          # None for draft events
+    transaction_id: str | None
+    children: list['TreeNode'] = field(default_factory=list)
+
+
+def build_deep_trade_tree(
+    con: sqlite3.Connection,
+    player_name: str,
+    max_depth: int = 3,
+) -> tuple[str | None, list[TreeNode]]:
+    """
+    Trace a player's full trade history and all downstream effects.
+
+    For each trade the player was in, we also follow every counter-asset
+    (players and picks) received in return. Picks are linked to whoever
+    was eventually drafted with that pick slot, and that player's subsequent
+    trades are followed recursively up to max_depth.
+
+    Returns (canonical_player_name, spine_nodes) where each spine node
+    represents one trade of the focal player and its children are the
+    counter-assets (with their own downstream children).
+    """
+    roster_map = _roster_to_owner(con)
+    player_names_map = _player_names(con)
+
+    matches = con.execute(
+        "SELECT player_id, full_name FROM players WHERE LOWER(full_name) LIKE LOWER(?)",
+        (f"%{player_name}%",),
+    ).fetchall()
+    if not matches:
+        return None, []
+    exact = [m for m in matches if m[1].lower() == player_name.lower()]
+    player_id, player_full_name = (exact or matches)[0]
+
+    # {(season, round, roster_id): [(player_id, player_name)]}
+    # roster_id here is the CURRENT picker (current owner of the pick slot at draft time).
+    # Picks ordered by pick_no so the first entry per key is the earliest pick in that round.
+    pick_drafted: dict[tuple, list] = {}
+    for r in con.execute(
+        "SELECT season, round, roster_id, player_id, player_name FROM draft_picks "
+        "WHERE player_id IS NOT NULL ORDER BY pick_no"
+    ).fetchall():
+        key = (int(r[0]), int(r[1]), int(r[2]))
+        pick_drafted.setdefault(key, []).append((r[3], r[4]))
+
+    visited_txns: set[str] = set()
+
+    def _follow(pid: str, depth: int) -> list[TreeNode]:
+        if depth > max_depth:
+            return []
+        rows = con.execute(
+            """
+            SELECT transaction_id, league_id, season, week, adds_json, drops_json
+            FROM transactions
+            WHERE type = 'trade'
+              AND (adds_json LIKE ? OR drops_json LIKE ?)
+            ORDER BY season, week
+            """,
+            (f'%"{pid}"%', f'%"{pid}"%'),
+        ).fetchall()
+
+        nodes: list[TreeNode] = []
+        for txn_id, league_id, season, week, adds_raw, drops_raw in rows:
+            if txn_id in visited_txns:
+                continue
+            visited_txns.add(txn_id)
+
+            adds = json.loads(adds_raw) if adds_raw else {}
+            drops = json.loads(drops_raw) if drops_raw else {}
+
+            recv_rid = adds.get(pid)
+            send_rid = drops.get(pid)
+            to_owner = roster_map.get((league_id, recv_rid), f"Roster {recv_rid}") if recv_rid else "?"
+            from_owner = roster_map.get((league_id, send_rid), f"Roster {send_rid}") if send_rid else "?"
+
+            node = TreeNode(
+                asset_type="player",
+                asset_name=player_names_map.get(pid, pid),
+                player_id=pid,
+                from_owner=from_owner,
+                to_owner=to_owner,
+                season=season,
+                week=week,
+                transaction_id=txn_id,
+            )
+
+            # Counter-players: everything else that moved in this trade
+            for other_pid, other_recv_rid in adds.items():
+                if other_pid == pid:
+                    continue
+                other_send_rid = drops.get(other_pid)
+                other_to = roster_map.get((league_id, other_recv_rid), f"Roster {other_recv_rid}")
+                other_from = roster_map.get((league_id, other_send_rid), "?") if other_send_rid else "?"
+                other_name = player_names_map.get(other_pid, other_pid)
+
+                counter = TreeNode(
+                    asset_type="player",
+                    asset_name=other_name,
+                    player_id=other_pid,
+                    from_owner=other_from,
+                    to_owner=other_to,
+                    season=season,
+                    week=week,
+                    transaction_id=txn_id,
+                )
+                counter.children = _follow(other_pid, depth + 1)
+                node.children.append(counter)
+
+            # Draft picks in this trade
+            pick_rows = con.execute(
+                """
+                SELECT season, round, original_roster_id, from_roster_id, to_roster_id
+                FROM transaction_draft_picks WHERE transaction_id = ?
+                """,
+                (txn_id,),
+            ).fetchall()
+
+            for pick_season, round_, orig_rid, from_rid, to_rid in pick_rows:
+                orig_owner = roster_map.get((league_id, orig_rid), f"Roster {orig_rid}")
+                pick_from = roster_map.get((league_id, from_rid), f"Roster {from_rid}")
+                pick_to = roster_map.get((league_id, to_rid), f"Roster {to_rid}")
+                pick_label = f"{pick_season} R{round_} ({orig_owner})"
+
+                pick_node = TreeNode(
+                    asset_type="pick",
+                    asset_name=pick_label,
+                    player_id=None,
+                    from_owner=pick_from,
+                    to_owner=pick_to,
+                    season=season,
+                    week=week,
+                    transaction_id=txn_id,
+                )
+                # Link to players drafted by the receiving team in that round.
+                # draft_picks.roster_id = who actually made the pick (current owner).
+                candidates = pick_drafted.get((int(pick_season), int(round_), int(to_rid)), [])
+                for drafted_pid, drafted_name in candidates:
+                    draft_node = TreeNode(
+                        asset_type="draft",
+                        asset_name=drafted_name,
+                        player_id=drafted_pid,
+                        from_owner="Draft",
+                        to_owner=pick_to,
+                        season=int(pick_season),
+                        week=None,
+                        transaction_id=None,
+                    )
+                    draft_node.children = _follow(drafted_pid, depth + 1)
+                    pick_node.children.append(draft_node)
+                node.children.append(pick_node)
+
+            nodes.append(node)
+
+        return nodes
+
+    return player_full_name, _follow(player_id, depth=0)

@@ -27,6 +27,8 @@ from fantasy_analyzer.analysis.transactions import (
     get_owner_trade_stats,
     get_trade_partner_matrix,
     search_player_names,
+    build_deep_trade_tree,
+    TreeNode,
 )
 
 # ---------------------------------------------------------------------------
@@ -94,6 +96,10 @@ def load_owner_trade_stats():
 @st.cache_data
 def load_trade_partner_matrix():
     return get_trade_partner_matrix(get_db())
+
+@st.cache_data
+def load_deep_trade_tree(player_name: str):
+    return build_deep_trade_tree(get_db(), player_name)
 
 @st.cache_data
 def load_h2h(owner1: str, owner2: str) -> pd.DataFrame:
@@ -542,6 +548,71 @@ def page_h2h():
 
 
 # ---------------------------------------------------------------------------
+# Trade tree DOT renderer
+# ---------------------------------------------------------------------------
+
+def _trade_tree_dot(player_name: str, nodes: list[TreeNode]) -> str:
+    """Generate a Graphviz DOT string from trade tree nodes."""
+    _counter = [0]
+
+    def _id() -> str:
+        _counter[0] += 1
+        return f"n{_counter[0]}"
+
+    def _esc(s: str) -> str:
+        return s.replace("\\", "\\\\").replace('"', '\\"')
+
+    lines = [
+        "digraph {",
+        "  rankdir=LR;",
+        '  graph [bgcolor=transparent, fontname="Helvetica"];',
+        '  node [fontname="Helvetica", fontsize=10, margin="0.18,0.1"];',
+        '  edge [color="#666666", arrowsize=0.75];',
+    ]
+
+    root_id = _id()
+    lines.append(
+        f'  {root_id} [label="{_esc(player_name)}", shape=box, '
+        'style="filled,rounded", fillcolor="#1a472a", fontcolor=white, penwidth=2];'
+    )
+
+    def _render(node: TreeNode, parent_id: str) -> None:
+        nid = _id()
+        name = _esc(node.asset_name)
+        fr = _esc(node.from_owner)
+        to = _esc(node.to_owner)
+
+        if node.asset_type == "player":
+            label = f"S{node.season} Wk{node.week}\\n{fr} -> {to}\\n{name}"
+            fill = "#154360"
+        elif node.asset_type == "pick":
+            n_drafted = len(node.children)
+            label = f"{name}\\n{fr} -> {to}"
+            if n_drafted:
+                label += f"\\n({n_drafted} player(s) drafted)"
+            else:
+                label += "\\n(future / no data)"
+            fill = "#6e2c00"
+        else:  # draft
+            label = f"Drafted: {name}\\n{to} ({node.season})"
+            fill = "#7d5a00"
+
+        lines.append(
+            f'  {nid} [label="{label}", shape=box, style="filled,rounded", '
+            f'fillcolor="{fill}", fontcolor=white];'
+        )
+        lines.append(f"  {parent_id} -> {nid};")
+        for child in node.children:
+            _render(child, nid)
+
+    for node in nodes:
+        _render(node, root_id)
+
+    lines.append("}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Page: Trades
 # ---------------------------------------------------------------------------
 
@@ -588,8 +659,11 @@ def page_trades():
 
     # ---- Tab 2: Player Trade Tree ----
     with tab2:
-        st.markdown("Search for a player to see every team they passed through.")
-        query = st.text_input("Player name", placeholder="e.g. Davante Adams")
+        st.markdown(
+            "Search for a player to trace their full trade history — including every asset "
+            "exchanged in return, what picks were used to draft, and where those players ended up."
+        )
+        query = st.text_input("Player name", placeholder="e.g. Davante Adams", key="tree_query")
 
         if query and len(query) >= 2:
             suggestions = search_player_names(get_db(), query)
@@ -598,56 +672,66 @@ def page_trades():
             else:
                 selected_player = st.selectbox("Select player", suggestions)
                 if selected_player:
-                    full_name, stops = get_player_trade_history(get_db(), selected_player)
+                    full_name, trade_nodes = load_deep_trade_tree(selected_player)
 
-                    if not stops:
+                    if not trade_nodes:
                         st.info(f"{full_name} has no recorded trades.")
                     else:
-                        st.subheader(f"{full_name} — Trade History")
-                        st.caption(f"Traded {len(stops)} time(s)")
-
-                        # Timeline visualization
-                        fig = go.Figure()
-                        for i, stop in enumerate(stops):
-                            label = f"{stop.season} Wk{stop.week}"
-                            fig.add_annotation(
-                                x=i, y=0.5,
-                                text=f"<b>{stop.to_owner}</b><br><sub>{label}</sub>",
-                                showarrow=False,
-                                font=dict(size=13),
-                                bgcolor="#1a3a5c",
-                                bordercolor="#4a90d9",
-                                borderwidth=1,
-                                borderpad=6,
-                            )
-                            if i > 0:
-                                fig.add_annotation(
-                                    x=i - 0.5, y=0.5,
-                                    text=f"<sub>{stop.from_owner} →</sub>",
-                                    showarrow=False,
-                                    font=dict(size=10, color="#aaa"),
-                                )
-                        fig.update_layout(
-                            xaxis=dict(visible=False, range=[-0.5, len(stops) - 0.5]),
-                            yaxis=dict(visible=False, range=[0, 1]),
-                            height=160,
-                            margin=dict(l=20, r=20, t=20, b=20),
-                            plot_bgcolor="rgba(0,0,0,0)",
-                            paper_bgcolor="rgba(0,0,0,0)",
+                        st.subheader(f"{full_name} — Trade Tree")
+                        st.caption(
+                            f"Traded {len(trade_nodes)} time(s). "
+                            "Branches show counter-assets and their downstream fates."
                         )
-                        st.plotly_chart(fig, use_container_width=True)
 
-                        # Detail table
-                        detail_rows = [
-                            {
-                                "Season": s.season,
-                                "Week": s.week,
-                                "From": s.from_owner,
-                                "To": s.to_owner,
-                            }
-                            for s in stops
-                        ]
-                        st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
+                        dot = _trade_tree_dot(full_name, trade_nodes)
+                        st.graphviz_chart(dot, use_container_width=True)
+
+                        st.divider()
+                        st.subheader("Trade Details")
+
+                        for node in trade_nodes:
+                            header = (
+                                f"Season {node.season}, Week {node.week}: "
+                                f"{node.from_owner} traded {full_name} to {node.to_owner}"
+                            )
+                            with st.expander(header):
+                                if not node.children:
+                                    st.markdown("_(no counter-assets recorded)_")
+                                    continue
+                                st.markdown("**Received in return:**")
+                                for c in node.children:
+                                    if c.asset_type == "player":
+                                        line = f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
+                                        if c.children:
+                                            next_trade = c.children[0]
+                                            line += (
+                                                f" — later traded S{next_trade.season} "
+                                                f"Wk{next_trade.week}: "
+                                                f"{next_trade.from_owner} to {next_trade.to_owner}"
+                                            )
+                                        st.markdown(line)
+                                    elif c.asset_type == "pick":
+                                        drafted_names = [gc.asset_name for gc in c.children if gc.asset_type == "draft"]
+                                        if drafted_names:
+                                            drafted_str = ", ".join(f"**{n}**" for n in drafted_names)
+                                            line = (
+                                                f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
+                                                f" — {c.to_owner} drafted: {drafted_str}"
+                                            )
+                                            # Check if any of those players were later traded
+                                            for gc in c.children:
+                                                if gc.asset_type == "draft" and gc.children:
+                                                    follow = gc.children[0]
+                                                    line += (
+                                                        f" ({gc.asset_name} later traded "
+                                                        f"S{follow.season} Wk{follow.week})"
+                                                    )
+                                        else:
+                                            line = (
+                                                f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
+                                                f" — future pick / no draft data"
+                                            )
+                                        st.markdown(line)
 
     # ---- Tab 3: Owner Tendencies ----
     with tab3:
