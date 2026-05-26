@@ -1,0 +1,138 @@
+"""SQLite table definitions and schema migrations."""
+
+from __future__ import annotations
+
+import aiosqlite
+
+DDL = """
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+
+CREATE TABLE IF NOT EXISTS owners (
+    user_id         TEXT PRIMARY KEY,
+    canonical_name  TEXT NOT NULL,
+    sleeper_username TEXT
+);
+
+CREATE TABLE IF NOT EXISTS leagues (
+    league_id       TEXT PRIMARY KEY,
+    season          INTEGER NOT NULL,
+    name            TEXT,
+    status          TEXT,
+    total_rosters   INTEGER,
+    playoff_week_start INTEGER,
+    last_scored_leg INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS league_owners (
+    league_id   TEXT NOT NULL REFERENCES leagues(league_id),
+    user_id     TEXT NOT NULL REFERENCES owners(user_id),
+    roster_id   INTEGER NOT NULL,
+    team_name   TEXT,
+    PRIMARY KEY (league_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS matchups (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    league_id       TEXT NOT NULL REFERENCES leagues(league_id),
+    season          INTEGER NOT NULL,
+    week            INTEGER NOT NULL,
+    matchup_id      INTEGER NOT NULL,
+    roster_id       INTEGER NOT NULL,
+    user_id         TEXT REFERENCES owners(user_id),
+    points          REAL,
+    is_playoff      INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(league_id, week, roster_id)
+);
+
+CREATE TABLE IF NOT EXISTS season_records (
+    league_id   TEXT NOT NULL REFERENCES leagues(league_id),
+    user_id     TEXT NOT NULL REFERENCES owners(user_id),
+    season      INTEGER NOT NULL,
+    wins        INTEGER NOT NULL DEFAULT 0,
+    losses      INTEGER NOT NULL DEFAULT 0,
+    ties        INTEGER NOT NULL DEFAULT 0,
+    fpts        REAL NOT NULL DEFAULT 0,
+    fpts_against REAL NOT NULL DEFAULT 0,
+    made_playoffs INTEGER NOT NULL DEFAULT 0,
+    playoff_wins  INTEGER NOT NULL DEFAULT 0,
+    champion      INTEGER NOT NULL DEFAULT 0,
+    last_place    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (league_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+    transaction_id  TEXT PRIMARY KEY,
+    league_id       TEXT NOT NULL REFERENCES leagues(league_id),
+    season          INTEGER NOT NULL,
+    week            INTEGER,
+    type            TEXT NOT NULL,
+    status          TEXT,
+    created_epoch   INTEGER,
+    adds_json       TEXT,
+    drops_json      TEXT,
+    roster_ids_json TEXT,
+    waiver_budget_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS transaction_draft_picks (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_id      TEXT NOT NULL REFERENCES transactions(transaction_id),
+    season              INTEGER NOT NULL,
+    round               INTEGER NOT NULL,
+    original_roster_id  INTEGER NOT NULL,
+    from_roster_id      INTEGER NOT NULL,
+    to_roster_id        INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS trade_tree_edges (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_transaction_id TEXT REFERENCES transactions(transaction_id),
+    to_transaction_id   TEXT NOT NULL REFERENCES transactions(transaction_id),
+    asset_id            TEXT NOT NULL,
+    asset_type          TEXT NOT NULL  -- 'player' or 'pick'
+);
+
+CREATE TABLE IF NOT EXISTS drafts (
+    draft_id    TEXT PRIMARY KEY,
+    league_id   TEXT NOT NULL REFERENCES leagues(league_id),
+    season      INTEGER NOT NULL,
+    type        TEXT,
+    status      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS draft_picks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    draft_id    TEXT NOT NULL REFERENCES drafts(draft_id),
+    league_id   TEXT NOT NULL,
+    season      INTEGER NOT NULL,
+    round       INTEGER NOT NULL,
+    pick_no     INTEGER NOT NULL,
+    roster_id   INTEGER,
+    user_id     TEXT REFERENCES owners(user_id),
+    player_id   TEXT,
+    player_name TEXT,
+    UNIQUE(draft_id, pick_no)
+);
+
+CREATE TABLE IF NOT EXISTS players (
+    player_id   TEXT PRIMARY KEY,
+    full_name   TEXT,
+    position    TEXT,
+    team        TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_matchups_league_week ON matchups(league_id, week);
+CREATE INDEX IF NOT EXISTS idx_matchups_user ON matchups(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_league ON transactions(league_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_draft_picks_draft ON draft_picks(draft_id);
+CREATE INDEX IF NOT EXISTS idx_draft_picks_user ON draft_picks(user_id);
+"""
+
+
+async def init_db(db_path: str) -> None:
+    """Create all tables if they do not exist."""
+    async with aiosqlite.connect(db_path) as db:
+        await db.executescript(DDL)
+        await db.commit()

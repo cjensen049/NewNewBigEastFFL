@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets / local config
+.env
+*.local
+
+# Player cache (large, regenerated weekly)
+fantasy-analyzer/data/players.json
+
+# Keep the database (static deploy strategy)
+# fantasy-analyzer/data/league.db  <-- intentionally committed
+
+# Claude Code internal data
+.claude/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

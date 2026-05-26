@@ -1,0 +1,9 @@
+streamlit>=1.35
+httpx>=0.27
+aiosqlite>=0.20
+pandas>=2.2
+rich>=13.7
+pyyaml>=6.0
+pydantic>=2.7
+certifi>=2024.0
+plotly>=5.20

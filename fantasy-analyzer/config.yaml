@@ -1,0 +1,80 @@
+leagues:
+  - id: "1314316658872979456"
+    season: 2026
+    name: "NNBE 2026"
+  - id: "1182090817286635520"
+    season: 2025
+    name: "NNBE 2025"
+  - id: "1049028752438616064"
+    season: 2024
+    name: "NNBE 2024"
+  - id: "918166251111993344"
+    season: 2023
+    name: "NNBE 2023"
+  - id: "784433157503037440"
+    season: 2022
+    name: "NNBE 2022"
+  - id: "673580972368801792"
+    season: 2021
+    name: "NNBE 2021"
+
+owners:
+  - user_id: "689875084793438208"
+    canonical_name: "Andy"
+    sleeper_username: "AKaiser25"
+    active_through: 2026
+  - user_id: "686048277128359936"
+    canonical_name: "Chase"
+    sleeper_username: "DickOsgood"
+    active_through: 2026
+  - user_id: "685580600140185600"
+    canonical_name: "Eric"
+    sleeper_username: "Epatnode"
+    active_through: 2026
+  - user_id: "733163469704151040"
+    canonical_name: "John"
+    sleeper_username: "JWalsh883"
+    active_through: 2026
+  - user_id: "685556523568541696"
+    canonical_name: "Rick"
+    sleeper_username: "YOURGODKING"
+    active_through: 2026
+  - user_id: "685553516458106880"
+    canonical_name: "Chris"
+    sleeper_username: "chrisokeefe90"
+    active_through: 2026
+  - user_id: "459390418249838592"
+    canonical_name: "Jensen"
+    sleeper_username: "cjensen"
+    active_through: 2026
+  - user_id: "686282087371714560"
+    canonical_name: "Casey"
+    sleeper_username: "csefton21"
+    active_through: 2026
+  - user_id: "460621169834323968"
+    canonical_name: "Sean"
+    sleeper_username: "mccartsp12"
+    active_through: 2026
+  - user_id: "685564883013550080"
+    canonical_name: "Matt"
+    sleeper_username: "mjohn7wy"
+    active_through: 2026
+  - user_id: "685554560860790784"
+    canonical_name: "Turo"
+    sleeper_username: "mturo"
+    active_through: 2026
+  - user_id: "98448185739329536"
+    canonical_name: "Tom"
+    sleeper_username: "tomok1"
+    active_through: 2026
+  - user_id: "684860052317773824"
+    canonical_name: "Ian"
+    sleeper_username: "itblumenfeld"
+    active_through: 2025
+
+settings:
+  db_path: "data/league.db"
+  player_cache_path: "data/players.json"
+  player_cache_ttl_days: 7
+  api_delay_seconds: 0.5
+  log_level: "INFO"
