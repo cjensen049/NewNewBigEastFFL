@@ -117,6 +117,7 @@ class Transaction(BaseModel):
     drops: dict[str, int] | None = None  # player_id -> roster_id
     draft_picks: list[DraftPick] = Field(default_factory=list)
     waiver_budget: list[dict[str, Any]] = Field(default_factory=list)
+    settings: dict[str, Any] = Field(default_factory=dict)  # waiver_bid, priority, etc.
     leg: int | None = None  # week number
 
     @field_validator("draft_picks", mode="before")

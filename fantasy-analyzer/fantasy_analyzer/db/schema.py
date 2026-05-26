@@ -73,7 +73,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     adds_json       TEXT,
     drops_json      TEXT,
     roster_ids_json TEXT,
-    waiver_budget_json TEXT
+    waiver_budget_json TEXT,
+    waiver_bid_amount  INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS transaction_draft_picks (
@@ -180,3 +181,9 @@ async def apply_migrations(db_path: str) -> None:
             await db.commit()
         except Exception:
             pass  # index already exists
+
+        try:
+            await db.execute("ALTER TABLE transactions ADD COLUMN waiver_bid_amount INTEGER")
+            await db.commit()
+        except Exception:
+            pass  # column already exists

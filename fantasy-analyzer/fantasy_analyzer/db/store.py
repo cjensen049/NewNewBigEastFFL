@@ -220,6 +220,7 @@ async def upsert_transactions(
             json.dumps(t.drops) if t.drops else None,
             json.dumps(t.roster_ids),
             json.dumps(t.waiver_budget) if t.waiver_budget else None,
+            t.settings.get("waiver_bid") if t.settings else None,
         ))
 
         for pick in t.draft_picks:
@@ -245,10 +246,12 @@ async def upsert_transactions(
         """
         INSERT INTO transactions
             (transaction_id, league_id, season, week, type, status,
-             created_epoch, adds_json, drops_json, roster_ids_json, waiver_budget_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             created_epoch, adds_json, drops_json, roster_ids_json,
+             waiver_budget_json, waiver_bid_amount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(transaction_id) DO UPDATE SET
-            status = excluded.status
+            status            = excluded.status,
+            waiver_bid_amount = COALESCE(excluded.waiver_bid_amount, waiver_bid_amount)
         """,
         txn_rows,
     )

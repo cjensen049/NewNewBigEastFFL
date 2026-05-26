@@ -34,6 +34,10 @@ from fantasy_analyzer.analysis.transactions import (
     get_trade_partner_matrix,
     get_all_traded_players,
     build_deep_trade_tree,
+    get_faab_records,
+    get_player_add_drop_stats,
+    get_owner_waiver_activity,
+    get_owner_waiver_by_season,
     TreeNode,
 )
 
@@ -142,6 +146,22 @@ def load_nemesis_prey():
 @st.cache_data
 def load_championship_rosters():
     return get_championship_rosters(get_db())
+
+@st.cache_data
+def load_faab_records():
+    return get_faab_records(get_db())
+
+@st.cache_data
+def load_player_add_drop_stats():
+    return get_player_add_drop_stats(get_db())
+
+@st.cache_data
+def load_owner_waiver_activity():
+    return get_owner_waiver_activity(get_db())
+
+@st.cache_data
+def load_owner_waiver_by_season():
+    return get_owner_waiver_by_season(get_db())
 
 @st.cache_data
 def load_h2h(owner1: str, owner2: str) -> pd.DataFrame:
@@ -1046,6 +1066,141 @@ def page_rivalries():
 
 
 # ---------------------------------------------------------------------------
+# Page: Waivers
+# ---------------------------------------------------------------------------
+
+def page_waivers() -> None:
+    st.title("Waiver Wire & FAAB")
+    tab_faab, tab_players, tab_owners = st.tabs(["FAAB Records", "Player Activity", "Owner Activity"])
+
+    # ---- FAAB Records ----
+    with tab_faab:
+        rec = load_faab_records()
+
+        st.subheader("Biggest Single Waiver Claims")
+        st.caption("Top successful FAAB bids of all time. Each row is one winning claim.")
+
+        top_bids = rec["top_bids"]
+        if top_bids:
+            # Find max amount and show all ties at the top
+            max_bid = top_bids[0]["amount"]
+            top_n = 20
+            bid_rows = [
+                {
+                    "Player": b["player"],
+                    "Owner": b["owner"],
+                    "Season": b["season"],
+                    "Week": b["week"],
+                    "FAAB": f"${b['amount']}",
+                }
+                for b in top_bids[:top_n]
+            ]
+            st.dataframe(pd.DataFrame(bid_rows).set_index("Player"), use_container_width=True, height=400)
+
+        st.divider()
+
+        col_left, col_right = st.columns(2)
+
+        with col_left:
+            st.subheader("Most Total FAAB Won Per Player")
+            st.caption("Sum of all successful waiver bid amounts for each player across all owners and seasons.")
+            total_rows = [
+                {"Player": p["player"], "Total FAAB": f"${p['total_faab']}"}
+                for p in rec["top_total_spent"][:15]
+            ]
+            st.dataframe(pd.DataFrame(total_rows).set_index("Player"), use_container_width=True, height=430)
+
+        with col_right:
+            st.subheader("All-Time FAAB Spent by Owner")
+            st.caption("Total successful waiver bid dollars across all seasons.")
+            owner_rows = [
+                {
+                    "Owner": o["owner"],
+                    "FAAB Spent": f"${o['faab_spent']}",
+                    "Claims": o["claims"],
+                    "Avg Bid": f"${o['faab_spent'] // o['claims'] if o['claims'] else 0}",
+                }
+                for o in rec["owner_totals"]
+            ]
+            st.dataframe(pd.DataFrame(owner_rows).set_index("Owner"), use_container_width=True, height=430)
+
+    # ---- Player Activity ----
+    with tab_players:
+        add_drop_stats = load_player_add_drop_stats()
+
+        col_left, col_right = st.columns(2)
+
+        with col_left:
+            st.subheader("Revolving Door Players")
+            st.caption("Players with the most combined adds + drops — highest churn on the wire.")
+            revolving_rows = [
+                {
+                    "Player": p["player"],
+                    "Adds": p["adds"],
+                    "Drops": p["drops"],
+                    "Total Moves": p["total_moves"],
+                }
+                for p in add_drop_stats[:20]
+            ]
+            st.dataframe(pd.DataFrame(revolving_rows).set_index("Player"), use_container_width=True, height=580)
+
+        with col_right:
+            st.subheader("Most Added Players")
+            st.caption("Players claimed off waivers or added as free agents most often.")
+            most_added = sorted(add_drop_stats, key=lambda x: -x["adds"])
+            added_rows = [
+                {"Player": p["player"], "Adds": p["adds"], "Drops": p["drops"]}
+                for p in most_added[:20]
+            ]
+            st.dataframe(pd.DataFrame(added_rows).set_index("Player"), use_container_width=True, height=580)
+
+    # ---- Owner Activity ----
+    with tab_owners:
+        activity = load_owner_waiver_activity()
+
+        st.subheader("All-Time Waiver Wire Activity")
+        st.caption("Includes both FAAB waiver claims and free-agent (no-bid) adds.")
+
+        # Filter out John (placeholder) with no real activity
+        activity = [o for o in activity if o["total_adds"] > 0 and o["owner"] != "John"]
+
+        all_time_rows = [
+            {
+                "Owner": o["owner"],
+                "Total Adds": o["total_adds"],
+                "Waiver Claims": o["waiver_claims"],
+                "FA Adds": o["fa_adds"],
+                "Drops": o["drops"],
+                "FAAB Spent": f"${o['faab_spent']}",
+                "Failed Bids": o["waiver_failed"],
+                "Bid Win%": f"{o['success_rate']:.1%}",
+            }
+            for o in activity
+        ]
+        st.dataframe(pd.DataFrame(all_time_rows).set_index("Owner"), use_container_width=True, height=460)
+
+        st.divider()
+
+        st.subheader("Activity by Season")
+        seasons = sorted({r["season"] for r in load_owner_waiver_by_season()}, reverse=True)
+        selected_season = st.selectbox("Season", seasons, key="waiver_season")
+
+        season_data = [r for r in load_owner_waiver_by_season() if r["season"] == selected_season]
+        season_rows = [
+            {
+                "Owner": r["owner"],
+                "Waiver Claims": r["waiver_claims"],
+                "FA Adds": r["fa_adds"],
+                "Total Adds": r["waiver_claims"] + r["fa_adds"],
+                "Drops": r["drops"],
+                "FAAB Spent": f"${r['faab_spent']}",
+            }
+            for r in sorted(season_data, key=lambda x: -(x["waiver_claims"] + x["fa_adds"]))
+        ]
+        st.dataframe(pd.DataFrame(season_rows).set_index("Owner"), use_container_width=True, height=460)
+
+
+# ---------------------------------------------------------------------------
 # Navigation
 # ---------------------------------------------------------------------------
 
@@ -1056,6 +1211,7 @@ PAGES = {
     "Head-to-Head": page_h2h,
     "Rivalries": page_rivalries,
     "Trades": page_trades,
+    "Waivers": page_waivers,
 }
 
 with st.sidebar:

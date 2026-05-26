@@ -348,6 +348,233 @@ def get_owner_trade_stats(con: sqlite3.Connection) -> list[OwnerTradeStats]:
 
 
 # ---------------------------------------------------------------------------
+# Waiver wire / FAAB analysis
+# ---------------------------------------------------------------------------
+
+def get_faab_records(con: sqlite3.Connection) -> dict:
+    """
+    Return FAAB-related records across all seasons.
+
+    Keys:
+        top_bids        — list of dicts for successful bids, desc by amount
+        top_total_spent — per-player total FAAB won across all claims
+        owner_totals    — per-owner all-time FAAB spent and claim counts
+    """
+    roster_map = _roster_to_owner(con)
+    player_names_map = _player_names(con)
+
+    rows = con.execute(
+        """
+        SELECT league_id, season, week, status, adds_json, roster_ids_json, waiver_bid_amount
+        FROM transactions
+        WHERE type = 'waiver' AND waiver_bid_amount IS NOT NULL AND waiver_bid_amount > 0
+        ORDER BY waiver_bid_amount DESC
+        """
+    ).fetchall()
+
+    top_bids: list[dict] = []
+    player_total: dict[str, int] = {}
+    owner_faab: dict[str, int] = {}
+    owner_claims: dict[str, int] = {}
+
+    for league_id, season, week, status, adds_raw, rids_raw, bid in rows:
+        adds = json.loads(adds_raw) if adds_raw else {}
+        rids = json.loads(rids_raw) if rids_raw else []
+        owner = roster_map.get((league_id, rids[0])) if rids else None
+
+        for pid in adds:
+            name = player_names_map.get(pid, pid)
+            if status == "complete":
+                top_bids.append({
+                    "player": name,
+                    "owner": owner or "?",
+                    "season": season,
+                    "week": week,
+                    "amount": bid,
+                })
+                player_total[name] = player_total.get(name, 0) + bid
+                if owner:
+                    owner_faab[owner] = owner_faab.get(owner, 0) + bid
+                    owner_claims[owner] = owner_claims.get(owner, 0) + 1
+
+    owner_totals = [
+        {"owner": o, "faab_spent": owner_faab.get(o, 0), "claims": owner_claims.get(o, 0)}
+        for o in sorted(owner_faab, key=lambda x: -owner_faab[x])
+    ]
+
+    top_total_spent = sorted(
+        [{"player": p, "total_faab": v} for p, v in player_total.items()],
+        key=lambda x: -x["total_faab"],
+    )
+
+    return {
+        "top_bids": top_bids,
+        "top_total_spent": top_total_spent,
+        "owner_totals": owner_totals,
+    }
+
+
+def get_player_add_drop_stats(con: sqlite3.Connection) -> list[dict]:
+    """
+    Return per-player add/drop counts across all waiver and free-agent transactions.
+    Sorted by total activity (adds + drops) descending.
+    """
+    player_names_map = _player_names(con)
+
+    add_counts: dict[str, int] = {}
+    drop_counts: dict[str, int] = {}
+
+    for adds_raw, drops_raw in con.execute(
+        """
+        SELECT adds_json, drops_json FROM transactions
+        WHERE type IN ('waiver', 'free_agent') AND status = 'complete'
+        """
+    ).fetchall():
+        for pid in (json.loads(adds_raw) if adds_raw else {}):
+            add_counts[pid] = add_counts.get(pid, 0) + 1
+        for pid in (json.loads(drops_raw) if drops_raw else {}):
+            drop_counts[pid] = drop_counts.get(pid, 0) + 1
+
+    all_pids = set(add_counts) | set(drop_counts)
+    rows = []
+    for pid in all_pids:
+        name = player_names_map.get(pid, pid)
+        adds = add_counts.get(pid, 0)
+        drops = drop_counts.get(pid, 0)
+        rows.append({
+            "player": name,
+            "adds": adds,
+            "drops": drops,
+            "total_moves": adds + drops,
+        })
+
+    return sorted(rows, key=lambda x: -x["total_moves"])
+
+
+def get_owner_waiver_activity(con: sqlite3.Connection) -> list[dict]:
+    """
+    Per-owner waiver wire summary: claims, FA adds, drops, FAAB spent, success rate.
+    """
+    roster_map = _roster_to_owner(con)
+
+    stats: dict[str, dict] = {}
+
+    def _s(owner: str) -> dict:
+        if owner not in stats:
+            stats[owner] = {
+                "owner": owner,
+                "waiver_claims": 0,
+                "waiver_failed": 0,
+                "fa_adds": 0,
+                "drops": 0,
+                "faab_spent": 0,
+            }
+        return stats[owner]
+
+    for league_id, txn_type, status, adds_raw, drops_raw, rids_raw, bid in con.execute(
+        """
+        SELECT league_id, type, status, adds_json, drops_json, roster_ids_json, waiver_bid_amount
+        FROM transactions
+        WHERE type IN ('waiver', 'free_agent')
+        """
+    ).fetchall():
+        rids = json.loads(rids_raw) if rids_raw else []
+        owner = roster_map.get((league_id, rids[0])) if rids else None
+        if not owner:
+            # Try inferring from adds/drops
+            adds = json.loads(adds_raw) if adds_raw else {}
+            drops = json.loads(drops_raw) if drops_raw else {}
+            for pid, rid in {**adds, **drops}.items():
+                owner = roster_map.get((league_id, rid))
+                if owner:
+                    break
+        if not owner:
+            continue
+
+        s = _s(owner)
+        adds = json.loads(adds_raw) if adds_raw else {}
+        drops = json.loads(drops_raw) if drops_raw else {}
+
+        if txn_type == "waiver":
+            if status == "complete":
+                s["waiver_claims"] += 1
+                if bid:
+                    s["faab_spent"] += bid
+            else:
+                s["waiver_failed"] += 1
+        else:  # free_agent
+            if status == "complete":
+                s["fa_adds"] += 1
+
+        if status == "complete":
+            s["drops"] += len(drops)
+
+    result = []
+    for s in stats.values():
+        total_bids = s["waiver_claims"] + s["waiver_failed"]
+        s["success_rate"] = s["waiver_claims"] / total_bids if total_bids else 0.0
+        s["total_adds"] = s["waiver_claims"] + s["fa_adds"]
+        result.append(s)
+
+    return sorted(result, key=lambda x: -x["total_adds"])
+
+
+def get_owner_waiver_by_season(con: sqlite3.Connection) -> list[dict]:
+    """
+    Per-owner per-season waiver wire counts: claims, FA adds, drops, FAAB spent.
+    """
+    roster_map = _roster_to_owner(con)
+
+    stats: dict[tuple[str, int], dict] = {}
+
+    def _s(owner: str, season: int) -> dict:
+        key = (owner, season)
+        if key not in stats:
+            stats[key] = {
+                "owner": owner,
+                "season": season,
+                "waiver_claims": 0,
+                "fa_adds": 0,
+                "drops": 0,
+                "faab_spent": 0,
+            }
+        return stats[key]
+
+    for league_id, season, txn_type, status, adds_raw, drops_raw, rids_raw, bid in con.execute(
+        """
+        SELECT league_id, season, type, status, adds_json, drops_json, roster_ids_json, waiver_bid_amount
+        FROM transactions
+        WHERE type IN ('waiver', 'free_agent') AND status = 'complete'
+        """
+    ).fetchall():
+        rids = json.loads(rids_raw) if rids_raw else []
+        owner = roster_map.get((league_id, rids[0])) if rids else None
+        if not owner:
+            adds = json.loads(adds_raw) if adds_raw else {}
+            drops = json.loads(drops_raw) if drops_raw else {}
+            for pid, rid in {**adds, **drops}.items():
+                owner = roster_map.get((league_id, rid))
+                if owner:
+                    break
+        if not owner:
+            continue
+
+        s = _s(owner, season)
+        drops = json.loads(drops_raw) if drops_raw else {}
+
+        if txn_type == "waiver":
+            s["waiver_claims"] += 1
+            if bid:
+                s["faab_spent"] += bid
+        else:
+            s["fa_adds"] += 1
+
+        s["drops"] += len(drops)
+
+    return sorted(stats.values(), key=lambda x: (x["season"], x["owner"]))
+
+
+# ---------------------------------------------------------------------------
 # Trade partner matrix
 # ---------------------------------------------------------------------------
 
