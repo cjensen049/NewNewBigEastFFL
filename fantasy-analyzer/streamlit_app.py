@@ -902,8 +902,35 @@ def page_trades():
 # Page: Rivalries
 # ---------------------------------------------------------------------------
 
-def _matrix_df() -> pd.DataFrame:
-    """Build the 12x12 W-L matrix DataFrame."""
+def _cell_color(val: str) -> str:
+    """Return CSS background+text color for a W-L cell string."""
+    if val == "—" or not val:
+        return ""
+    try:
+        w, l = map(int, val.split("-"))
+        total = w + l
+        if total == 0:
+            return ""
+        pct = w / total
+        if pct == 1.0:
+            return "background-color: #1b5e20; color: white; font-weight: bold"
+        if pct >= 0.70:
+            return "background-color: #388e3c; color: white"
+        if pct >= 0.55:
+            return "background-color: #81c784; color: black"
+        if pct == 0.50:
+            return "background-color: #fff9c4; color: black"
+        if pct >= 0.35:
+            return "background-color: #e57373; color: white"
+        if pct > 0.0:
+            return "background-color: #c62828; color: white"
+        return "background-color: #7f0000; color: white; font-weight: bold"
+    except Exception:
+        return ""
+
+
+def _matrix_df():
+    """Build the styled 12x12 W-L matrix."""
     matrix = load_h2h_matrix()
     owners = sorted(load_owners())
     grid = {}
@@ -918,7 +945,10 @@ def _matrix_df() -> pd.DataFrame:
                 grid[row][col] = f"{w}-{l}"
     df = pd.DataFrame(grid).T
     df.index.name = "Owner \\ Opp"
-    return df
+    try:
+        return df.style.map(_cell_color)
+    except AttributeError:
+        return df.style.applymap(_cell_color)  # pandas < 2.1
 
 
 def page_rivalries():
