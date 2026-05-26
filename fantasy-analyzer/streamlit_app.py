@@ -23,10 +23,9 @@ from fantasy_analyzer.analysis.history import (
 )
 from fantasy_analyzer.analysis.transactions import (
     get_trade_log,
-    get_player_trade_history,
     get_owner_trade_stats,
     get_trade_partner_matrix,
-    search_player_names,
+    get_all_traded_players,
     build_deep_trade_tree,
     TreeNode,
 )
@@ -96,6 +95,10 @@ def load_owner_trade_stats():
 @st.cache_data
 def load_trade_partner_matrix():
     return get_trade_partner_matrix(get_db())
+
+@st.cache_data
+def load_all_traded_players() -> list[str]:
+    return get_all_traded_players(get_db())
 
 @st.cache_data
 def load_deep_trade_tree(player_name: str):
@@ -660,78 +663,74 @@ def page_trades():
     # ---- Tab 2: Player Trade Tree ----
     with tab2:
         st.markdown(
-            "Search for a player to trace their full trade history — including every asset "
+            "Select a player to trace their full trade history — including every asset "
             "exchanged in return, what picks were used to draft, and where those players ended up."
         )
-        query = st.text_input("Player name", placeholder="e.g. Davante Adams", key="tree_query")
+        all_traded = load_all_traded_players()
+        selected_player = st.selectbox(
+            "Player", [""] + all_traded, format_func=lambda x: "Select a player..." if x == "" else x
+        )
 
-        if query and len(query) >= 2:
-            suggestions = search_player_names(get_db(), query)
-            if not suggestions:
-                st.warning("No traded players found matching that name.")
+        if selected_player:
+            full_name, trade_nodes = load_deep_trade_tree(selected_player)
+
+            if not trade_nodes:
+                st.info(f"{full_name} has no recorded trades.")
             else:
-                selected_player = st.selectbox("Select player", suggestions)
-                if selected_player:
-                    full_name, trade_nodes = load_deep_trade_tree(selected_player)
+                st.subheader(f"{full_name} — Trade Tree")
+                st.caption(
+                    f"Traded {len(trade_nodes)} time(s). "
+                    "Branches show counter-assets and their downstream fates."
+                )
 
-                    if not trade_nodes:
-                        st.info(f"{full_name} has no recorded trades.")
-                    else:
-                        st.subheader(f"{full_name} — Trade Tree")
-                        st.caption(
-                            f"Traded {len(trade_nodes)} time(s). "
-                            "Branches show counter-assets and their downstream fates."
-                        )
+                dot = _trade_tree_dot(full_name, trade_nodes)
+                st.graphviz_chart(dot, use_container_width=True)
 
-                        dot = _trade_tree_dot(full_name, trade_nodes)
-                        st.graphviz_chart(dot, use_container_width=True)
+                st.divider()
+                st.subheader("Trade Details")
 
-                        st.divider()
-                        st.subheader("Trade Details")
-
-                        for node in trade_nodes:
-                            header = (
-                                f"Season {node.season}, Week {node.week}: "
-                                f"{node.from_owner} traded {full_name} to {node.to_owner}"
-                            )
-                            with st.expander(header):
-                                if not node.children:
-                                    st.markdown("_(no counter-assets recorded)_")
-                                    continue
-                                st.markdown("**Received in return:**")
-                                for c in node.children:
-                                    if c.asset_type == "player":
-                                        line = f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
-                                        if c.children:
-                                            next_trade = c.children[0]
+                for node in trade_nodes:
+                    header = (
+                        f"Season {node.season}, Week {node.week}: "
+                        f"{node.from_owner} traded {full_name} to {node.to_owner}"
+                    )
+                    with st.expander(header):
+                        if not node.children:
+                            st.markdown("_(no counter-assets recorded)_")
+                            continue
+                        st.markdown("**Received in return:**")
+                        for c in node.children:
+                            if c.asset_type == "player":
+                                line = f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
+                                if c.children:
+                                    next_trade = c.children[0]
+                                    line += (
+                                        f" — later traded S{next_trade.season} "
+                                        f"Wk{next_trade.week}: "
+                                        f"{next_trade.from_owner} to {next_trade.to_owner}"
+                                    )
+                                st.markdown(line)
+                            elif c.asset_type == "pick":
+                                drafted_names = [gc.asset_name for gc in c.children if gc.asset_type == "draft"]
+                                if drafted_names:
+                                    drafted_str = ", ".join(f"**{n}**" for n in drafted_names)
+                                    line = (
+                                        f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
+                                        f" — {c.to_owner} drafted: {drafted_str}"
+                                    )
+                                    for gc in c.children:
+                                        if gc.asset_type == "draft" and gc.children:
+                                            follow = gc.children[0]
                                             line += (
-                                                f" — later traded S{next_trade.season} "
-                                                f"Wk{next_trade.week}: "
-                                                f"{next_trade.from_owner} to {next_trade.to_owner}"
+                                                f" ({gc.asset_name} later traded "
+                                                f"S{follow.season} Wk{follow.week})"
                                             )
-                                        st.markdown(line)
-                                    elif c.asset_type == "pick":
-                                        drafted_names = [gc.asset_name for gc in c.children if gc.asset_type == "draft"]
-                                        if drafted_names:
-                                            drafted_str = ", ".join(f"**{n}**" for n in drafted_names)
-                                            line = (
-                                                f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
-                                                f" — {c.to_owner} drafted: {drafted_str}"
-                                            )
-                                            # Check if any of those players were later traded
-                                            for gc in c.children:
-                                                if gc.asset_type == "draft" and gc.children:
-                                                    follow = gc.children[0]
-                                                    line += (
-                                                        f" ({gc.asset_name} later traded "
-                                                        f"S{follow.season} Wk{follow.week})"
-                                                    )
-                                        else:
-                                            line = (
-                                                f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
-                                                f" — future pick / no draft data"
-                                            )
-                                        st.markdown(line)
+                                else:
+                                    line = (
+                                        f"- **{c.asset_name}** ({c.from_owner} to {c.to_owner})"
+                                        f" — future pick / no draft data"
+                                    )
+                                st.markdown(line)
 
     # ---- Tab 3: Owner Tendencies ----
     with tab3:

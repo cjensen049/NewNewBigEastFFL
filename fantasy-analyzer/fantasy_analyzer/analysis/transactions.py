@@ -225,6 +225,25 @@ def search_player_names(con: sqlite3.Connection, query: str) -> list[str]:
     return [r[0] for r in rows]
 
 
+def get_all_traded_players(con: sqlite3.Connection) -> list[str]:
+    """Return all player names who appear in at least one trade, sorted alphabetically."""
+    rows = con.execute(
+        """
+        SELECT DISTINCT p.full_name
+        FROM players p
+        WHERE p.full_name IS NOT NULL
+          AND EXISTS (
+              SELECT 1 FROM transactions t
+              WHERE t.type = 'trade'
+                AND (t.adds_json LIKE '%"' || p.player_id || '"%'
+                     OR t.drops_json LIKE '%"' || p.player_id || '"%')
+          )
+        ORDER BY p.full_name
+        """
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
 # ---------------------------------------------------------------------------
 # Owner trade tendencies
 # ---------------------------------------------------------------------------
