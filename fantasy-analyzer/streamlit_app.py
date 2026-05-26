@@ -27,6 +27,7 @@ from fantasy_analyzer.analysis.history import (
     get_h2h_matrix,
     get_championship_rosters,
 )
+from fantasy_analyzer.analysis.rivalries import get_rivalry_pairs, get_nemesis_prey
 from fantasy_analyzer.analysis.transactions import (
     get_trade_log,
     get_owner_trade_stats,
@@ -129,6 +130,14 @@ def load_playoff_records():
 @st.cache_data
 def load_h2h_matrix():
     return get_h2h_matrix(get_db())
+
+@st.cache_data
+def load_rivalry_pairs():
+    return get_rivalry_pairs(get_db())
+
+@st.cache_data
+def load_nemesis_prey():
+    return get_nemesis_prey(get_db())
 
 @st.cache_data
 def load_championship_rosters():
@@ -562,7 +571,7 @@ def page_season():
 def page_h2h():
     st.title("Head-to-Head")
 
-    tab_lookup, tab_matrix, tab_playoff = st.tabs(["Matchup Lookup", "Full Matrix", "Playoff Records"])
+    tab_lookup, tab_playoff = st.tabs(["Matchup Lookup", "Playoff Records"])
 
     # ---- Matchup Lookup ----
     with tab_lookup:
@@ -618,28 +627,6 @@ def page_h2h():
                     else (owner2 if r[pts2_col] > r[pts1_col] else "Tie"), axis=1,
                 )
                 st.dataframe(log.set_index("Season"), use_container_width=True, height=420)
-
-    # ---- Full Matrix ----
-    with tab_matrix:
-        st.subheader("All-Time Regular Season Head-to-Head (W-L)")
-        st.caption("Read row vs column: e.g. row Chase / col Matt = Chase's record against Matt.")
-        matrix = load_h2h_matrix()
-        all_owners_m = sorted(load_owners())
-
-        grid_data = {}
-        for row_owner in all_owners_m:
-            grid_data[row_owner] = {}
-            for col_owner in all_owners_m:
-                if row_owner == col_owner:
-                    grid_data[row_owner][col_owner] = "—"
-                else:
-                    w = matrix.get((row_owner, col_owner), 0)
-                    l = matrix.get((col_owner, row_owner), 0)
-                    grid_data[row_owner][col_owner] = f"{w}-{l}"
-
-        df_matrix = pd.DataFrame(grid_data).T
-        df_matrix.index.name = "Owner \\ Opp"
-        st.dataframe(df_matrix, use_container_width=True, height=460)
 
     # ---- Playoff Records ----
     with tab_playoff:
@@ -912,6 +899,123 @@ def page_trades():
 
 
 # ---------------------------------------------------------------------------
+# Page: Rivalries
+# ---------------------------------------------------------------------------
+
+def _matrix_df() -> pd.DataFrame:
+    """Build the 12x12 W-L matrix DataFrame."""
+    matrix = load_h2h_matrix()
+    owners = sorted(load_owners())
+    grid = {}
+    for row in owners:
+        grid[row] = {}
+        for col in owners:
+            if row == col:
+                grid[row][col] = "—"
+            else:
+                w = matrix.get((row, col), 0)
+                l = matrix.get((col, row), 0)
+                grid[row][col] = f"{w}-{l}"
+    df = pd.DataFrame(grid).T
+    df.index.name = "Owner \\ Opp"
+    return df
+
+
+def page_rivalries():
+    st.title("Rivalries")
+
+    tab_overview, tab_nemesis, tab_matrix = st.tabs(["Overview", "Nemesis & Prey", "Full Matrix"])
+
+    # ---- Overview ----
+    with tab_overview:
+        pairs = load_rivalry_pairs()
+        total_games = sum(p.total_games for p in pairs)
+        st.caption(f"{total_games} regular-season matchups across {len(pairs)} unique pairings")
+
+        col_left, col_right = st.columns(2)
+
+        with col_left:
+            st.subheader("Top Rivalries")
+            st.caption("Most games played with the closest records.")
+            rivalry_rows = [
+                {
+                    "Matchup": f"{p.owner_a} vs {p.owner_b}",
+                    "Record": f"{p.a_wins}-{p.b_wins}",
+                    "Games": p.total_games,
+                    "Leader": p.leader() or "Tied",
+                }
+                for p in pairs[:10]
+            ]
+            st.dataframe(pd.DataFrame(rivalry_rows).set_index("Matchup"), use_container_width=True, height=400)
+
+        with col_right:
+            st.subheader("Most Lopsided")
+            st.caption("Biggest mismatches (min 4 games).")
+            lopsided = sorted(
+                [p for p in pairs if p.total_games >= 4],
+                key=lambda p: (-p.balance, -p.total_games),
+            )
+            lopsided_rows = []
+            for p in lopsided[:10]:
+                ldr = p.leader()
+                opp = p.opponent_of(ldr) if ldr else p.owner_b
+                lopsided_rows.append({
+                    "Matchup": f"{p.owner_a} vs {p.owner_b}",
+                    "Record": f"{p.a_wins}-{p.b_wins}",
+                    "Games": p.total_games,
+                    "Dominant": ldr or "—",
+                })
+            st.dataframe(pd.DataFrame(lopsided_rows).set_index("Matchup"), use_container_width=True, height=400)
+
+    # ---- Nemesis & Prey ----
+    with tab_nemesis:
+        nemesis_data = load_nemesis_prey()
+
+        st.subheader("League-Wide Nemesis & Prey")
+        st.caption("Nemesis = opponent with your worst record (min 2 games). Prey = opponent with your best record.")
+        summary_rows = [
+            {
+                "Owner": r["owner"],
+                "Nemesis": r["nemesis"],
+                "vs Nemesis": r["nemesis_record"],
+                "Prey": r["prey"],
+                "vs Prey": r["prey_record"],
+            }
+            for r in nemesis_data
+        ]
+        st.dataframe(pd.DataFrame(summary_rows).set_index("Owner"), use_container_width=True, height=460)
+
+        st.divider()
+
+        st.subheader("Owner Deep Dive")
+        selected = st.selectbox(
+            "Select owner", [r["owner"] for r in nemesis_data], key="rivalry_owner"
+        )
+        if selected:
+            pairs = load_rivalry_pairs()
+            owner_pairs = [p for p in pairs if selected in (p.owner_a, p.owner_b)]
+            detail_rows = sorted(
+                [
+                    {
+                        "Opponent": p.opponent_of(selected),
+                        "Record": p.record_for(selected),
+                        "Win%": f"{p.win_pct_for(selected):.1%}",
+                        "Games": p.total_games,
+                    }
+                    for p in owner_pairs
+                ],
+                key=lambda r: float(r["Win%"].strip("%")),
+            )
+            st.dataframe(pd.DataFrame(detail_rows).set_index("Opponent"), use_container_width=True, height=460)
+
+    # ---- Full Matrix ----
+    with tab_matrix:
+        st.subheader("All-Time Regular Season Head-to-Head (W-L)")
+        st.caption("Read row vs column: row owner's record against column opponent.")
+        st.dataframe(_matrix_df(), use_container_width=True, height=460)
+
+
+# ---------------------------------------------------------------------------
 # Navigation
 # ---------------------------------------------------------------------------
 
@@ -920,6 +1024,7 @@ PAGES = {
     "Owner Profile": page_owner_profile,
     "Season Standings": page_season,
     "Head-to-Head": page_h2h,
+    "Rivalries": page_rivalries,
     "Trades": page_trades,
 }
 
