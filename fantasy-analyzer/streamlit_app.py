@@ -20,6 +20,12 @@ from fantasy_analyzer.analysis.history import (
     get_all_time_standings,
     get_available_seasons,
     get_season_breakdown,
+    get_standings_history,
+    get_weekly_scoring_extremes,
+    get_league_records,
+    get_playoff_records,
+    get_h2h_matrix,
+    get_championship_rosters,
 )
 from fantasy_analyzer.analysis.transactions import (
     get_trade_log,
@@ -105,6 +111,30 @@ def load_deep_trade_tree(player_name: str):
     return build_deep_trade_tree(get_db(), player_name)
 
 @st.cache_data
+def load_standings_history():
+    return get_standings_history(get_db())
+
+@st.cache_data
+def load_weekly_scoring_extremes():
+    return get_weekly_scoring_extremes(get_db())
+
+@st.cache_data
+def load_league_records():
+    return get_league_records(get_db())
+
+@st.cache_data
+def load_playoff_records():
+    return get_playoff_records(get_db())
+
+@st.cache_data
+def load_h2h_matrix():
+    return get_h2h_matrix(get_db())
+
+@st.cache_data
+def load_championship_rosters():
+    return get_championship_rosters(get_db())
+
+@st.cache_data
 def load_h2h(owner1: str, owner2: str) -> pd.DataFrame:
     """Return all regular-season matchups between two owners."""
     con = get_db()
@@ -162,79 +192,104 @@ def page_overview():
     st.title("NNBE League History")
     st.caption("The New New Big East — 2021 through 2025")
 
-    records = load_all_time_standings()
-    seasons = load_available_seasons()
+    tab_standings, tab_records, tab_weekly, tab_champs = st.tabs(
+        ["Standings", "Records", "Weekly Scoring", "Champions"]
+    )
 
-    # --- All-time standings table ---
-    st.subheader("All-Time Standings")
+    # ---- Standings ----
+    with tab_standings:
+        records = load_all_time_standings()
+        rows = []
+        for rank, r in enumerate(records, 1):
+            rows.append({
+                "Rank": rank,
+                "Owner": r.canonical_name,
+                "Seasons": r.seasons,
+                "W-L": f"{r.reg_wins}-{r.reg_losses}" + (f"-{r.reg_ties}" if r.reg_ties else ""),
+                "Win%": f"{r.win_pct:.1%}",
+                "Total Pts": f"{r.total_points:,.1f}",
+                "PPG": f"{r.ppg:.1f}",
+                "Playoffs": f"{r.playoff_appearances}/{r.seasons}",
+                "Titles": r.championships if r.championships else "",
+                "Lasts": r.last_place_finishes if r.last_place_finishes else "",
+            })
+        st.dataframe(pd.DataFrame(rows).set_index("Rank"), use_container_width=True, height=460)
 
-    rows = []
-    for rank, r in enumerate(records, 1):
-        rows.append({
-            "Rank": rank,
-            "Owner": r.canonical_name,
-            "Seasons": r.seasons,
-            "W-L": f"{r.reg_wins}-{r.reg_losses}" + (f"-{r.reg_ties}" if r.reg_ties else ""),
-            "Win%": f"{r.win_pct:.1%}",
-            "Total Pts": f"{r.total_points:,.1f}",
-            "PPG": f"{r.ppg:.1f}",
-            "Playoffs": f"{r.playoff_appearances}/{r.seasons}",
-            "Titles": r.championships if r.championships else "",
-            "Lasts": r.last_place_finishes if r.last_place_finishes else "",
-        })
-
-    df = pd.DataFrame(rows).set_index("Rank")
-    st.dataframe(df, use_container_width=True, height=460)
-
-    st.divider()
-
-    # --- Season champions grid ---
-    st.subheader("Season-by-Season Results")
-
-    con = get_db()
-    all_seasons_data = get_all_seasons(con)
-
-    champ_rows = []
-    for s in all_seasons_data:
-        results = compute_playoff_results(
-            con, s["league_id"], s["season"],
-            s["playoff_week_start"], s["last_week"]
+        st.divider()
+        st.subheader("All-Time Win Percentage")
+        fig = go.Figure(go.Bar(
+            x=[r.canonical_name for r in records],
+            y=[round(r.win_pct * 100, 1) for r in records],
+            marker_color=["#FFD700" if r.championships else "#4a90d9" for r in records],
+            text=[f"{r.win_pct:.1%}" for r in records],
+            textposition="outside",
+        ))
+        fig.update_layout(
+            yaxis_title="Win %", yaxis_range=[0, 100],
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+            margin=dict(t=20, b=20), height=350,
         )
-        fmap = {r.finish: r.canonical_name for r in results if r.finish}
-        champ_rows.append({
-            "Season": s["season"],
-            "Champion": fmap.get(1, "-"),
-            "Runner-up": fmap.get(2, "-"),
-            "3rd Place": fmap.get(3, "-"),
-            "Last Place": fmap.get(12, "-"),
-        })
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.dataframe(
-        pd.DataFrame(champ_rows).set_index("Season"),
-        use_container_width=True,
-        height=220,
-    )
+    # ---- Records ----
+    with tab_records:
+        league_recs = load_league_records()
+        df_recs = pd.DataFrame(league_recs).set_index("Category")
+        st.dataframe(df_recs, use_container_width=True, height=560)
 
-    st.divider()
+    # ---- Weekly Scoring ----
+    with tab_weekly:
+        extremes = load_weekly_scoring_extremes()
 
-    # --- Win% bar chart ---
-    st.subheader("All-Time Win Percentage")
-    fig = go.Figure(go.Bar(
-        x=[r.canonical_name for r in records],
-        y=[round(r.win_pct * 100, 1) for r in records],
-        marker_color=["#FFD700" if r.championships else "#4a90d9" for r in records],
-        text=[f"{r.win_pct:.1%}" for r in records],
-        textposition="outside",
-    ))
-    fig.update_layout(
-        yaxis_title="Win %",
-        yaxis_range=[0, 100],
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=20, b=20),
-        height=350,
-    )
-    st.plotly_chart(fig, use_container_width=True)
+        col_top, col_bot = st.columns(2)
+        with col_top:
+            st.subheader("Top 10 Single-Week Scores")
+            df_top = pd.DataFrame(extremes["top"]).set_index("Rank")
+            df_top["Score"] = df_top["Score"].map(lambda x: f"{x:.2f}")
+            st.dataframe(df_top, use_container_width=True, height=400)
+
+        with col_bot:
+            st.subheader("Bottom 10 Single-Week Scores")
+            df_bot = pd.DataFrame(extremes["bottom"]).set_index("Rank")
+            df_bot["Score"] = df_bot["Score"].map(lambda x: f"{x:.2f}")
+            st.dataframe(df_bot, use_container_width=True, height=400)
+
+        st.divider()
+        st.subheader("Weekly High / Low Score Counts (Regular Season)")
+        all_owners = sorted(set(extremes["high_counts"]) | set(extremes["low_counts"]))
+        count_rows = [
+            {
+                "Owner": o,
+                "High Score Weeks": extremes["high_counts"].get(o, 0),
+                "Low Score Weeks": extremes["low_counts"].get(o, 0),
+            }
+            for o in sorted(all_owners, key=lambda o: -extremes["high_counts"].get(o, 0))
+        ]
+        st.dataframe(pd.DataFrame(count_rows).set_index("Owner"), use_container_width=True, height=460)
+
+    # ---- Champions ----
+    with tab_champs:
+        champ_data = load_championship_rosters()
+
+        for cr in reversed(champ_data):
+            score_str = ""
+            if cr["champ_score"] and cr["ru_score"]:
+                score_str = f" ({cr['champ_score']:.2f} – {cr['ru_score']:.2f})"
+            with st.expander(f"**{cr['season']} Champion: {cr['champion']}**{score_str}", expanded=True):
+                st.markdown(f"Runner-up: **{cr['runner_up']}**")
+                if cr["starters"]:
+                    st.markdown("**Championship Starting Lineup:**")
+                    pos_order = ["QB", "RB", "WR", "TE", "K", "DEF", "FLEX", "SUPER_FLEX", "BN"]
+                    starters_sorted = sorted(
+                        cr["starters"],
+                        key=lambda p: pos_order.index(p["position"]) if p["position"] in pos_order else 99
+                    )
+                    starter_df = pd.DataFrame(starters_sorted).rename(
+                        columns={"position": "Pos", "player": "Player"}
+                    )
+                    st.dataframe(starter_df.set_index("Pos"), use_container_width=True, hide_index=False)
+                else:
+                    st.caption("Starting lineup data not available.")
 
 
 # ---------------------------------------------------------------------------
@@ -416,58 +471,88 @@ def page_owner_profile():
 def page_season():
     st.title("Season Standings")
 
-    seasons = load_available_seasons()
-    selected_season = st.selectbox("Select season", sorted(seasons, reverse=True))
+    tab_detail, tab_history = st.tabs(["Season Detail", "History"])
 
-    data = load_season_breakdown(selected_season)
-    if not data:
-        st.warning("No data for this season.")
-        return
+    # ---- Season Detail ----
+    with tab_detail:
+        seasons = load_available_seasons()
+        selected_season = st.selectbox("Select season", sorted(seasons, reverse=True))
 
-    reg = data["regular_season"]
+        data = load_season_breakdown(selected_season)
+        if not data:
+            st.warning("No data for this season.")
+        else:
+            reg = data["regular_season"]
+            rows = []
+            for seed, rec in enumerate(reg, 1):
+                playoff_entry = next(
+                    (r for r in data["playoff"].values() if r.canonical_name == rec.canonical_name),
+                    None,
+                )
+                finish = playoff_entry.finish if playoff_entry else None
+                rows.append({
+                    "Seed": seed,
+                    "Owner": rec.canonical_name,
+                    "W-L": f"{rec.wins}-{rec.losses}",
+                    "Win%": f"{rec.win_pct:.1%}",
+                    "Pts For": round(rec.points_for, 1),
+                    "Pts Against": round(rec.points_against, 1),
+                    "PPG": round(rec.ppg, 1),
+                    "Finish": FINISH_DISPLAY.get(finish, "-") if finish else "-",
+                })
 
-    rows = []
-    for seed, rec in enumerate(reg, 1):
-        playoff_entry = next(
-            (r for r in data["playoff"].values() if r.canonical_name == rec.canonical_name),
-            None,
-        )
-        finish = playoff_entry.finish if playoff_entry else None
-        rows.append({
-            "Seed": seed,
-            "Owner": rec.canonical_name,
-            "W-L": f"{rec.wins}-{rec.losses}",
-            "Win%": f"{rec.win_pct:.1%}",
-            "Pts For": round(rec.points_for, 1),
-            "Pts Against": round(rec.points_against, 1),
-            "PPG": round(rec.ppg, 1),
-            "Finish": FINISH_DISPLAY.get(finish, "-") if finish else "-",
-        })
+            st.dataframe(pd.DataFrame(rows).set_index("Seed"), use_container_width=True, height=460)
 
-    st.dataframe(
-        pd.DataFrame(rows).set_index("Seed"),
-        use_container_width=True,
-        height=460,
-    )
+            st.subheader("Points Scored")
+            sorted_rows = sorted(rows, key=lambda r: r["Pts For"], reverse=True)
+            fig = go.Figure(go.Bar(
+                x=[r["Owner"] for r in sorted_rows],
+                y=[r["Pts For"] for r in sorted_rows],
+                marker_color="#4a90d9",
+                text=[r["Pts For"] for r in sorted_rows],
+                textposition="outside",
+            ))
+            fig.update_layout(
+                yaxis_title="Points For",
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                margin=dict(t=20, b=20), height=340,
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    # Points scored bar chart
-    st.subheader("Points Scored")
-    sorted_rows = sorted(rows, key=lambda r: r["Pts For"], reverse=True)
-    fig = go.Figure(go.Bar(
-        x=[r["Owner"] for r in sorted_rows],
-        y=[r["Pts For"] for r in sorted_rows],
-        marker_color="#4a90d9",
-        text=[r["Pts For"] for r in sorted_rows],
-        textposition="outside",
-    ))
-    fig.update_layout(
-        yaxis_title="Points For",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=20, b=20),
-        height=340,
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    # ---- History grid ----
+    with tab_history:
+        history = load_standings_history()
+        seasons_sorted = sorted(history.keys())
+        all_owners_hist = sorted({name for ranks in history.values() for name in ranks.values()})
+
+        finish_labels = {
+            1: "Champion", 2: "Runner-up", 3: "3rd", 4: "4th", 5: "5th", 6: "6th",
+            7: "7th", 8: "8th", 9: "9th", 10: "10th", 11: "11th", 12: "Last",
+        }
+
+        # Build DataFrame: rows=finish rank, cols=season
+        grid = {}
+        for season in seasons_sorted:
+            rank_to_name = history[season]
+            grid[str(season)] = {finish_labels.get(rank, str(rank)): name for rank, name in rank_to_name.items()}
+
+        df_grid = pd.DataFrame(grid)
+        df_grid.index.name = "Finish"
+        st.dataframe(df_grid, use_container_width=True, height=460)
+
+        st.divider()
+
+        # Owner view: each owner's finish by year
+        st.subheader("Owner Finish by Season")
+        owner_rows = []
+        for owner in all_owners_hist:
+            row = {"Owner": owner}
+            for season in seasons_sorted:
+                rank_to_name = history[season]
+                finish = next((rank for rank, name in rank_to_name.items() if name == owner), None)
+                row[str(season)] = finish_labels.get(finish, "—") if finish else "—"
+            owner_rows.append(row)
+        st.dataframe(pd.DataFrame(owner_rows).set_index("Owner"), use_container_width=True, height=460)
 
 
 # ---------------------------------------------------------------------------
@@ -477,77 +562,102 @@ def page_season():
 def page_h2h():
     st.title("Head-to-Head")
 
-    owners = load_owners()
-    col1, col2 = st.columns(2)
-    owner1 = col1.selectbox("Owner 1", owners, index=0)
-    owner2 = col2.selectbox("Owner 2", owners, index=1)
+    tab_lookup, tab_matrix, tab_playoff = st.tabs(["Matchup Lookup", "Full Matrix", "Playoff Records"])
 
-    if owner1 == owner2:
-        st.warning("Pick two different owners.")
-        return
+    # ---- Matchup Lookup ----
+    with tab_lookup:
+        owners = load_owners()
+        col1, col2 = st.columns(2)
+        owner1 = col1.selectbox("Owner 1", owners, index=0, key="h2h_o1")
+        owner2 = col2.selectbox("Owner 2", owners, index=1, key="h2h_o2")
 
-    df = load_h2h(owner1, owner2)
-    if df.empty:
-        st.info("No head-to-head matchups found.")
-        return
+        if owner1 == owner2:
+            st.warning("Pick two different owners.")
+        else:
+            df = load_h2h(owner1, owner2)
+            if df.empty:
+                st.info("No head-to-head matchups found.")
+            else:
+                pts1_col = f"{owner1} Pts"
+                pts2_col = f"{owner2} Pts"
+                wins1 = (df[pts1_col] > df[pts2_col]).sum()
+                wins2 = (df[pts1_col] < df[pts2_col]).sum()
+                ties = (df[pts1_col] == df[pts2_col]).sum()
+                games = len(df)
 
-    pts1_col = f"{owner1} Pts"
-    pts2_col = f"{owner2} Pts"
+                c1, c2, c3 = st.columns(3)
+                c1.metric(f"{owner1} Wins", wins1)
+                c2.metric("Ties", ties)
+                c3.metric(f"{owner2} Wins", wins2)
+                st.divider()
 
-    wins1 = (df[pts1_col] > df[pts2_col]).sum()
-    wins2 = (df[pts1_col] < df[pts2_col]).sum()
-    ties = (df[pts1_col] == df[pts2_col]).sum()
-    games = len(df)
+                st.subheader("Points Each Game")
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=list(range(1, games + 1)), y=df[pts1_col].tolist(),
+                    name=owner1, mode="lines+markers", line=dict(color="#4a90d9"),
+                ))
+                fig.add_trace(go.Scatter(
+                    x=list(range(1, games + 1)), y=df[pts2_col].tolist(),
+                    name=owner2, mode="lines+markers", line=dict(color="#e05a5a"),
+                ))
+                labels = [f"{r['Season']} Wk{r['Week']}" for _, r in df.iterrows()]
+                fig.update_xaxes(tickvals=list(range(1, games + 1)), ticktext=labels, tickangle=45)
+                fig.update_layout(
+                    yaxis_title="Points", plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=20, b=80), height=380,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.divider()
 
-    # Summary metrics
-    c1, c2, c3 = st.columns(3)
-    c1.metric(f"{owner1} Wins", wins1)
-    c2.metric("Ties", ties)
-    c3.metric(f"{owner2} Wins", wins2)
+                st.subheader("All Matchups")
+                log = df.copy()
+                log["Winner"] = log.apply(
+                    lambda r: owner1 if r[pts1_col] > r[pts2_col]
+                    else (owner2 if r[pts2_col] > r[pts1_col] else "Tie"), axis=1,
+                )
+                st.dataframe(log.set_index("Season"), use_container_width=True, height=420)
 
-    st.divider()
+    # ---- Full Matrix ----
+    with tab_matrix:
+        st.subheader("All-Time Regular Season Head-to-Head (W-L)")
+        st.caption("Read row vs column: e.g. row Chase / col Matt = Chase's record against Matt.")
+        matrix = load_h2h_matrix()
+        all_owners_m = sorted(load_owners())
 
-    # Matchup history chart
-    st.subheader("Points Each Game")
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=list(range(1, games + 1)),
-        y=df[pts1_col].tolist(),
-        name=owner1,
-        mode="lines+markers",
-        line=dict(color="#4a90d9"),
-    ))
-    fig.add_trace(go.Scatter(
-        x=list(range(1, games + 1)),
-        y=df[pts2_col].tolist(),
-        name=owner2,
-        mode="lines+markers",
-        line=dict(color="#e05a5a"),
-    ))
-    # Shade wins
-    labels = [f"{r['Season']} Wk{r['Week']}" for _, r in df.iterrows()]
-    fig.update_xaxes(tickvals=list(range(1, games + 1)), ticktext=labels, tickangle=45)
-    fig.update_layout(
-        yaxis_title="Points",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=20, b=80),
-        height=380,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    )
-    st.plotly_chart(fig, use_container_width=True)
+        grid_data = {}
+        for row_owner in all_owners_m:
+            grid_data[row_owner] = {}
+            for col_owner in all_owners_m:
+                if row_owner == col_owner:
+                    grid_data[row_owner][col_owner] = "—"
+                else:
+                    w = matrix.get((row_owner, col_owner), 0)
+                    l = matrix.get((col_owner, row_owner), 0)
+                    grid_data[row_owner][col_owner] = f"{w}-{l}"
 
-    st.divider()
+        df_matrix = pd.DataFrame(grid_data).T
+        df_matrix.index.name = "Owner \\ Opp"
+        st.dataframe(df_matrix, use_container_width=True, height=460)
 
-    # Full matchup log
-    st.subheader("All Matchups")
-    log = df.copy()
-    log["Winner"] = log.apply(
-        lambda r: owner1 if r[pts1_col] > r[pts2_col]
-        else (owner2 if r[pts2_col] > r[pts1_col] else "Tie"),
-        axis=1,
-    )
-    st.dataframe(log.set_index("Season"), use_container_width=True, height=420)
+    # ---- Playoff Records ----
+    with tab_playoff:
+        st.subheader("All-Time Playoff Records")
+        playoff_recs = load_playoff_records()
+        rows = [
+            {
+                "Owner": ps.canonical_name,
+                "Appearances": ps.appearances,
+                "Byes": ps.byes,
+                "W-L": f"{ps.playoff_wins}-{ps.playoff_losses}",
+                "Win%": f"{ps.win_pct:.1%}" if ps.games else "—",
+                "Titles": ps.championships if ps.championships else "",
+                "Runner-up": ps.runner_up if ps.runner_up else "",
+            }
+            for ps in playoff_recs
+        ]
+        st.dataframe(pd.DataFrame(rows).set_index("Owner"), use_container_width=True, height=460)
 
 
 # ---------------------------------------------------------------------------

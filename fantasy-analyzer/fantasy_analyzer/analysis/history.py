@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass, field
 
@@ -324,3 +325,370 @@ def get_available_seasons(con: sqlite3.Connection) -> list[int]:
             "SELECT DISTINCT season FROM matchups ORDER BY season"
         ).fetchall()
     ]
+
+
+# ---------------------------------------------------------------------------
+# Standings history grid
+# ---------------------------------------------------------------------------
+
+def get_standings_history(con: sqlite3.Connection) -> dict[int, dict[int, str]]:
+    """Return {season: {finish_rank: owner_name}} for all complete seasons."""
+    seasons = get_all_seasons(con)
+    history: dict[int, dict[int, str]] = {}
+    for s in seasons:
+        results = compute_playoff_results(
+            con, s["league_id"], s["season"],
+            s["playoff_week_start"], s["last_week"]
+        )
+        history[s["season"]] = {r.finish: r.canonical_name for r in results if r.finish}
+    return history
+
+
+# ---------------------------------------------------------------------------
+# Weekly scoring extremes
+# ---------------------------------------------------------------------------
+
+def get_weekly_scoring_extremes(
+    con: sqlite3.Connection, top_n: int = 10
+) -> dict:
+    """Return top/bottom weekly scores and high/low score week counts per owner."""
+    rows = con.execute(
+        """
+        SELECT m.season, m.week, o.canonical_name, m.points
+        FROM matchups m
+        JOIN owners o ON m.user_id = o.user_id
+        WHERE m.is_playoff = 0 AND m.points IS NOT NULL AND m.points > 0
+        ORDER BY m.points DESC
+        """
+    ).fetchall()
+
+    top = [{"Rank": i + 1, "Owner": r[2], "Score": r[3], "Season": r[0], "Week": r[1]}
+           for i, r in enumerate(rows[:top_n])]
+    bottom = [{"Rank": i + 1, "Owner": r[2], "Score": r[3], "Season": r[0], "Week": r[1]}
+              for i, r in enumerate(reversed(rows[-top_n:]))]
+
+    # High/low score of the week counts
+    week_scores: dict[tuple, list] = {}
+    for season, week, name, pts in rows:
+        week_scores.setdefault((season, week), []).append((name, pts))
+
+    high_counts: dict[str, int] = {}
+    low_counts: dict[str, int] = {}
+    for (season, week), team_scores in week_scores.items():
+        if not team_scores:
+            continue
+        max_pts = max(p for _, p in team_scores)
+        min_pts = min(p for _, p in team_scores)
+        for name, pts in team_scores:
+            if pts == max_pts:
+                high_counts[name] = high_counts.get(name, 0) + 1
+            if pts == min_pts:
+                low_counts[name] = low_counts.get(name, 0) + 1
+
+    return {"top": top, "bottom": bottom, "high_counts": high_counts, "low_counts": low_counts}
+
+
+# ---------------------------------------------------------------------------
+# League records
+# ---------------------------------------------------------------------------
+
+def _compute_win_loss_streaks(con: sqlite3.Connection) -> dict[str, dict[str, int]]:
+    """Compute max win and loss streaks per owner across all regular-season weeks."""
+    rows = con.execute(
+        """
+        SELECT m1.season, m1.week, m1.user_id,
+               CASE WHEN m1.points > m2.points THEN 1 ELSE 0 END as won
+        FROM matchups m1
+        JOIN matchups m2
+          ON m1.league_id = m2.league_id
+         AND m1.week      = m2.week
+         AND m1.matchup_id = m2.matchup_id
+         AND m1.user_id   != m2.user_id
+        WHERE m1.is_playoff = 0
+          AND m1.points IS NOT NULL
+          AND m2.points IS NOT NULL
+        ORDER BY m1.season, m1.week
+        """
+    ).fetchall()
+
+    results_by_owner: dict[str, list[int]] = {}
+    for _, _, uid, won in rows:
+        results_by_owner.setdefault(uid, []).append(won)
+
+    streaks: dict[str, dict[str, int]] = {}
+    for uid, outcomes in results_by_owner.items():
+        max_win = max_loss = cur_win = cur_loss = 0
+        for won in outcomes:
+            if won:
+                cur_win += 1
+                cur_loss = 0
+            else:
+                cur_loss += 1
+                cur_win = 0
+            max_win = max(max_win, cur_win)
+            max_loss = max(max_loss, cur_loss)
+        streaks[uid] = {"max_win": max_win, "max_loss": max_loss}
+    return streaks
+
+
+def get_league_records(con: sqlite3.Connection) -> list[dict]:
+    """Return notable league records as a list of {Category, Holder, Value, Season}."""
+    owner_names = {r[0]: r[1] for r in con.execute("SELECT user_id, canonical_name FROM owners")}
+    records = []
+
+    def _add(category: str, holder: str, value: str, season: str) -> None:
+        records.append({"Category": category, "Holder": holder, "Value": value, "Season": season})
+
+    def _q1(sql: str, params: tuple = ()) -> tuple | None:
+        return con.execute(sql, params).fetchone()
+
+    # Single-season win/loss records (use season_records from Sleeper roster endpoint)
+    r = _q1("SELECT o.canonical_name, sr.wins, sr.season FROM season_records sr JOIN owners o ON sr.user_id=o.user_id ORDER BY sr.wins DESC LIMIT 1")
+    if r: _add("Most Wins, Single Season", r[0], str(r[1]), str(r[2]))
+
+    r = _q1("SELECT o.canonical_name, sr.losses, sr.season FROM season_records sr JOIN owners o ON sr.user_id=o.user_id ORDER BY sr.losses DESC LIMIT 1")
+    if r: _add("Most Losses, Single Season", r[0], str(r[1]), str(r[2]))
+
+    # All-time regular season
+    r = _q1("SELECT o.canonical_name, SUM(sr.wins) as w FROM season_records sr JOIN owners o ON sr.user_id=o.user_id GROUP BY sr.user_id ORDER BY w DESC LIMIT 1")
+    if r: _add("Most Wins, All-Time", r[0], str(int(r[1])), "All-Time")
+
+    r = _q1("SELECT o.canonical_name, SUM(sr.losses) as l FROM season_records sr JOIN owners o ON sr.user_id=o.user_id GROUP BY sr.user_id ORDER BY l DESC LIMIT 1")
+    if r: _add("Most Losses, All-Time", r[0], str(int(r[1])), "All-Time")
+
+    # Weekly scoring
+    r = _q1("SELECT o.canonical_name, m.points, m.season, m.week FROM matchups m JOIN owners o ON m.user_id=o.user_id WHERE m.points IS NOT NULL ORDER BY m.points DESC LIMIT 1")
+    if r: _add("Most Points, Single Week", r[0], f"{r[1]:,.2f}", f"{r[2]} Wk{r[3]}")
+
+    r = _q1("SELECT o.canonical_name, m.points, m.season, m.week FROM matchups m JOIN owners o ON m.user_id=o.user_id WHERE m.points IS NOT NULL AND m.points > 0 ORDER BY m.points ASC LIMIT 1")
+    if r: _add("Fewest Points, Single Week", r[0], f"{r[1]:,.2f}", f"{r[2]} Wk{r[3]}")
+
+    # Season points
+    r = _q1("SELECT o.canonical_name, sr.fpts, sr.season FROM season_records sr JOIN owners o ON sr.user_id=o.user_id ORDER BY sr.fpts DESC LIMIT 1")
+    if r: _add("Most Points For, Single Season", r[0], f"{r[1]:,.2f}", str(r[2]))
+
+    r = _q1("SELECT o.canonical_name, sr.fpts, sr.season FROM season_records sr JOIN owners o ON sr.user_id=o.user_id WHERE sr.wins+sr.losses+sr.ties > 0 ORDER BY sr.fpts ASC LIMIT 1")
+    if r: _add("Fewest Points For, Single Season", r[0], f"{r[1]:,.2f}", str(r[2]))
+
+    r = _q1("SELECT o.canonical_name, SUM(sr.fpts) as t FROM season_records sr JOIN owners o ON sr.user_id=o.user_id GROUP BY sr.user_id HAVING SUM(sr.wins)+SUM(sr.losses) > 0 ORDER BY t DESC LIMIT 1")
+    if r: _add("Most Points For, All-Time", r[0], f"{r[1]:,.2f}", "All-Time")
+
+    r = _q1("SELECT o.canonical_name, SUM(sr.fpts) as t FROM season_records sr JOIN owners o ON sr.user_id=o.user_id GROUP BY sr.user_id HAVING SUM(sr.wins)+SUM(sr.losses) > 0 ORDER BY t ASC LIMIT 1")
+    if r: _add("Fewest Points For, All-Time", r[0], f"{r[1]:,.2f}", "All-Time")
+
+    r = _q1("SELECT o.canonical_name, sr.fpts_against, sr.season FROM season_records sr JOIN owners o ON sr.user_id=o.user_id ORDER BY sr.fpts_against DESC LIMIT 1")
+    if r: _add("Most Points Against, Single Season", r[0], f"{r[1]:,.2f}", str(r[2]))
+
+    r = _q1("SELECT o.canonical_name, sr.fpts_against, sr.season FROM season_records sr JOIN owners o ON sr.user_id=o.user_id WHERE sr.wins+sr.losses+sr.ties > 0 ORDER BY sr.fpts_against ASC LIMIT 1")
+    if r: _add("Fewest Points Against, Single Season", r[0], f"{r[1]:,.2f}", str(r[2]))
+
+    # Streaks
+    streaks = _compute_win_loss_streaks(con)
+    if streaks:
+        best_win = max(streaks.items(), key=lambda x: x[1]["max_win"])
+        _add("Longest Win Streak", owner_names.get(best_win[0], best_win[0]), str(best_win[1]["max_win"]), "All-Time")
+        worst_loss = max(streaks.items(), key=lambda x: x[1]["max_loss"])
+        _add("Longest Losing Streak", owner_names.get(worst_loss[0], worst_loss[0]), str(worst_loss[1]["max_loss"]), "All-Time")
+
+    # Weekly high score king (most weeks with the single highest score)
+    extremes = get_weekly_scoring_extremes(con)
+    high_counts = extremes["high_counts"]
+    if high_counts:
+        top_owner = max(high_counts, key=lambda k: high_counts[k])
+        _add("Most Weekly High Scores, All-Time", top_owner, str(high_counts[top_owner]), "All-Time")
+    low_counts = extremes["low_counts"]
+    if low_counts:
+        top_owner = max(low_counts, key=lambda k: low_counts[k])
+        _add("Most Weekly Low Scores, All-Time", top_owner, str(low_counts[top_owner]), "All-Time")
+
+    # Championships
+    seasons = get_all_seasons(con)
+    champ_counts: dict[str, int] = {}
+    for s in seasons:
+        results = compute_playoff_results(con, s["league_id"], s["season"], s["playoff_week_start"], s["last_week"])
+        for pr in results:
+            if pr.champion:
+                champ_counts[pr.canonical_name] = champ_counts.get(pr.canonical_name, 0) + 1
+    if champ_counts:
+        top = max(champ_counts, key=lambda k: champ_counts[k])
+        _add("Most Championships", top, str(champ_counts[top]), "All-Time")
+
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Playoff records per owner
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PlayoffSummary:
+    canonical_name: str
+    appearances: int = 0
+    byes: int = 0
+    playoff_wins: int = 0
+    playoff_losses: int = 0
+    championships: int = 0
+    runner_up: int = 0
+
+    @property
+    def games(self) -> int:
+        return self.playoff_wins + self.playoff_losses
+
+    @property
+    def win_pct(self) -> float:
+        return self.playoff_wins / self.games if self.games else 0.0
+
+
+def get_playoff_records(con: sqlite3.Connection) -> list[PlayoffSummary]:
+    """Compute cumulative playoff stats per owner across all complete seasons."""
+    seasons = get_all_seasons(con)
+    summaries: dict[str, PlayoffSummary] = {}
+
+    for s in seasons:
+        pws = s["playoff_week_start"]
+        last_week = s["last_week"]
+        league_id = s["league_id"]
+
+        # Determine who had byes (played in championship bracket but NOT in the first playoff week)
+        first_week_players = {
+            r[0] for r in con.execute(
+                "SELECT user_id FROM matchups WHERE league_id=? AND week=? AND is_playoff=1 AND matchup_id<=3",
+                (league_id, pws),
+            ).fetchall()
+        }
+        all_playoff_players = {
+            r[0] for r in con.execute(
+                "SELECT DISTINCT user_id FROM matchups WHERE league_id=? AND is_playoff=1 AND matchup_id<=3",
+                (league_id,),
+            ).fetchall()
+        }
+        bye_recipients = all_playoff_players - first_week_players
+
+        results = compute_playoff_results(con, league_id, s["season"], pws, last_week)
+
+        for pr in results:
+            if not pr.made_playoffs:
+                continue
+            if pr.canonical_name not in summaries:
+                summaries[pr.canonical_name] = PlayoffSummary(pr.canonical_name)
+            ps = summaries[pr.canonical_name]
+            ps.appearances += 1
+            if pr.user_id in bye_recipients:
+                ps.byes += 1
+            if pr.champion:
+                ps.championships += 1
+            if pr.finish == 2:
+                ps.runner_up += 1
+
+        # Compute playoff W-L from matchup results within the championship bracket
+        playoff_rows = con.execute(
+            """
+            SELECT m1.user_id, m2.user_id,
+                   CASE WHEN m1.points > m2.points THEN 1 ELSE 0 END as m1_won
+            FROM matchups m1
+            JOIN matchups m2
+              ON m1.league_id = m2.league_id AND m1.week = m2.week
+             AND m1.matchup_id = m2.matchup_id AND m1.user_id < m2.user_id
+            WHERE m1.league_id = ? AND m1.is_playoff = 1
+              AND m1.matchup_id <= 3
+              AND m1.points IS NOT NULL AND m2.points IS NOT NULL
+            """,
+            (league_id,),
+        ).fetchall()
+
+        owner_names = {r[0]: r[1] for r in con.execute("SELECT user_id, canonical_name FROM owners")}
+        for uid1, uid2, m1_won in playoff_rows:
+            for uid, won in [(uid1, m1_won), (uid2, 1 - m1_won)]:
+                name = owner_names.get(uid)
+                if name and name in summaries:
+                    if won:
+                        summaries[name].playoff_wins += 1
+                    else:
+                        summaries[name].playoff_losses += 1
+
+    return sorted(summaries.values(), key=lambda s: (-s.appearances, -s.win_pct))
+
+
+# ---------------------------------------------------------------------------
+# Head-to-head matrix
+# ---------------------------------------------------------------------------
+
+def get_h2h_matrix(con: sqlite3.Connection) -> dict[tuple[str, str], int]:
+    """Return {(winner_name, loser_name): count} for regular-season matchups."""
+    owner_names = {r[0]: r[1] for r in con.execute("SELECT user_id, canonical_name FROM owners")}
+
+    rows = con.execute(
+        """
+        SELECT m1.user_id, m2.user_id, m1.points, m2.points
+        FROM matchups m1
+        JOIN matchups m2
+          ON m1.league_id  = m2.league_id
+         AND m1.week       = m2.week
+         AND m1.matchup_id = m2.matchup_id
+         AND m1.user_id    < m2.user_id
+        WHERE m1.is_playoff = 0
+          AND m1.points IS NOT NULL
+          AND m2.points IS NOT NULL
+        """
+    ).fetchall()
+
+    matrix = {}
+    for uid1, uid2, pts1, pts2 in rows:
+        n1 = owner_names.get(uid1)
+        n2 = owner_names.get(uid2)
+        if not n1 or not n2:
+            continue
+        if pts1 > pts2:
+            matrix[(n1, n2)] = matrix.get((n1, n2), 0) + 1
+        elif pts2 > pts1:
+            matrix[(n2, n1)] = matrix.get((n2, n1), 0) + 1
+
+    return matrix
+
+
+# ---------------------------------------------------------------------------
+# Championship rosters
+# ---------------------------------------------------------------------------
+
+def get_championship_rosters(con: sqlite3.Connection) -> list[dict]:
+    """Return champion, runner-up, score, and starting lineup for each season."""
+    seasons = get_all_seasons(con)
+    player_names = {r[0]: (r[1], r[2]) for r in con.execute("SELECT player_id, full_name, position FROM players")}
+    results_out = []
+
+    for s in seasons:
+        results = compute_playoff_results(
+            con, s["league_id"], s["season"], s["playoff_week_start"], s["last_week"]
+        )
+        finish_map = {r.finish: r for r in results}
+        champion = finish_map.get(1)
+        runner_up = finish_map.get(2)
+        if not champion:
+            continue
+
+        # Championship game scores
+        champ_row = con.execute(
+            "SELECT points, starters_json FROM matchups WHERE league_id=? AND week=? AND user_id=? AND matchup_id=1",
+            (s["league_id"], s["last_week"], champion.user_id),
+        ).fetchone()
+        ru_row = con.execute(
+            "SELECT points FROM matchups WHERE league_id=? AND week=? AND user_id=? AND matchup_id=1",
+            (s["league_id"], s["last_week"], runner_up.user_id if runner_up else None),
+        ).fetchone() if runner_up else None
+
+        starters = []
+        if champ_row and champ_row[1]:
+            for pid in json.loads(champ_row[1]):
+                name, pos = player_names.get(pid, (pid, "?"))
+                starters.append({"position": pos or "?", "player": name or pid})
+
+        results_out.append({
+            "season": s["season"],
+            "champion": champion.canonical_name,
+            "runner_up": runner_up.canonical_name if runner_up else "—",
+            "champ_score": champ_row[0] if champ_row else None,
+            "ru_score": ru_row[0] if ru_row else None,
+            "starters": starters,
+        })
+
+    return results_out
