@@ -622,10 +622,10 @@ def _trade_tree_dot(player_name: str, nodes: list[TreeNode]) -> str:
 def page_trades():
     st.title("Trades")
 
-    tab1, tab2, tab3 = st.tabs(["Trade Log", "Player Trade Tree", "Owner Tendencies"])
+    tab1, tab2, tab3 = st.tabs(["Player Trade Tree", "Owner Tendencies", "Trade Log"])
 
-    # ---- Tab 1: Trade Log ----
-    with tab1:
+    # ---- Tab 3: Trade Log ----
+    with tab3:
         trades = load_trade_log()
         owners = load_owners()
 
@@ -660,8 +660,8 @@ def page_trades():
         else:
             st.info("No trades match the selected filters.")
 
-    # ---- Tab 2: Player Trade Tree ----
-    with tab2:
+    # ---- Tab 1: Player Trade Tree ----
+    with tab1:
         st.markdown(
             "Select a player to trace their full trade history — including every asset "
             "exchanged in return, what picks were used to draft, and where those players ended up."
@@ -744,8 +744,8 @@ def page_trades():
                                     )
                                 st.markdown(line)
 
-    # ---- Tab 3: Owner Tendencies ----
-    with tab3:
+    # ---- Tab 2: Owner Tendencies ----
+    with tab2:
         stats = load_owner_trade_stats()
 
         st.subheader("Trade Activity by Owner")
