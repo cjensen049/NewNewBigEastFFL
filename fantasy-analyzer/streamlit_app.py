@@ -678,26 +678,38 @@ def page_trades():
                 st.info(f"{full_name} has no recorded trades.")
             else:
                 st.subheader(f"{full_name} — Trade Tree")
-                st.caption(
-                    f"Traded {len(trade_nodes)} time(s). "
-                    "Branches show counter-assets and their downstream fates."
-                )
+                st.caption(f"{len(trade_nodes)} trade(s) in league history.")
 
-                dot = _trade_tree_dot(full_name, trade_nodes)
+                # Trade selector — pick one trade to visualize at a time
+                trade_labels = [
+                    f"Season {n.season}, Week {n.week}: {n.from_owner} → {n.to_owner}"
+                    for n in trade_nodes
+                ]
+                if len(trade_nodes) == 1:
+                    node = trade_nodes[0]
+                else:
+                    idx = st.radio(
+                        "Select trade to visualize",
+                        range(len(trade_labels)),
+                        format_func=lambda i: trade_labels[i],
+                        horizontal=False,
+                    )
+                    node = trade_nodes[idx]
+
+                dot = _trade_tree_dot(full_name, [node])
                 st.graphviz_chart(dot, use_container_width=True)
 
                 st.divider()
                 st.subheader("Trade Details")
 
-                for node in trade_nodes:
-                    header = (
-                        f"Season {node.season}, Week {node.week}: "
-                        f"{node.from_owner} traded {full_name} to {node.to_owner}"
-                    )
-                    with st.expander(header):
-                        if not node.children:
-                            st.markdown("_(no counter-assets recorded)_")
-                            continue
+                header = (
+                    f"Season {node.season}, Week {node.week}: "
+                    f"{node.from_owner} traded {full_name} to {node.to_owner}"
+                )
+                with st.expander(header, expanded=True):
+                    if not node.children:
+                        st.markdown("_(no counter-assets recorded)_")
+                    else:
                         st.markdown("**Received in return:**")
                         for c in node.children:
                             if c.asset_type == "player":
