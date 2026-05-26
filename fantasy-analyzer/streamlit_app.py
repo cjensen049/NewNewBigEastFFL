@@ -21,6 +21,13 @@ from fantasy_analyzer.analysis.history import (
     get_available_seasons,
     get_season_breakdown,
 )
+from fantasy_analyzer.analysis.transactions import (
+    get_trade_log,
+    get_player_trade_history,
+    get_owner_trade_stats,
+    get_trade_partner_matrix,
+    search_player_names,
+)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -75,6 +82,18 @@ def load_owners() -> list[str]:
     ).fetchall()
     return [r[0] for r in rows]
 
+
+@st.cache_data
+def load_trade_log():
+    return get_trade_log(get_db())
+
+@st.cache_data
+def load_owner_trade_stats():
+    return get_owner_trade_stats(get_db())
+
+@st.cache_data
+def load_trade_partner_matrix():
+    return get_trade_partner_matrix(get_db())
 
 @st.cache_data
 def load_h2h(owner1: str, owner2: str) -> pd.DataFrame:
@@ -523,6 +542,171 @@ def page_h2h():
 
 
 # ---------------------------------------------------------------------------
+# Page: Trades
+# ---------------------------------------------------------------------------
+
+def page_trades():
+    st.title("Trades")
+
+    tab1, tab2, tab3 = st.tabs(["Trade Log", "Player Trade Tree", "Owner Tendencies"])
+
+    # ---- Tab 1: Trade Log ----
+    with tab1:
+        trades = load_trade_log()
+        owners = load_owners()
+
+        col1, col2 = st.columns([2, 1])
+        season_filter = col1.multiselect(
+            "Filter by season", sorted({t.season for t in trades}), default=[]
+        )
+        owner_filter = col2.multiselect("Filter by owner", owners, default=[])
+
+        filtered = trades
+        if season_filter:
+            filtered = [t for t in filtered if t.season in season_filter]
+        if owner_filter:
+            filtered = [t for t in filtered if any(o in t.owners for o in owner_filter)]
+
+        rows = []
+        for trade in filtered:
+            players = [a for a in trade.assets if a.asset_type == "player"]
+            picks = [a for a in trade.assets if a.asset_type == "pick"]
+            rows.append({
+                "Season": trade.season,
+                "Week": trade.week,
+                "Teams": " & ".join(trade.owners),
+                "Players": ", ".join(f"{a.asset_name} ({a.from_owner} → {a.to_owner})" for a in players),
+                "Picks": ", ".join(f"{a.asset_name} ({a.from_owner} → {a.to_owner})" for a in picks),
+            })
+
+        if rows:
+            df = pd.DataFrame(rows)
+            st.caption(f"{len(rows)} trades")
+            st.dataframe(df, use_container_width=True, height=520)
+        else:
+            st.info("No trades match the selected filters.")
+
+    # ---- Tab 2: Player Trade Tree ----
+    with tab2:
+        st.markdown("Search for a player to see every team they passed through.")
+        query = st.text_input("Player name", placeholder="e.g. Davante Adams")
+
+        if query and len(query) >= 2:
+            suggestions = search_player_names(get_db(), query)
+            if not suggestions:
+                st.warning("No traded players found matching that name.")
+            else:
+                selected_player = st.selectbox("Select player", suggestions)
+                if selected_player:
+                    full_name, stops = get_player_trade_history(get_db(), selected_player)
+
+                    if not stops:
+                        st.info(f"{full_name} has no recorded trades.")
+                    else:
+                        st.subheader(f"{full_name} — Trade History")
+                        st.caption(f"Traded {len(stops)} time(s)")
+
+                        # Timeline visualization
+                        fig = go.Figure()
+                        for i, stop in enumerate(stops):
+                            label = f"{stop.season} Wk{stop.week}"
+                            fig.add_annotation(
+                                x=i, y=0.5,
+                                text=f"<b>{stop.to_owner}</b><br><sub>{label}</sub>",
+                                showarrow=False,
+                                font=dict(size=13),
+                                bgcolor="#1a3a5c",
+                                bordercolor="#4a90d9",
+                                borderwidth=1,
+                                borderpad=6,
+                            )
+                            if i > 0:
+                                fig.add_annotation(
+                                    x=i - 0.5, y=0.5,
+                                    text=f"<sub>{stop.from_owner} →</sub>",
+                                    showarrow=False,
+                                    font=dict(size=10, color="#aaa"),
+                                )
+                        fig.update_layout(
+                            xaxis=dict(visible=False, range=[-0.5, len(stops) - 0.5]),
+                            yaxis=dict(visible=False, range=[0, 1]),
+                            height=160,
+                            margin=dict(l=20, r=20, t=20, b=20),
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+
+                        # Detail table
+                        detail_rows = [
+                            {
+                                "Season": s.season,
+                                "Week": s.week,
+                                "From": s.from_owner,
+                                "To": s.to_owner,
+                            }
+                            for s in stops
+                        ]
+                        st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
+
+    # ---- Tab 3: Owner Tendencies ----
+    with tab3:
+        stats = load_owner_trade_stats()
+
+        st.subheader("Trade Activity by Owner")
+        rows = [
+            {
+                "Owner": s.canonical_name,
+                "Trades": s.total_trades,
+                "Players In": s.players_acquired,
+                "Players Out": s.players_sent,
+                "Picks In": s.picks_acquired,
+                "Picks Out": s.picks_sent,
+                "Waiver Claims": s.total_waiver_claims,
+                "FA Adds": s.total_fa_adds,
+                "FAAB Spent": s.total_faab_spent,
+            }
+            for s in stats
+        ]
+        st.dataframe(pd.DataFrame(rows).set_index("Owner"), use_container_width=True, height=460)
+
+        st.divider()
+
+        # Trade partner heatmap
+        st.subheader("Trade Partner Frequency")
+        matrix = load_trade_partner_matrix()
+        all_owners = sorted(load_owners())
+
+        heatmap_z = []
+        for o1 in all_owners:
+            row = []
+            for o2 in all_owners:
+                if o1 == o2:
+                    row.append(0)
+                else:
+                    pair = tuple(sorted([o1, o2]))
+                    row.append(matrix.get(pair, 0))
+            heatmap_z.append(row)
+
+        fig = go.Figure(go.Heatmap(
+            z=heatmap_z,
+            x=all_owners,
+            y=all_owners,
+            colorscale="Blues",
+            text=heatmap_z,
+            texttemplate="%{text}",
+            showscale=True,
+        ))
+        fig.update_layout(
+            height=480,
+            margin=dict(t=20, b=20),
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+
+# ---------------------------------------------------------------------------
 # Navigation
 # ---------------------------------------------------------------------------
 
@@ -531,6 +715,7 @@ PAGES = {
     "Owner Profile": page_owner_profile,
     "Season Standings": page_season,
     "Head-to-Head": page_h2h,
+    "Trades": page_trades,
 }
 
 with st.sidebar:
