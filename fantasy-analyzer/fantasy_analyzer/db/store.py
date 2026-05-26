@@ -221,9 +221,15 @@ async def upsert_transactions(
         ))
 
         for pick in t.draft_picks:
-            # roster_ids[0] = giving team, [1] = receiving team for picks
-            from_rid = t.roster_ids[0] if t.roster_ids else 0
-            to_rid = t.roster_ids[1] if len(t.roster_ids) > 1 else 0
+            # Use Sleeper's own direction fields: owner_id = receiver, previous_owner_id = sender.
+            # If previous_owner_id is absent (pick going out for the first time), infer the
+            # sender as whichever trade partner is not the receiver.
+            to_rid = pick.owner_id
+            if pick.previous_owner_id:
+                from_rid = pick.previous_owner_id
+            else:
+                others = [r for r in t.roster_ids if r != to_rid]
+                from_rid = others[0] if others else 0
             pick_rows.append((
                 t.transaction_id,
                 pick.season,
