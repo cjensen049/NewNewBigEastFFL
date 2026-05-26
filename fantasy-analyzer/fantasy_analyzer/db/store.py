@@ -304,17 +304,19 @@ async def upsert_draft_picks(
             user_id,
             p.player_id,
             player.full_name if player else None,
+            p.draft_slot,
         ))
 
     await db.executemany(
         """
         INSERT INTO draft_picks
-            (draft_id, league_id, season, round, pick_no, roster_id, user_id, player_id, player_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (draft_id, league_id, season, round, pick_no, roster_id, user_id, player_id, player_name, draft_slot)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(draft_id, pick_no) DO UPDATE SET
-            player_id   = excluded.player_id,
-            player_name = excluded.player_name,
-            user_id     = excluded.user_id
+            player_id   = COALESCE(excluded.player_id, player_id),
+            player_name = COALESCE(excluded.player_name, player_name),
+            user_id     = COALESCE(excluded.user_id, user_id),
+            draft_slot  = COALESCE(excluded.draft_slot, draft_slot)
         """,
         rows,
     )

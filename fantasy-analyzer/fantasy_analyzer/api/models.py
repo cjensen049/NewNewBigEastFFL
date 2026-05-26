@@ -142,6 +142,7 @@ class DraftSlot(BaseModel):
     player_id: str | None = None
     round: int
     pick_no: int
+    draft_slot: int | None = None  # original slot owner (1-N); maps to original_roster_id in pick trades
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

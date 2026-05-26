@@ -82,7 +82,8 @@ CREATE TABLE IF NOT EXISTS transaction_draft_picks (
     round               INTEGER NOT NULL,
     original_roster_id  INTEGER NOT NULL,
     from_roster_id      INTEGER NOT NULL,
-    to_roster_id        INTEGER NOT NULL
+    to_roster_id        INTEGER NOT NULL,
+    UNIQUE(transaction_id, season, round, original_roster_id)
 );
 
 CREATE TABLE IF NOT EXISTS trade_tree_edges (
@@ -112,6 +113,7 @@ CREATE TABLE IF NOT EXISTS draft_picks (
     user_id     TEXT REFERENCES owners(user_id),
     player_id   TEXT,
     player_name TEXT,
+    draft_slot  INTEGER,
     UNIQUE(draft_id, pick_no)
 );
 
@@ -136,3 +138,38 @@ async def init_db(db_path: str) -> None:
     async with aiosqlite.connect(db_path) as db:
         await db.executescript(DDL)
         await db.commit()
+
+
+async def apply_migrations(db_path: str) -> None:
+    """Add columns and indexes introduced after initial schema creation."""
+    async with aiosqlite.connect(db_path) as db:
+        try:
+            await db.execute("ALTER TABLE draft_picks ADD COLUMN draft_slot INTEGER")
+            await db.commit()
+        except Exception:
+            pass  # column already exists
+
+        # Deduplicate transaction_draft_picks (no unique constraint on original table).
+        # Keep the row with the lowest id for each logical pick key.
+        await db.execute(
+            """
+            DELETE FROM transaction_draft_picks
+            WHERE id NOT IN (
+                SELECT MIN(id)
+                FROM transaction_draft_picks
+                GROUP BY transaction_id, season, round, original_roster_id
+            )
+            """
+        )
+        await db.commit()
+
+        try:
+            await db.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_txn_pick_unique
+                ON transaction_draft_picks(transaction_id, season, round, original_roster_id)
+                """
+            )
+            await db.commit()
+        except Exception:
+            pass  # index already exists

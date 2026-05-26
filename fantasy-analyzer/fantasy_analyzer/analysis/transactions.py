@@ -422,13 +422,13 @@ def build_deep_trade_tree(
     exact = [m for m in matches if m[1].lower() == player_name.lower()]
     player_id, player_full_name = (exact or matches)[0]
 
-    # {(season, round, roster_id): [(player_id, player_name)]}
-    # roster_id here is the CURRENT picker (current owner of the pick slot at draft time).
-    # Picks ordered by pick_no so the first entry per key is the earliest pick in that round.
+    # {(season, round, draft_slot): (player_id, player_name)}
+    # draft_slot is the original pick slot number (= original_roster_id in trade pick records).
+    # This gives a 1:1 mapping: each traded pick slot resolves to exactly one drafted player.
     pick_drafted: dict[tuple, list] = {}
     for r in con.execute(
-        "SELECT season, round, roster_id, player_id, player_name FROM draft_picks "
-        "WHERE player_id IS NOT NULL ORDER BY pick_no"
+        "SELECT season, round, draft_slot, player_id, player_name FROM draft_picks "
+        "WHERE player_id IS NOT NULL AND draft_slot IS NOT NULL ORDER BY pick_no"
     ).fetchall():
         key = (int(r[0]), int(r[1]), int(r[2]))
         pick_drafted.setdefault(key, []).append((r[3], r[4]))
@@ -521,9 +521,8 @@ def build_deep_trade_tree(
                     week=week,
                     transaction_id=txn_id,
                 )
-                # Link to players drafted by the receiving team in that round.
-                # draft_picks.roster_id = who actually made the pick (current owner).
-                candidates = pick_drafted.get((int(pick_season), int(round_), int(to_rid)), [])
+                # draft_slot == original_roster_id: each pick slot maps to exactly one player.
+                candidates = pick_drafted.get((int(pick_season), int(round_), int(orig_rid)), [])
                 for drafted_pid, drafted_name in candidates:
                     draft_node = TreeNode(
                         asset_type="draft",

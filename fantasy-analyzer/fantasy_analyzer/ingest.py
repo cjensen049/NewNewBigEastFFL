@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
 from fantasy_analyzer.api.sleeper import SleeperClient
-from fantasy_analyzer.db.schema import init_db
+from fantasy_analyzer.db.schema import init_db, apply_migrations
 from fantasy_analyzer.db import store
 
 log = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ async def run_ingest(
 
     console.print("[bold cyan]Initializing database...[/bold cyan]")
     await init_db(db_path)
+    await apply_migrations(db_path)
 
     client = SleeperClient(delay=api_delay)
 
