@@ -26,6 +26,8 @@ from fantasy_analyzer.analysis.history import (
     get_playoff_records,
     get_h2h_matrix,
     get_championship_rosters,
+    compute_luck_scores,
+    get_all_time_luck,
 )
 from fantasy_analyzer.analysis.rivalries import get_rivalry_pairs, get_nemesis_prey
 from fantasy_analyzer.analysis.transactions import (
@@ -131,6 +133,20 @@ def load_league_records(include_playoffs: bool = False):
 @st.cache_data
 def load_playoff_records():
     return get_playoff_records(get_db())
+
+@st.cache_data
+def load_luck_scores(season: int):
+    con = get_db()
+    row = con.execute(
+        "SELECT league_id, playoff_week_start FROM leagues WHERE season = ?", (season,)
+    ).fetchone()
+    if not row:
+        return []
+    return compute_luck_scores(con, row[0], season, row[1])
+
+@st.cache_data
+def load_all_time_luck():
+    return get_all_time_luck(get_db())
 
 @st.cache_data
 def load_h2h_matrix():
@@ -1274,11 +1290,123 @@ with tab_inseason:
     sub_luck, sub_rtb = st.tabs(["Luck-o-Meter", "Race to the Bottom"])
     with sub_luck:
         st.title("Luck-o-Meter")
-        st.info(
-            "Coming soon — compares each team's actual record against a simulated record "
-            "if they had played every opponent each week. Tracks lucky and unlucky schedules "
-            "across all seasons and the current season live."
+        st.caption(
+            "Compares each team's actual record against a simulated record if they had played "
+            "every other team each week. Positive = lucky schedule, negative = unlucky."
         )
+
+        def _luck_verdict(diff: float) -> str:
+            if diff >= 1.5:   return "🍀 Very Lucky"
+            if diff >= 0.5:   return "😊 Lucky"
+            if diff >= -0.5:  return "😐 Average"
+            if diff >= -1.5:  return "😤 Unlucky"
+            return "😭 Very Unlucky"
+
+        luck_tab_season, luck_tab_alltime = st.tabs(["By Season", "All-Time"])
+
+        with luck_tab_season:
+            seasons = load_available_seasons()
+            sel_season = st.selectbox(
+                "Season", sorted(seasons, reverse=True), key="luck_season"
+            )
+            luck_rows = load_luck_scores(sel_season)
+
+            if not luck_rows:
+                st.info("No regular-season data available for this season yet.")
+            else:
+                weeks_played = luck_rows[0]["actual_wins"] + luck_rows[0]["actual_losses"] + luck_rows[0]["actual_ties"]
+                st.caption(f"{weeks_played} weeks played")
+
+                table_rows = [
+                    {
+                        "Owner": r["owner"],
+                        "Actual W-L": f"{r['actual_wins']}-{r['actual_losses']}",
+                        "Expected W": f"{r['expected_wins']:.1f}",
+                        "Luck Diff": f"{r['luck_diff']:+.2f}",
+                        "Verdict": _luck_verdict(r["luck_diff"]),
+                    }
+                    for r in luck_rows
+                ]
+                st.dataframe(
+                    pd.DataFrame(table_rows).set_index("Owner"),
+                    use_container_width=True,
+                    height=460,
+                )
+
+                st.divider()
+                colors = [
+                    "#2ecc71" if r["luck_diff"] > 0.5
+                    else "#e74c3c" if r["luck_diff"] < -0.5
+                    else "#95a5a6"
+                    for r in luck_rows
+                ]
+                fig = go.Figure(go.Bar(
+                    x=[r["owner"] for r in luck_rows],
+                    y=[r["luck_diff"] for r in luck_rows],
+                    marker_color=colors,
+                    text=[f"{r['luck_diff']:+.2f}" for r in luck_rows],
+                    textposition="outside",
+                ))
+                fig.add_hline(y=0, line_color="white", line_width=1)
+                fig.update_layout(
+                    title=f"{sel_season} Schedule Luck",
+                    yaxis_title="Luck (wins above/below expected)",
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(t=40, b=20), height=380,
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+        with luck_tab_alltime:
+            from collections import defaultdict
+            all_luck = load_all_time_luck()
+
+            # Aggregate per owner
+            agg: dict[str, dict] = defaultdict(lambda: {"luck": 0.0, "seasons": 0})
+            for r in all_luck:
+                agg[r["owner"]]["luck"] += r["luck_diff"]
+                agg[r["owner"]]["seasons"] += 1
+
+            agg_rows = sorted(
+                [{"owner": o, **d} for o, d in agg.items()],
+                key=lambda r: -r["luck"],
+            )
+            table_rows = [
+                {
+                    "Owner": r["owner"],
+                    "Total Luck": f"{r['luck']:+.2f}",
+                    "Avg / Season": f"{r['luck'] / r['seasons']:+.2f}",
+                    "Seasons": r["seasons"],
+                    "Verdict": _luck_verdict(r["luck"] / r["seasons"]),
+                }
+                for r in agg_rows
+            ]
+            st.dataframe(
+                pd.DataFrame(table_rows).set_index("Owner"),
+                use_container_width=True,
+                height=460,
+            )
+
+            st.divider()
+            colors = [
+                "#2ecc71" if r["luck"] > 0
+                else "#e74c3c"
+                for r in agg_rows
+            ]
+            fig = go.Figure(go.Bar(
+                x=[r["owner"] for r in agg_rows],
+                y=[r["luck"] for r in agg_rows],
+                marker_color=colors,
+                text=[f"{r['luck']:+.2f}" for r in agg_rows],
+                textposition="outside",
+            ))
+            fig.add_hline(y=0, line_color="white", line_width=1)
+            fig.update_layout(
+                title="All-Time Cumulative Schedule Luck",
+                yaxis_title="Cumulative luck (wins above/below expected)",
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                margin=dict(t=40, b=20), height=380,
+            )
+            st.plotly_chart(fig, use_container_width=True)
     with sub_rtb:
         st.title("Race to the Bottom")
         st.info(

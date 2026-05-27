@@ -724,3 +724,106 @@ def get_championship_rosters(con: sqlite3.Connection) -> list[dict]:
         })
 
     return results_out
+
+
+# ---------------------------------------------------------------------------
+# Luck-o-Meter
+# ---------------------------------------------------------------------------
+
+def compute_luck_scores(
+    con: sqlite3.Connection,
+    league_id: str,
+    season: int,
+    playoff_week_start: int,
+) -> list[dict]:
+    """Compute luck scores for one regular season.
+
+    Expected wins per week = (teams beaten + 0.5 * teams tied) / (n_teams - 1).
+    Luck diff = actual_wins - sum(expected_wins_per_week).
+    Positive = lucky schedule, negative = unlucky.
+    """
+    from collections import defaultdict
+
+    rows = con.execute(
+        """
+        SELECT m.week, m.matchup_id, m.user_id, o.canonical_name, m.points
+        FROM matchups m
+        JOIN owners o ON m.user_id = o.user_id
+        WHERE m.league_id = ? AND m.week < ?
+          AND m.points IS NOT NULL
+        ORDER BY m.week
+        """,
+        (league_id, playoff_week_start),
+    ).fetchall()
+
+    if not rows:
+        return []
+
+    # Actual W/L from head-to-head matchup pairs
+    owner_names: dict[str, str] = {}
+    actual_wins: dict[str, int] = defaultdict(int)
+    actual_losses: dict[str, int] = defaultdict(int)
+    actual_ties: dict[str, int] = defaultdict(int)
+    matchup_pairs: dict[tuple, list] = defaultdict(list)
+    week_all_scores: dict[int, list] = defaultdict(list)
+
+    for week, mid, uid, name, pts in rows:
+        owner_names[uid] = name
+        matchup_pairs[(week, mid)].append((uid, pts or 0.0))
+        week_all_scores[week].append((uid, pts or 0.0))
+
+    for (week, mid), teams in matchup_pairs.items():
+        if len(teams) != 2:
+            continue
+        (uid_a, pts_a), (uid_b, pts_b) = teams
+        if pts_a > pts_b:
+            actual_wins[uid_a] += 1
+            actual_losses[uid_b] += 1
+        elif pts_b > pts_a:
+            actual_wins[uid_b] += 1
+            actual_losses[uid_a] += 1
+        else:
+            actual_ties[uid_a] += 1
+            actual_ties[uid_b] += 1
+
+    # Expected wins via schedule simulation
+    expected_wins: dict[str, float] = defaultdict(float)
+    for week, teams in week_all_scores.items():
+        n = len(teams)
+        if n < 2:
+            continue
+        for uid, my_pts in teams:
+            beaten = sum(1 for other, opp_pts in teams if other != uid and my_pts > opp_pts)
+            tied = sum(1 for other, opp_pts in teams if other != uid and my_pts == opp_pts)
+            expected_wins[uid] += (beaten + 0.5 * tied) / (n - 1)
+
+    results = []
+    for uid, name in owner_names.items():
+        aw = actual_wins.get(uid, 0)
+        al = actual_losses.get(uid, 0)
+        at = actual_ties.get(uid, 0)
+        ew = expected_wins.get(uid, 0.0)
+        results.append({
+            "user_id": uid,
+            "owner": name,
+            "season": season,
+            "actual_wins": aw,
+            "actual_losses": al,
+            "actual_ties": at,
+            "expected_wins": round(ew, 2),
+            "luck_diff": round(aw - ew, 2),
+        })
+
+    return sorted(results, key=lambda r: -r["luck_diff"])
+
+
+def get_all_time_luck(con: sqlite3.Connection) -> list[dict]:
+    """Aggregate luck scores across all complete regular seasons."""
+    seasons = get_all_seasons(con)
+    all_rows: list[dict] = []
+    for s in seasons:
+        rows = compute_luck_scores(
+            con, s["league_id"], s["season"], s["playoff_week_start"]
+        )
+        all_rows.extend(rows)
+    return all_rows
