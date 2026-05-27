@@ -926,7 +926,7 @@ def get_owner_top_players(
     con: sqlite3.Connection,
     owner_name: str,
     season: int | None = None,
-    top_n: int = 20,
+    top_n: int = 10,
 ) -> list[dict]:
     """Return the top N players by total regular-season points started for an owner.
 

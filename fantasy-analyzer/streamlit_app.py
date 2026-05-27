@@ -470,6 +470,9 @@ def page_owner_profile():
         return
 
     overall_win_pct = (total_wins + 0.5 * total_ties) / total_games if total_games else 0
+    total_trades = sum(1 for t in load_trade_log() if selected in t.owners)
+    top_players = load_owner_top_players(selected)
+    top_player_str = f"{top_players[0]['player']} ({top_players[0]['total_pts']} pts)" if top_players else "—"
 
     # --- Career summary metrics ---
     st.subheader(f"{selected} — Career Summary")
@@ -479,6 +482,9 @@ def page_owner_profile():
     c3.metric("Avg PPG", f"{total_pts / total_games:.1f}")
     c4.metric("Playoffs", f"{playoff_apps}/{len(season_rows)}")
     c5.metric("Championships", championships)
+    d1, d2 = st.columns(2)
+    d1.metric("Total Trades", total_trades)
+    d2.metric("Top Scorer (All-Time)", top_player_str)
 
     st.divider()
 
@@ -486,35 +492,6 @@ def page_owner_profile():
     st.subheader("Season Breakdown")
     display_df = pd.DataFrame(season_rows).drop(columns=["_finish_int"]).set_index("Season")
     st.dataframe(display_df, use_container_width=True, height=240)
-
-    st.divider()
-
-    # --- Win% per season chart ---
-    st.subheader("Win % by Season")
-    win_pcts = [
-        (row["Season"], float(row["Win%"].strip("%")) / 100)
-        for row in season_rows
-    ]
-    fig = go.Figure(go.Scatter(
-        x=[s for s, _ in win_pcts],
-        y=[round(p * 100, 1) for _, p in win_pcts],
-        mode="lines+markers+text",
-        text=[f"{p:.0%}" for _, p in win_pcts],
-        textposition="top center",
-        line=dict(color="#4a90d9", width=2),
-        marker=dict(size=10),
-    ))
-    fig.add_hline(y=50, line_dash="dot", line_color="gray", annotation_text="50%")
-    fig.update_layout(
-        yaxis_title="Win %",
-        yaxis_range=[0, 105],
-        xaxis=dict(tickmode="linear", dtick=1),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=20, b=20),
-        height=300,
-    )
-    st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
 
