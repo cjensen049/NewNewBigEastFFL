@@ -1312,6 +1312,13 @@ with tab_inseason:
             if diff >= -1.5:  return "😤 Unlucky"
             return "😭 Very Unlucky"
 
+        def _row_color(luck_diff: float) -> str:
+            if luck_diff >= 1.5:  return "background-color: rgba(46,204,113,0.30)"
+            if luck_diff >= 0.5:  return "background-color: rgba(46,204,113,0.15)"
+            if luck_diff <= -1.5: return "background-color: rgba(231,76,60,0.30)"
+            if luck_diff <= -0.5: return "background-color: rgba(231,76,60,0.15)"
+            return ""
+
         luck_tab_season, luck_tab_alltime = st.tabs(["By Season", "All-Time"])
 
         with luck_tab_season:
@@ -1325,23 +1332,33 @@ with tab_inseason:
                 st.info("No regular-season data available for this season yet.")
             else:
                 weeks_played = luck_rows[0]["actual_wins"] + luck_rows[0]["actual_losses"] + luck_rows[0]["actual_ties"]
-                st.caption(f"{weeks_played} weeks played")
+                sim_games_per_team = luck_rows[0]["sim_wins"] + luck_rows[0]["sim_losses"] + luck_rows[0]["sim_ties"]
+                st.caption(f"{weeks_played} regular-season weeks · simulated W-L is each team vs all {sim_games_per_team} possible matchups")
 
                 table_rows = [
                     {
                         "Owner": r["owner"],
                         "Actual W-L": f"{r['actual_wins']}-{r['actual_losses']}",
-                        "Expected W": f"{r['expected_wins']:.1f}",
-                        "Luck Diff": f"{r['luck_diff']:+.2f}",
+                        "Actual Win%": f"{r['actual_win_pct']:.1%}",
+                        "Simulated W-L": f"{r['sim_wins']}-{r['sim_losses']}",
+                        "Simulated Win%": f"{r['sim_win_pct']:.1%}",
+                        "Win% Diff": f"{(r['actual_win_pct'] - r['sim_win_pct']):+.1%}",
                         "Verdict": _luck_verdict(r["luck_diff"]),
+                        "_luck": r["luck_diff"],
                     }
                     for r in luck_rows
                 ]
-                st.dataframe(
-                    pd.DataFrame(table_rows).set_index("Owner"),
-                    use_container_width=True,
-                    height=460,
+                df = pd.DataFrame(table_rows).set_index("Owner")
+
+                def _style_luck_rows(row):
+                    color = _row_color(row["_luck"])
+                    return [color] * len(row)
+
+                styled = (
+                    df.drop(columns=["_luck"])
+                    .style.apply(_style_luck_rows, axis=1, subset=pd.IndexSlice[:, df.drop(columns=["_luck"]).columns])
                 )
+                st.dataframe(styled, use_container_width=True, height=460)
 
                 st.divider()
                 colors = [
@@ -1352,15 +1369,15 @@ with tab_inseason:
                 ]
                 fig = go.Figure(go.Bar(
                     x=[r["owner"] for r in luck_rows],
-                    y=[r["luck_diff"] for r in luck_rows],
+                    y=[round((r["actual_win_pct"] - r["sim_win_pct"]) * 100, 1) for r in luck_rows],
                     marker_color=colors,
-                    text=[f"{r['luck_diff']:+.2f}" for r in luck_rows],
+                    text=[f"{(r['actual_win_pct'] - r['sim_win_pct']):+.1%}" for r in luck_rows],
                     textposition="outside",
                 ))
                 fig.add_hline(y=0, line_color="white", line_width=1)
                 fig.update_layout(
                     title=f"{sel_season} Schedule Luck",
-                    yaxis_title="Luck (wins above/below expected)",
+                    yaxis_title="Actual Win% minus Simulated Win%",
                     plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                     margin=dict(t=40, b=20), height=380,
                 )
@@ -1370,31 +1387,52 @@ with tab_inseason:
             from collections import defaultdict
             all_luck = load_all_time_luck()
 
-            # Aggregate per owner
-            agg: dict[str, dict] = defaultdict(lambda: {"luck": 0.0, "seasons": 0})
+            # Aggregate per owner: sum raw sim/actual counts then recompute pcts
+            agg: dict[str, dict] = defaultdict(lambda: {
+                "luck": 0.0, "seasons": 0,
+                "aw": 0, "al": 0, "at": 0,
+                "sw": 0, "sl": 0, "st": 0,
+            })
             for r in all_luck:
-                agg[r["owner"]]["luck"] += r["luck_diff"]
-                agg[r["owner"]]["seasons"] += 1
+                o = r["owner"]
+                agg[o]["luck"] += r["luck_diff"]
+                agg[o]["seasons"] += 1
+                agg[o]["aw"] += r["actual_wins"]
+                agg[o]["al"] += r["actual_losses"]
+                agg[o]["at"] += r["actual_ties"]
+                agg[o]["sw"] += r["sim_wins"]
+                agg[o]["sl"] += r["sim_losses"]
+                agg[o]["st"] += r["sim_ties"]
 
             agg_rows = sorted(
                 [{"owner": o, **d} for o, d in agg.items()],
                 key=lambda r: -r["luck"],
             )
+            for r in agg_rows:
+                ag = r["aw"] + r["al"] + r["at"]
+                sg = r["sw"] + r["sl"] + r["st"]
+                r["actual_win_pct"] = (r["aw"] + 0.5 * r["at"]) / ag if ag else 0.0
+                r["sim_win_pct"] = (r["sw"] + 0.5 * r["st"]) / sg if sg else 0.0
+
             table_rows = [
                 {
                     "Owner": r["owner"],
-                    "Total Luck": f"{r['luck']:+.2f}",
-                    "Avg / Season": f"{r['luck'] / r['seasons']:+.2f}",
-                    "Seasons": r["seasons"],
+                    "Actual W-L": f"{r['aw']}-{r['al']}",
+                    "Actual Win%": f"{r['actual_win_pct']:.1%}",
+                    "Simulated W-L": f"{r['sw']}-{r['sl']}",
+                    "Simulated Win%": f"{r['sim_win_pct']:.1%}",
+                    "Win% Diff": f"{(r['actual_win_pct'] - r['sim_win_pct']):+.1%}",
                     "Verdict": _luck_verdict(r["luck"] / r["seasons"]),
+                    "_luck": r["luck"],
                 }
                 for r in agg_rows
             ]
-            st.dataframe(
-                pd.DataFrame(table_rows).set_index("Owner"),
-                use_container_width=True,
-                height=460,
+            df_at = pd.DataFrame(table_rows).set_index("Owner")
+            styled_at = (
+                df_at.drop(columns=["_luck"])
+                .style.apply(_style_luck_rows, axis=1, subset=pd.IndexSlice[:, df_at.drop(columns=["_luck"]).columns])
             )
+            st.dataframe(styled_at, use_container_width=True, height=460)
 
             st.divider()
             colors = [
@@ -1404,15 +1442,15 @@ with tab_inseason:
             ]
             fig = go.Figure(go.Bar(
                 x=[r["owner"] for r in agg_rows],
-                y=[r["luck"] for r in agg_rows],
+                y=[round((r["actual_win_pct"] - r["sim_win_pct"]) * 100, 1) for r in agg_rows],
                 marker_color=colors,
-                text=[f"{r['luck']:+.2f}" for r in agg_rows],
+                text=[f"{(r['actual_win_pct'] - r['sim_win_pct']):+.1%}" for r in agg_rows],
                 textposition="outside",
             ))
             fig.add_hline(y=0, line_color="white", line_width=1)
             fig.update_layout(
-                title="All-Time Cumulative Schedule Luck",
-                yaxis_title="Cumulative luck (wins above/below expected)",
+                title="All-Time Schedule Luck",
+                yaxis_title="Actual Win% minus Simulated Win%",
                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 margin=dict(t=40, b=20), height=380,
             )

@@ -786,23 +786,41 @@ def compute_luck_scores(
             actual_ties[uid_a] += 1
             actual_ties[uid_b] += 1
 
-    # Expected wins via schedule simulation
-    expected_wins: dict[str, float] = defaultdict(float)
+    # Simulate each team vs every opponent each week (integer counts)
+    sim_wins: dict[str, int] = defaultdict(int)
+    sim_losses: dict[str, int] = defaultdict(int)
+    sim_ties: dict[str, int] = defaultdict(int)
     for week, teams in week_all_scores.items():
-        n = len(teams)
-        if n < 2:
+        if len(teams) < 2:
             continue
         for uid, my_pts in teams:
-            beaten = sum(1 for other, opp_pts in teams if other != uid and my_pts > opp_pts)
-            tied = sum(1 for other, opp_pts in teams if other != uid and my_pts == opp_pts)
-            expected_wins[uid] += (beaten + 0.5 * tied) / (n - 1)
+            for other, opp_pts in teams:
+                if other == uid:
+                    continue
+                if my_pts > opp_pts:
+                    sim_wins[uid] += 1
+                elif my_pts < opp_pts:
+                    sim_losses[uid] += 1
+                else:
+                    sim_ties[uid] += 1
 
     results = []
     for uid, name in owner_names.items():
         aw = actual_wins.get(uid, 0)
         al = actual_losses.get(uid, 0)
         at = actual_ties.get(uid, 0)
-        ew = expected_wins.get(uid, 0.0)
+        actual_games = aw + al + at
+        actual_win_pct = (aw + 0.5 * at) / actual_games if actual_games else 0.0
+
+        sw = sim_wins.get(uid, 0)
+        sl = sim_losses.get(uid, 0)
+        st_ = sim_ties.get(uid, 0)
+        sim_games = sw + sl + st_
+        sim_win_pct = (sw + 0.5 * st_) / sim_games if sim_games else 0.0
+
+        # luck_diff in equivalent wins (same scale as actual W/L) for verdict thresholds
+        luck_diff = round((actual_win_pct - sim_win_pct) * actual_games, 2)
+
         results.append({
             "user_id": uid,
             "owner": name,
@@ -810,8 +828,12 @@ def compute_luck_scores(
             "actual_wins": aw,
             "actual_losses": al,
             "actual_ties": at,
-            "expected_wins": round(ew, 2),
-            "luck_diff": round(aw - ew, 2),
+            "actual_win_pct": round(actual_win_pct, 4),
+            "sim_wins": sw,
+            "sim_losses": sl,
+            "sim_ties": st_,
+            "sim_win_pct": round(sim_win_pct, 4),
+            "luck_diff": luck_diff,
         })
 
     return sorted(results, key=lambda r: -r["luck_diff"])
