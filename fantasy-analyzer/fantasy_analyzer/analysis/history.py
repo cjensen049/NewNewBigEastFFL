@@ -279,9 +279,8 @@ def get_all_time_standings(con: sqlite3.Connection) -> list[AllTimeRecord]:
                     at.playoff_appearances += 1
                 if pr.champion:
                     at.championships += 1
-                if pr.last_place:
-                    at.last_place_finishes += 1
-                if pr.finish is not None:
+                # Only track best/worst finish for championship bracket (1–6)
+                if pr.finish is not None and pr.finish <= 6:
                     if at.best_finish is None or pr.finish < at.best_finish:
                         at.best_finish = pr.finish
                     if at.worst_finish is None or pr.finish > at.worst_finish:
@@ -332,15 +331,35 @@ def get_available_seasons(con: sqlite3.Connection) -> list[int]:
 # ---------------------------------------------------------------------------
 
 def get_standings_history(con: sqlite3.Connection) -> dict[int, dict[int, str]]:
-    """Return {season: {finish_rank: owner_name}} for all complete seasons."""
+    """Return {season: {finish_rank: owner_name}} for all complete seasons.
+
+    Ranks 1–6 come from the championship bracket playoff results.
+    Ranks 7–12 come from regular-season seeding (toilet bowl is ignored).
+    """
     seasons = get_all_seasons(con)
     history: dict[int, dict[int, str]] = {}
     for s in seasons:
-        results = compute_playoff_results(
+        reg = compute_regular_season_records(
+            con, s["league_id"], s["season"], s["playoff_week_start"]
+        )
+        playoff = compute_playoff_results(
             con, s["league_id"], s["season"],
             s["playoff_week_start"], s["last_week"]
         )
-        history[s["season"]] = {r.finish: r.canonical_name for r in results if r.finish}
+
+        rank_to_name: dict[int, str] = {}
+        # Championship bracket finishes (1–6)
+        for pr in playoff:
+            if pr.made_playoffs and pr.finish is not None and pr.finish <= 6:
+                rank_to_name[pr.finish] = pr.canonical_name
+
+        # Non-playoff teams ranked by regular-season record (7th–12th)
+        playoff_names = {pr.canonical_name for pr in playoff if pr.made_playoffs}
+        non_playoff = [r for r in reg if r.canonical_name not in playoff_names]
+        for i, r in enumerate(non_playoff):
+            rank_to_name[7 + i] = r.canonical_name
+
+        history[s["season"]] = rank_to_name
     return history
 
 
@@ -431,7 +450,7 @@ def _compute_win_loss_streaks(con: sqlite3.Connection) -> dict[str, dict[str, in
     return streaks
 
 
-def get_league_records(con: sqlite3.Connection) -> list[dict]:
+def get_league_records(con: sqlite3.Connection, include_playoffs: bool = False) -> list[dict]:
     """Return notable league records as a list of {Category, Holder, Value, Season}."""
     owner_names = {r[0]: r[1] for r in con.execute("SELECT user_id, canonical_name FROM owners")}
     records = []
@@ -457,10 +476,11 @@ def get_league_records(con: sqlite3.Connection) -> list[dict]:
     if r: _add("Most Losses, All-Time", r[0], str(int(r[1])), "All-Time")
 
     # Weekly scoring
-    r = _q1("SELECT o.canonical_name, m.points, m.season, m.week FROM matchups m JOIN owners o ON m.user_id=o.user_id WHERE m.points IS NOT NULL ORDER BY m.points DESC LIMIT 1")
+    playoff_filter = "" if include_playoffs else "AND m.is_playoff = 0 "
+    r = _q1(f"SELECT o.canonical_name, m.points, m.season, m.week FROM matchups m JOIN owners o ON m.user_id=o.user_id WHERE m.points IS NOT NULL {playoff_filter}ORDER BY m.points DESC LIMIT 1")
     if r: _add("Most Points, Single Week", r[0], f"{r[1]:,.2f}", f"{r[2]} Wk{r[3]}")
 
-    r = _q1("SELECT o.canonical_name, m.points, m.season, m.week FROM matchups m JOIN owners o ON m.user_id=o.user_id WHERE m.points IS NOT NULL AND m.points > 0 ORDER BY m.points ASC LIMIT 1")
+    r = _q1(f"SELECT o.canonical_name, m.points, m.season, m.week FROM matchups m JOIN owners o ON m.user_id=o.user_id WHERE m.points IS NOT NULL AND m.points > 0 {playoff_filter}ORDER BY m.points ASC LIMIT 1")
     if r: _add("Fewest Points, Single Week", r[0], f"{r[1]:,.2f}", f"{r[2]} Wk{r[3]}")
 
     # Season points

@@ -124,8 +124,8 @@ def load_weekly_scoring_extremes():
     return get_weekly_scoring_extremes(get_db())
 
 @st.cache_data
-def load_league_records():
-    return get_league_records(get_db())
+def load_league_records(include_playoffs: bool = False):
+    return get_league_records(get_db(), include_playoffs=include_playoffs)
 
 @st.cache_data
 def load_playoff_records():
@@ -196,12 +196,11 @@ def load_h2h(owner1: str, owner2: str) -> pd.DataFrame:
 FINISH_DISPLAY = {
     1: "Champion", 2: "Runner-up", 3: "3rd", 4: "4th",
     5: "5th", 6: "6th", 7: "7th", 8: "8th",
-    9: "9th", 10: "10th", 11: "11th", 12: "Last Place",
+    9: "9th", 10: "10th", 11: "11th", 12: "12th",
 }
 
 FINISH_COLOR = {
     1: "#FFD700", 2: "#C0C0C0", 3: "#CD7F32",
-    12: "#FF4444",
 }
 
 
@@ -240,7 +239,6 @@ def page_overview():
                 "PPG": f"{r.ppg:.1f}",
                 "Playoffs": f"{r.playoff_appearances}/{r.seasons}",
                 "Titles": r.championships if r.championships else "",
-                "Lasts": r.last_place_finishes if r.last_place_finishes else "",
             })
         st.dataframe(pd.DataFrame(rows).set_index("Rank"), use_container_width=True, height=460)
 
@@ -262,7 +260,14 @@ def page_overview():
 
     # ---- Records ----
     with tab_records:
-        league_recs = load_league_records()
+        scope = st.radio(
+            "Scope",
+            ["Regular Season", "All Games (incl. Playoffs)"],
+            horizontal=True,
+            key="records_scope",
+        )
+        include_playoffs = scope == "All Games (incl. Playoffs)"
+        league_recs = load_league_records(include_playoffs=include_playoffs)
         df_recs = pd.DataFrame(league_recs).set_index("Category")
         st.dataframe(df_recs, use_container_width=True, height=560)
 
@@ -340,7 +345,7 @@ def page_owner_profile():
     season_rows = []
     total_wins = total_losses = total_ties = 0
     total_pts = total_pts_against = total_games = 0
-    playoff_apps = championships = last_places = 0
+    playoff_apps = championships = 0
     best_finish = worst_finish = None
 
     for season in seasons:
@@ -369,8 +374,12 @@ def page_owner_profile():
             None,
         )
 
-        finish = playoff_entry.finish if playoff_entry else None
-        finish_label = FINISH_DISPLAY.get(finish, "-") if finish else "-"
+        # Finish: championship bracket result for top 6; regular season seed for bottom 6
+        if playoff_entry and playoff_entry.made_playoffs and playoff_entry.finish is not None:
+            finish = playoff_entry.finish
+        else:
+            finish = seed  # regular season position (7–12)
+        finish_label = FINISH_DISPLAY.get(finish, f"{finish}th") if finish else "-"
 
         season_rows.append({
             "Season": season,
@@ -396,13 +405,12 @@ def page_owner_profile():
                 playoff_apps += 1
             if playoff_entry.champion:
                 championships += 1
-            if playoff_entry.last_place:
-                last_places += 1
-            if finish:
-                if best_finish is None or finish < best_finish:
-                    best_finish = finish
-                if worst_finish is None or finish > worst_finish:
-                    worst_finish = finish
+        # Track best/worst finish using the hybrid finish value (bracket for top 6, seed for bottom 6)
+        if finish is not None:
+            if best_finish is None or finish < best_finish:
+                best_finish = finish
+            if worst_finish is None or finish > worst_finish:
+                worst_finish = finish
 
     if not season_rows:
         st.warning(f"No data found for {selected}.")
@@ -412,13 +420,12 @@ def page_owner_profile():
 
     # --- Career summary metrics ---
     st.subheader(f"{selected} — Career Summary")
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Record", f"{total_wins}-{total_losses}" + (f"-{total_ties}" if total_ties else ""))
     c2.metric("Win %", f"{overall_win_pct:.1%}")
     c3.metric("Avg PPG", f"{total_pts / total_games:.1f}")
     c4.metric("Playoffs", f"{playoff_apps}/{len(season_rows)}")
     c5.metric("Championships", championships)
-    c6.metric("Last Places", last_places)
 
     st.divider()
 
@@ -518,7 +525,12 @@ def page_season():
                     (r for r in data["playoff"].values() if r.canonical_name == rec.canonical_name),
                     None,
                 )
-                finish = playoff_entry.finish if playoff_entry else None
+                # Finish: bracket result for championship teams; reg season seed for others
+                if playoff_entry and playoff_entry.made_playoffs and playoff_entry.finish is not None:
+                    finish = playoff_entry.finish
+                    finish_label = FINISH_DISPLAY.get(finish, f"{finish}th")
+                else:
+                    finish_label = "-"
                 rows.append({
                     "Seed": seed,
                     "Owner": rec.canonical_name,
@@ -527,7 +539,7 @@ def page_season():
                     "Pts For": round(rec.points_for, 1),
                     "Pts Against": round(rec.points_against, 1),
                     "PPG": round(rec.ppg, 1),
-                    "Finish": FINISH_DISPLAY.get(finish, "-") if finish else "-",
+                    "Finish": finish_label,
                 })
 
             st.dataframe(pd.DataFrame(rows).set_index("Seed"), use_container_width=True, height=460)
@@ -556,7 +568,7 @@ def page_season():
 
         finish_labels = {
             1: "Champion", 2: "Runner-up", 3: "3rd", 4: "4th", 5: "5th", 6: "6th",
-            7: "7th", 8: "8th", 9: "9th", 10: "10th", 11: "11th", 12: "Last",
+            7: "7th", 8: "8th", 9: "9th", 10: "10th", 11: "11th", 12: "12th",
         }
 
         # Build DataFrame: rows=finish rank, cols=season
