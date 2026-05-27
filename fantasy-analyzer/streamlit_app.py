@@ -1213,7 +1213,7 @@ def page_waivers() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Navigation
+# Navigation helpers
 # ---------------------------------------------------------------------------
 
 PAGES = {
@@ -1226,10 +1226,135 @@ PAGES = {
     "Waivers": page_waivers,
 }
 
-with st.sidebar:
-    st.markdown("## NNBE History")
-    st.markdown("The New New Big East")
-    st.divider()
-    page = st.radio("Navigate", list(PAGES.keys()))
+NAV_GROUPS = [
+    ("📊 History", ["League Overview", "Season Standings"]),
+    ("👤 Owner", ["Owner Profile"]),
+    ("⚔️ Head-to-Head", ["Head-to-Head", "Rivalries"]),
+    ("💱 Transactions", ["Trades", "Waivers"]),
+]
 
-PAGES[page]()
+
+def nav_to(page: str) -> None:
+    """Switch the active page via session state (called as button on_click)."""
+    st.session_state.current_page = page
+
+
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Home"
+
+
+# ---------------------------------------------------------------------------
+# Page: Home
+# ---------------------------------------------------------------------------
+
+def page_home():
+    st.title("NNBE League History")
+    st.caption("The New New Big East — 2021 through 2025")
+
+    st.divider()
+
+    # Quick stats
+    standings = load_all_time_standings()
+    total_rs_games = sum(r.total_games for r in standings) // 2
+    total_pts = sum(r.total_points for r in standings)
+    champ_data = load_championship_rosters()
+    reigning = champ_data[-1]["champion"] if champ_data else "—"
+    most_titles = max(standings, key=lambda r: r.championships)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Seasons", len(champ_data))
+    c2.metric("Regular Season Games", f"{total_rs_games:,}")
+    c3.metric("Total Points Scored", f"{total_pts:,.0f}")
+    c4.metric("Reigning Champion", reigning)
+
+    st.divider()
+    st.subheader("Explore")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**📊 History**")
+        st.button("League Overview", key="home_overview", use_container_width=True,
+                  on_click=nav_to, args=("League Overview",))
+        st.button("Season Standings", key="home_season", use_container_width=True,
+                  on_click=nav_to, args=("Season Standings",))
+
+        st.markdown("")
+        st.markdown("**⚔️ Head-to-Head**")
+        st.button("H2H Matchups", key="home_h2h", use_container_width=True,
+                  on_click=nav_to, args=("Head-to-Head",))
+        st.button("Rivalries", key="home_riv", use_container_width=True,
+                  on_click=nav_to, args=("Rivalries",))
+
+    with col2:
+        st.markdown("**👤 Owner**")
+        st.button("Owner Profile", key="home_owner", use_container_width=True,
+                  on_click=nav_to, args=("Owner Profile",))
+
+        st.markdown("")
+        st.markdown("**💱 Transactions**")
+        st.button("Trades", key="home_trades", use_container_width=True,
+                  on_click=nav_to, args=("Trades",))
+        st.button("Waivers", key="home_waivers", use_container_width=True,
+                  on_click=nav_to, args=("Waivers",))
+
+    st.divider()
+
+    # All-time win % leaders mini-table
+    st.subheader("All-Time Win %")
+    leader_rows = [
+        {
+            "Owner": r.canonical_name,
+            "W-L": f"{r.reg_wins}-{r.reg_losses}",
+            "Win%": f"{r.win_pct:.1%}",
+            "Playoffs": f"{r.playoff_appearances}/{r.seasons}",
+            "Titles": r.championships if r.championships else "",
+        }
+        for r in standings
+    ]
+    st.dataframe(
+        pd.DataFrame(leader_rows).set_index("Owner"),
+        use_container_width=True,
+        height=430,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sidebar + routing
+# ---------------------------------------------------------------------------
+
+with st.sidebar:
+    st.markdown("## NNBE")
+    st.markdown("*The New New Big East*")
+    st.divider()
+
+    st.button(
+        "🏠 Home",
+        key="nav_Home",
+        use_container_width=True,
+        type="primary" if st.session_state.current_page == "Home" else "secondary",
+        on_click=nav_to,
+        args=("Home",),
+    )
+
+    for group_label, pages in NAV_GROUPS:
+        st.markdown(f"**{group_label}**")
+        for p in pages:
+            st.button(
+                p,
+                key=f"nav_{p}",
+                use_container_width=True,
+                type="primary" if st.session_state.current_page == p else "secondary",
+                on_click=nav_to,
+                args=(p,),
+            )
+
+    st.divider()
+    st.caption("NNBE · Est. 2021")
+
+# Render current page
+current = st.session_state.current_page
+if current == "Home":
+    page_home()
+else:
+    PAGES.get(current, page_home)()
