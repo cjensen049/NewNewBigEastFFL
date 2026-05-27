@@ -827,3 +827,70 @@ def get_all_time_luck(con: sqlite3.Connection) -> list[dict]:
         )
         all_rows.extend(rows)
     return all_rows
+
+
+# ---------------------------------------------------------------------------
+# Race to the Bottom
+# ---------------------------------------------------------------------------
+
+def get_race_to_bottom(con: sqlite3.Connection, season: int) -> list[dict]:
+    """Return non-playoff teams ranked by optimal PF (ppts) ascending.
+
+    Lowest ppts = 1st rookie draft pick. Rewards weakest overall roster
+    rather than rewarding owners who bench players to lose.
+    """
+    row = con.execute(
+        """
+        SELECT league_id, playoff_week_start,
+               COALESCE(last_scored_leg, playoff_week_start + 2)
+        FROM leagues WHERE season = ?
+        """,
+        (season,),
+    ).fetchone()
+    if not row:
+        return []
+    league_id, pws, last_week = row
+
+    playoff_results = compute_playoff_results(con, league_id, season, pws, last_week)
+    playoff_uids = {pr.user_id for pr in playoff_results if pr.made_playoffs}
+
+    rows = con.execute(
+        """
+        SELECT sr.user_id, o.canonical_name, sr.wins, sr.losses, sr.fpts, sr.ppts
+        FROM season_records sr
+        JOIN owners o ON sr.user_id = o.user_id
+        WHERE sr.league_id = ?
+        """,
+        (league_id,),
+    ).fetchall()
+
+    non_playoff = []
+    for uid, name, wins, losses, fpts, ppts in rows:
+        if uid in playoff_uids or ppts == 0:
+            continue
+        non_playoff.append({
+            "user_id": uid,
+            "owner": name,
+            "season": season,
+            "wins": wins,
+            "losses": losses,
+            "actual_pts": round(fpts, 2),
+            "optimal_pts": round(ppts, 2),
+            "lineup_pct": round(fpts / ppts * 100, 1) if ppts else 0.0,
+        })
+
+    non_playoff.sort(key=lambda r: r["optimal_pts"])
+    for i, r in enumerate(non_playoff):
+        r["draft_pick"] = i + 1
+
+    return non_playoff
+
+
+def get_rtb_history(con: sqlite3.Connection) -> list[dict]:
+    """Return Race to the Bottom results for all complete seasons."""
+    seasons = get_all_seasons(con)
+    all_rows: list[dict] = []
+    for s in seasons:
+        rows = get_race_to_bottom(con, s["season"])
+        all_rows.extend(rows)
+    return all_rows

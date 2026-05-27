@@ -28,6 +28,8 @@ from fantasy_analyzer.analysis.history import (
     get_championship_rosters,
     compute_luck_scores,
     get_all_time_luck,
+    get_race_to_bottom,
+    get_rtb_history,
 )
 from fantasy_analyzer.analysis.rivalries import get_rivalry_pairs, get_nemesis_prey
 from fantasy_analyzer.analysis.transactions import (
@@ -147,6 +149,14 @@ def load_luck_scores(season: int):
 @st.cache_data
 def load_all_time_luck():
     return get_all_time_luck(get_db())
+
+@st.cache_data
+def load_race_to_bottom(season: int):
+    return get_race_to_bottom(get_db(), season)
+
+@st.cache_data
+def load_rtb_history():
+    return get_rtb_history(get_db())
 
 @st.cache_data
 def load_h2h_matrix():
@@ -1409,7 +1419,107 @@ with tab_inseason:
             st.plotly_chart(fig, use_container_width=True)
     with sub_rtb:
         st.title("Race to the Bottom")
-        st.info(
-            "Coming soon — ranks non-playoff teams by optimal points for (max possible lineup score). "
-            "Lowest optimal PF earns the first rookie draft pick."
+        st.caption(
+            "Non-playoff teams ranked by Sleeper's optimal PF — the maximum score achievable "
+            "with the best possible lineup each week. Lowest optimal PF earns the 1st rookie "
+            "draft pick, rewarding the weakest roster rather than rewarding tanking."
         )
+
+        rtb_tab_season, rtb_tab_history = st.tabs(["By Season", "History"])
+
+        with rtb_tab_season:
+            seasons = load_available_seasons()
+            sel_season = st.selectbox(
+                "Season", sorted(seasons, reverse=True), key="rtb_season"
+            )
+            rtb_rows = load_race_to_bottom(sel_season)
+
+            if not rtb_rows:
+                st.info("No Race to the Bottom data available for this season yet.")
+            else:
+                table_rows = [
+                    {
+                        "Pick": f"#{r['draft_pick']}",
+                        "Owner": r["owner"],
+                        "W-L": f"{r['wins']}-{r['losses']}",
+                        "Optimal PF": f"{r['optimal_pts']:,.1f}",
+                        "Actual PF": f"{r['actual_pts']:,.1f}",
+                        "Lineup %": f"{r['lineup_pct']:.1f}%",
+                    }
+                    for r in rtb_rows
+                ]
+                st.dataframe(
+                    pd.DataFrame(table_rows).set_index("Pick"),
+                    use_container_width=True,
+                    height=280,
+                )
+
+                st.divider()
+                fig = go.Figure(go.Bar(
+                    x=[r["owner"] for r in rtb_rows],
+                    y=[r["optimal_pts"] for r in rtb_rows],
+                    marker_color=["#e74c3c" if i == 0 else "#f39c12" if i == 1 else "#f1c40f" if i == 2 else "#95a5a6"
+                                  for i in range(len(rtb_rows))],
+                    text=[f"{r['optimal_pts']:,.0f}" for r in rtb_rows],
+                    textposition="outside",
+                    customdata=[[f"#{r['draft_pick']}"] for r in rtb_rows],
+                    hovertemplate="%{x}<br>Optimal PF: %{y:,.1f}<br>Pick: %{customdata[0]}<extra></extra>",
+                ))
+                fig.update_layout(
+                    title=f"{sel_season} Race to the Bottom — Optimal PF",
+                    yaxis_title="Optimal Points For",
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(t=40, b=20), height=360,
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+        with rtb_tab_history:
+            all_rtb = load_rtb_history()
+            if not all_rtb:
+                st.info("No historical Race to the Bottom data available.")
+            else:
+                from collections import defaultdict
+                owner_history: dict[str, dict] = defaultdict(lambda: {
+                    "seasons": [], "picks": [], "optimal_pts": []
+                })
+                for r in all_rtb:
+                    owner_history[r["owner"]]["seasons"].append(r["season"])
+                    owner_history[r["owner"]]["picks"].append(r["draft_pick"])
+                    owner_history[r["owner"]]["optimal_pts"].append(r["optimal_pts"])
+
+                hist_rows = []
+                for owner, d in owner_history.items():
+                    hist_rows.append({
+                        "Owner": owner,
+                        "Appearances": len(d["seasons"]),
+                        "Best Pick": f"#{min(d['picks'])}",
+                        "Avg Pick": f"#{sum(d['picks']) / len(d['picks']):.1f}",
+                        "Seasons": ", ".join(str(s) for s in sorted(d["seasons"])),
+                    })
+                hist_rows.sort(key=lambda r: -r["Appearances"])
+
+                st.dataframe(
+                    pd.DataFrame(hist_rows).set_index("Owner"),
+                    use_container_width=True,
+                    height=460,
+                )
+
+                st.divider()
+                st.subheader("Draft Pick by Season")
+                seasons_sorted = sorted({r["season"] for r in all_rtb})
+                owners_sorted = sorted(owner_history.keys())
+                grid_rows = []
+                for owner in owners_sorted:
+                    row = {"Owner": owner}
+                    pick_by_season = dict(zip(
+                        owner_history[owner]["seasons"],
+                        owner_history[owner]["picks"]
+                    ))
+                    for s in seasons_sorted:
+                        row[str(s)] = f"#{pick_by_season[s]}" if s in pick_by_season else "—"
+                    grid_rows.append(row)
+                st.dataframe(
+                    pd.DataFrame(grid_rows).set_index("Owner"),
+                    use_container_width=True,
+                    height=460,
+                )

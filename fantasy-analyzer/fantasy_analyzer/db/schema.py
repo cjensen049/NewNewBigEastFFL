@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS season_records (
     ties        INTEGER NOT NULL DEFAULT 0,
     fpts        REAL NOT NULL DEFAULT 0,
     fpts_against REAL NOT NULL DEFAULT 0,
+    ppts        REAL NOT NULL DEFAULT 0,
     made_playoffs INTEGER NOT NULL DEFAULT 0,
     playoff_wins  INTEGER NOT NULL DEFAULT 0,
     champion      INTEGER NOT NULL DEFAULT 0,
@@ -160,6 +161,12 @@ async def apply_migrations(db_path: str) -> None:
 
         try:
             await db.execute("ALTER TABLE matchups ADD COLUMN players_points_json TEXT")
+            await db.commit()
+        except Exception:
+            pass  # column already exists
+
+        try:
+            await db.execute("ALTER TABLE season_records ADD COLUMN ppts REAL NOT NULL DEFAULT 0")
             await db.commit()
         except Exception:
             pass  # column already exists

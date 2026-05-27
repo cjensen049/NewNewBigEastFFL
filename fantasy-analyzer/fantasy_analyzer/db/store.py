@@ -131,19 +131,21 @@ async def upsert_season_records(
             r.ties,
             r.fpts,
             r.fpts_against,
+            r.ppts,
         ))
 
     await db.executemany(
         """
         INSERT INTO season_records
-            (league_id, user_id, season, wins, losses, ties, fpts, fpts_against)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (league_id, user_id, season, wins, losses, ties, fpts, fpts_against, ppts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(league_id, user_id) DO UPDATE SET
             wins         = excluded.wins,
             losses       = excluded.losses,
             ties         = excluded.ties,
             fpts         = excluded.fpts,
-            fpts_against = excluded.fpts_against
+            fpts_against = excluded.fpts_against,
+            ppts         = excluded.ppts
         """,
         rows,
     )

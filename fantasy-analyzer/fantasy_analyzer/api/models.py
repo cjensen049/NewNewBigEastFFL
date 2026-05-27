@@ -72,6 +72,13 @@ class Roster(BaseModel):
         decimal = self.settings.get("fpts_against_decimal", 0) or 0
         return whole + decimal / 100.0
 
+    @property
+    def ppts(self) -> float:
+        """Potential points — Sleeper's optimal lineup score across all weeks."""
+        whole = self.settings.get("ppts", 0) or 0
+        decimal = self.settings.get("ppts_decimal", 0) or 0
+        return whole + decimal / 100.0
+
 
 class Matchup(BaseModel):
     matchup_id: int | None = None
