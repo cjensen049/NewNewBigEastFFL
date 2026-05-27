@@ -1,0 +1,56 @@
+name: Weekly DB Refresh
+
+on:
+  schedule:
+    # Every Tuesday at 07:00 UTC (3 AM ET) — after Monday Night Football
+    - cron: '0 7 * * 2'
+  workflow_dispatch:  # Allow manual trigger from GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fantasy-analyzer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: fantasy-analyzer/requirements.txt
+
+      # Cache players.json by ISO week so it's refreshed weekly but reused within a week.
+      # Cache miss = ingest downloads fresh copy; cache hit = skip the 10MB download.
+      - name: Get ISO week
+        id: week
+        run: echo "key=players-$(date -u +'%Y-W%V')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache player data
+        uses: actions/cache@v4
+        with:
+          path: fantasy-analyzer/data/players.json
+          key: ${{ steps.week.outputs.key }}
+          restore-keys: players-
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Run ingest
+        run: python -m fantasy_analyzer.cli ingest
+
+      - name: Commit updated DB
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/league.db
+          git diff --staged --quiet && echo "No changes to commit" || \
+            git commit -m "chore: weekly DB refresh $(date -u +'%Y-%m-%d')"
+
+      - name: Push changes
+        run: git push
