@@ -686,21 +686,32 @@ def get_championship_rosters(con: sqlite3.Connection) -> list[dict]:
         if not champion:
             continue
 
-        # Championship game scores
+        # Championship game scores and lineups
         champ_row = con.execute(
-            "SELECT points, starters_json FROM matchups WHERE league_id=? AND week=? AND user_id=? AND matchup_id=1",
+            "SELECT points, starters_json, players_points_json FROM matchups "
+            "WHERE league_id=? AND week=? AND user_id=? AND matchup_id=1",
             (s["league_id"], s["last_week"], champion.user_id),
         ).fetchone()
         ru_row = con.execute(
-            "SELECT points FROM matchups WHERE league_id=? AND week=? AND user_id=? AND matchup_id=1",
+            "SELECT points, starters_json, players_points_json FROM matchups "
+            "WHERE league_id=? AND week=? AND user_id=? AND matchup_id=1",
             (s["league_id"], s["last_week"], runner_up.user_id if runner_up else None),
         ).fetchone() if runner_up else None
 
-        starters = []
-        if champ_row and champ_row[1]:
-            for pid in json.loads(champ_row[1]):
+        def _build_lineup(row: tuple | None) -> list[dict]:
+            if not row or not row[1]:
+                return []
+            starters_list = json.loads(row[1])
+            pts_map: dict[str, float] = json.loads(row[2]) if row[2] else {}
+            lineup = []
+            for pid in starters_list:
                 name, pos = player_names.get(pid, (pid, "?"))
-                starters.append({"position": pos or "?", "player": name or pid})
+                lineup.append({
+                    "position": pos or "?",
+                    "player": name or pid,
+                    "points": pts_map.get(pid),
+                })
+            return lineup
 
         results_out.append({
             "season": s["season"],
@@ -708,7 +719,8 @@ def get_championship_rosters(con: sqlite3.Connection) -> list[dict]:
             "runner_up": runner_up.canonical_name if runner_up else "—",
             "champ_score": champ_row[0] if champ_row else None,
             "ru_score": ru_row[0] if ru_row else None,
-            "starters": starters,
+            "champ_starters": _build_lineup(champ_row),
+            "ru_starters": _build_lineup(ru_row),
         })
 
     return results_out

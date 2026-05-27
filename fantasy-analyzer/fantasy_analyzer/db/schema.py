@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS matchups (
     user_id         TEXT REFERENCES owners(user_id),
     points          REAL,
     is_playoff      INTEGER NOT NULL DEFAULT 0,
-    starters_json   TEXT,
+    starters_json       TEXT,
+    players_points_json TEXT,
     UNIQUE(league_id, week, roster_id)
 );
 
@@ -153,6 +154,12 @@ async def apply_migrations(db_path: str) -> None:
 
         try:
             await db.execute("ALTER TABLE matchups ADD COLUMN starters_json TEXT")
+            await db.commit()
+        except Exception:
+            pass  # column already exists
+
+        try:
+            await db.execute("ALTER TABLE matchups ADD COLUMN players_points_json TEXT")
             await db.commit()
         except Exception:
             pass  # column already exists

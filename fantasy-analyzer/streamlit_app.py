@@ -305,26 +305,42 @@ def page_overview():
     # ---- Champions ----
     with tab_champs:
         champ_data = load_championship_rosters()
+        pos_order = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF", "BN"]
+
+        def _lineup_df(starters: list[dict]) -> pd.DataFrame:
+            sorted_starters = sorted(
+                starters,
+                key=lambda p: pos_order.index(p["position"]) if p["position"] in pos_order else 99,
+            )
+            rows = []
+            for p in sorted_starters:
+                rows.append({
+                    "Pos": p["position"],
+                    "Player": p["player"],
+                    "Pts": f"{p['points']:.2f}" if p["points"] is not None else "—",
+                })
+            return pd.DataFrame(rows).set_index("Pos")
 
         for cr in reversed(champ_data):
             score_str = ""
             if cr["champ_score"] and cr["ru_score"]:
                 score_str = f" ({cr['champ_score']:.2f} – {cr['ru_score']:.2f})"
             with st.expander(f"**{cr['season']} Champion: {cr['champion']}**{score_str}", expanded=True):
-                st.markdown(f"Runner-up: **{cr['runner_up']}**")
-                if cr["starters"]:
-                    st.markdown("**Championship Starting Lineup:**")
-                    pos_order = ["QB", "RB", "WR", "TE", "K", "DEF", "FLEX", "SUPER_FLEX", "BN"]
-                    starters_sorted = sorted(
-                        cr["starters"],
-                        key=lambda p: pos_order.index(p["position"]) if p["position"] in pos_order else 99
-                    )
-                    starter_df = pd.DataFrame(starters_sorted).rename(
-                        columns={"position": "Pos", "player": "Player"}
-                    )
-                    st.dataframe(starter_df.set_index("Pos"), use_container_width=True, hide_index=False)
-                else:
-                    st.caption("Starting lineup data not available.")
+                col_champ, col_ru = st.columns(2)
+
+                with col_champ:
+                    st.markdown(f"🏆 **{cr['champion']}**")
+                    if cr["champ_starters"]:
+                        st.dataframe(_lineup_df(cr["champ_starters"]), use_container_width=True)
+                    else:
+                        st.caption("Lineup data not available.")
+
+                with col_ru:
+                    st.markdown(f"🥈 **{cr['runner_up']}**")
+                    if cr["ru_starters"]:
+                        st.dataframe(_lineup_df(cr["ru_starters"]), use_container_width=True)
+                    else:
+                        st.caption("Lineup data not available.")
 
 
 # ---------------------------------------------------------------------------

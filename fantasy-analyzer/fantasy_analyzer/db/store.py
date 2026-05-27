@@ -177,18 +177,21 @@ async def upsert_matchups(
             m.points,
             is_playoff,
             json.dumps(m.starters) if m.starters else None,
+            json.dumps(m.players_points) if m.players_points else None,
         ))
 
     await db.executemany(
         """
         INSERT INTO matchups
-            (league_id, season, week, matchup_id, roster_id, user_id, points, is_playoff, starters_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (league_id, season, week, matchup_id, roster_id, user_id, points, is_playoff,
+             starters_json, players_points_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(league_id, week, roster_id) DO UPDATE SET
-            points        = excluded.points,
-            matchup_id    = excluded.matchup_id,
-            user_id       = excluded.user_id,
-            starters_json = COALESCE(excluded.starters_json, starters_json)
+            points              = excluded.points,
+            matchup_id          = excluded.matchup_id,
+            user_id             = excluded.user_id,
+            starters_json       = COALESCE(excluded.starters_json, starters_json),
+            players_points_json = COALESCE(excluded.players_points_json, players_points_json)
         """,
         rows,
     )

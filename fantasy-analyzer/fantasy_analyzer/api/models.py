@@ -79,6 +79,7 @@ class Matchup(BaseModel):
     points: float | None = None
     players: list[str] = Field(default_factory=list)
     starters: list[str] = Field(default_factory=list)
+    players_points: dict[str, float] = Field(default_factory=dict)
     custom_points: float | None = None
 
     @field_validator("points", mode="before")
