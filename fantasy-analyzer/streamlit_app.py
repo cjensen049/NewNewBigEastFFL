@@ -52,6 +52,7 @@ st.set_page_config(
     page_title="NNBE League History",
     page_icon=":football:",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 # ---------------------------------------------------------------------------
@@ -600,83 +601,79 @@ def page_season():
 # Page: Head-to-Head
 # ---------------------------------------------------------------------------
 
-def page_h2h():
-    st.title("Head-to-Head")
+def _section_h2h_lookup():
+    """Matchup lookup content — rendered inside the H2H nav tab."""
+    owners = load_owners()
+    col1, col2 = st.columns(2)
+    owner1 = col1.selectbox("Owner 1", owners, index=0, key="h2h_o1")
+    owner2 = col2.selectbox("Owner 2", owners, index=1, key="h2h_o2")
 
-    tab_lookup, tab_playoff = st.tabs(["Matchup Lookup", "Playoff Records"])
-
-    # ---- Matchup Lookup ----
-    with tab_lookup:
-        owners = load_owners()
-        col1, col2 = st.columns(2)
-        owner1 = col1.selectbox("Owner 1", owners, index=0, key="h2h_o1")
-        owner2 = col2.selectbox("Owner 2", owners, index=1, key="h2h_o2")
-
-        if owner1 == owner2:
-            st.warning("Pick two different owners.")
+    if owner1 == owner2:
+        st.warning("Pick two different owners.")
+    else:
+        df = load_h2h(owner1, owner2)
+        if df.empty:
+            st.info("No head-to-head matchups found.")
         else:
-            df = load_h2h(owner1, owner2)
-            if df.empty:
-                st.info("No head-to-head matchups found.")
-            else:
-                pts1_col = f"{owner1} Pts"
-                pts2_col = f"{owner2} Pts"
-                wins1 = (df[pts1_col] > df[pts2_col]).sum()
-                wins2 = (df[pts1_col] < df[pts2_col]).sum()
-                ties = (df[pts1_col] == df[pts2_col]).sum()
-                games = len(df)
+            pts1_col = f"{owner1} Pts"
+            pts2_col = f"{owner2} Pts"
+            wins1 = (df[pts1_col] > df[pts2_col]).sum()
+            wins2 = (df[pts1_col] < df[pts2_col]).sum()
+            ties = (df[pts1_col] == df[pts2_col]).sum()
+            games = len(df)
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric(f"{owner1} Wins", wins1)
-                c2.metric("Ties", ties)
-                c3.metric(f"{owner2} Wins", wins2)
-                st.divider()
+            c1, c2, c3 = st.columns(3)
+            c1.metric(f"{owner1} Wins", wins1)
+            c2.metric("Ties", ties)
+            c3.metric(f"{owner2} Wins", wins2)
+            st.divider()
 
-                st.subheader("Points Each Game")
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=list(range(1, games + 1)), y=df[pts1_col].tolist(),
-                    name=owner1, mode="lines+markers", line=dict(color="#4a90d9"),
-                ))
-                fig.add_trace(go.Scatter(
-                    x=list(range(1, games + 1)), y=df[pts2_col].tolist(),
-                    name=owner2, mode="lines+markers", line=dict(color="#e05a5a"),
-                ))
-                labels = [f"{r['Season']} Wk{r['Week']}" for _, r in df.iterrows()]
-                fig.update_xaxes(tickvals=list(range(1, games + 1)), ticktext=labels, tickangle=45)
-                fig.update_layout(
-                    yaxis_title="Points", plot_bgcolor="rgba(0,0,0,0)",
-                    paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=20, b=80), height=380,
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                st.divider()
+            st.subheader("Points Each Game")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=list(range(1, games + 1)), y=df[pts1_col].tolist(),
+                name=owner1, mode="lines+markers", line=dict(color="#4a90d9"),
+            ))
+            fig.add_trace(go.Scatter(
+                x=list(range(1, games + 1)), y=df[pts2_col].tolist(),
+                name=owner2, mode="lines+markers", line=dict(color="#e05a5a"),
+            ))
+            labels = [f"{r['Season']} Wk{r['Week']}" for _, r in df.iterrows()]
+            fig.update_xaxes(tickvals=list(range(1, games + 1)), ticktext=labels, tickangle=45)
+            fig.update_layout(
+                yaxis_title="Points", plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=20, b=80), height=380,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            st.divider()
 
-                st.subheader("All Matchups")
-                log = df.copy()
-                log["Winner"] = log.apply(
-                    lambda r: owner1 if r[pts1_col] > r[pts2_col]
-                    else (owner2 if r[pts2_col] > r[pts1_col] else "Tie"), axis=1,
-                )
-                st.dataframe(log.set_index("Season"), use_container_width=True, height=420)
+            st.subheader("All Matchups")
+            log = df.copy()
+            log["Winner"] = log.apply(
+                lambda r: owner1 if r[pts1_col] > r[pts2_col]
+                else (owner2 if r[pts2_col] > r[pts1_col] else "Tie"), axis=1,
+            )
+            st.dataframe(log.set_index("Season"), use_container_width=True, height=420)
 
-    # ---- Playoff Records ----
-    with tab_playoff:
-        st.subheader("All-Time Playoff Records")
-        playoff_recs = load_playoff_records()
-        rows = [
-            {
-                "Owner": ps.canonical_name,
-                "Appearances": ps.appearances,
-                "Byes": ps.byes,
-                "W-L": f"{ps.playoff_wins}-{ps.playoff_losses}",
-                "Win%": f"{ps.win_pct:.1%}" if ps.games else "—",
-                "Titles": ps.championships if ps.championships else "",
-                "Runner-up": ps.runner_up if ps.runner_up else "",
-            }
-            for ps in playoff_recs
-        ]
-        st.dataframe(pd.DataFrame(rows).set_index("Owner"), use_container_width=True, height=460)
+
+def _section_h2h_playoff():
+    """Playoff bracket records — rendered inside the H2H nav tab."""
+    st.subheader("All-Time Playoff Records")
+    playoff_recs = load_playoff_records()
+    rows = [
+        {
+            "Owner": ps.canonical_name,
+            "Appearances": ps.appearances,
+            "Byes": ps.byes,
+            "W-L": f"{ps.playoff_wins}-{ps.playoff_losses}",
+            "Win%": f"{ps.win_pct:.1%}" if ps.games else "—",
+            "Titles": ps.championships if ps.championships else "",
+            "Runner-up": ps.runner_up if ps.runner_up else "",
+        }
+        for ps in playoff_recs
+    ]
+    st.dataframe(pd.DataFrame(rows).set_index("Owner"), use_container_width=True, height=460)
 
 
 # ---------------------------------------------------------------------------
@@ -1213,148 +1210,62 @@ def page_waivers() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Navigation helpers
+# Top-level navigation (always visible horizontal tabs)
 # ---------------------------------------------------------------------------
 
-PAGES = {
-    "League Overview": page_overview,
-    "Owner Profile": page_owner_profile,
-    "Season Standings": page_season,
-    "Head-to-Head": page_h2h,
-    "Rivalries": page_rivalries,
-    "Trades": page_trades,
-    "Waivers": page_waivers,
-}
+st.markdown("### NNBE · The New New Big East")
 
-NAV_GROUPS = [
-    ("📊 History", ["League Overview", "Season Standings"]),
-    ("👤 Owner", ["Owner Profile"]),
-    ("⚔️ Head-to-Head", ["Head-to-Head", "Rivalries"]),
-    ("💱 Transactions", ["Trades", "Waivers"]),
-]
+tab_hist, tab_owner, tab_h2h, tab_trans, tab_inseason = st.tabs([
+    "📊 History",
+    "👤 Owner",
+    "⚔️ Head-to-Head",
+    "💱 Transactions",
+    "🏈 In-Season",
+])
 
+# ---- History ----
+with tab_hist:
+    sub_overview, sub_season = st.tabs(["League Overview", "Season Standings"])
+    with sub_overview:
+        page_overview()
+    with sub_season:
+        page_season()
 
-def nav_to(page: str) -> None:
-    """Switch the active page via session state (called as button on_click)."""
-    st.session_state.current_page = page
+# ---- Owner ----
+with tab_owner:
+    page_owner_profile()
 
+# ---- Head-to-Head ----
+with tab_h2h:
+    sub_lookup, sub_playoff, sub_riv = st.tabs(["Matchup Lookup", "Playoff Records", "Rivalries"])
+    with sub_lookup:
+        _section_h2h_lookup()
+    with sub_playoff:
+        _section_h2h_playoff()
+    with sub_riv:
+        page_rivalries()
 
-if "current_page" not in st.session_state:
-    st.session_state.current_page = "Home"
+# ---- Transactions ----
+with tab_trans:
+    sub_trades, sub_waivers = st.tabs(["Trades", "Waivers"])
+    with sub_trades:
+        page_trades()
+    with sub_waivers:
+        page_waivers()
 
-
-# ---------------------------------------------------------------------------
-# Page: Home
-# ---------------------------------------------------------------------------
-
-def page_home():
-    st.title("NNBE League History")
-    st.caption("The New New Big East — 2021 through 2025")
-
-    st.divider()
-
-    # Quick stats
-    standings = load_all_time_standings()
-    total_rs_games = sum(r.total_games for r in standings) // 2
-    total_pts = sum(r.total_points for r in standings)
-    champ_data = load_championship_rosters()
-    reigning = champ_data[-1]["champion"] if champ_data else "—"
-    most_titles = max(standings, key=lambda r: r.championships)
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Seasons", len(champ_data))
-    c2.metric("Regular Season Games", f"{total_rs_games:,}")
-    c3.metric("Total Points Scored", f"{total_pts:,.0f}")
-    c4.metric("Reigning Champion", reigning)
-
-    st.divider()
-    st.subheader("Explore")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**📊 History**")
-        st.button("League Overview", key="home_overview", use_container_width=True,
-                  on_click=nav_to, args=("League Overview",))
-        st.button("Season Standings", key="home_season", use_container_width=True,
-                  on_click=nav_to, args=("Season Standings",))
-
-        st.markdown("")
-        st.markdown("**⚔️ Head-to-Head**")
-        st.button("H2H Matchups", key="home_h2h", use_container_width=True,
-                  on_click=nav_to, args=("Head-to-Head",))
-        st.button("Rivalries", key="home_riv", use_container_width=True,
-                  on_click=nav_to, args=("Rivalries",))
-
-    with col2:
-        st.markdown("**👤 Owner**")
-        st.button("Owner Profile", key="home_owner", use_container_width=True,
-                  on_click=nav_to, args=("Owner Profile",))
-
-        st.markdown("")
-        st.markdown("**💱 Transactions**")
-        st.button("Trades", key="home_trades", use_container_width=True,
-                  on_click=nav_to, args=("Trades",))
-        st.button("Waivers", key="home_waivers", use_container_width=True,
-                  on_click=nav_to, args=("Waivers",))
-
-    st.divider()
-
-    # All-time win % leaders mini-table
-    st.subheader("All-Time Win %")
-    leader_rows = [
-        {
-            "Owner": r.canonical_name,
-            "W-L": f"{r.reg_wins}-{r.reg_losses}",
-            "Win%": f"{r.win_pct:.1%}",
-            "Playoffs": f"{r.playoff_appearances}/{r.seasons}",
-            "Titles": r.championships if r.championships else "",
-        }
-        for r in standings
-    ]
-    st.dataframe(
-        pd.DataFrame(leader_rows).set_index("Owner"),
-        use_container_width=True,
-        height=430,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Sidebar + routing
-# ---------------------------------------------------------------------------
-
-with st.sidebar:
-    st.markdown("## NNBE")
-    st.markdown("*The New New Big East*")
-    st.divider()
-
-    st.button(
-        "🏠 Home",
-        key="nav_Home",
-        use_container_width=True,
-        type="primary" if st.session_state.current_page == "Home" else "secondary",
-        on_click=nav_to,
-        args=("Home",),
-    )
-
-    for group_label, pages in NAV_GROUPS:
-        st.markdown(f"**{group_label}**")
-        for p in pages:
-            st.button(
-                p,
-                key=f"nav_{p}",
-                use_container_width=True,
-                type="primary" if st.session_state.current_page == p else "secondary",
-                on_click=nav_to,
-                args=(p,),
-            )
-
-    st.divider()
-    st.caption("NNBE · Est. 2021")
-
-# Render current page
-current = st.session_state.current_page
-if current == "Home":
-    page_home()
-else:
-    PAGES.get(current, page_home)()
+# ---- In-Season (placeholder) ----
+with tab_inseason:
+    sub_luck, sub_rtb = st.tabs(["Luck-o-Meter", "Race to the Bottom"])
+    with sub_luck:
+        st.title("Luck-o-Meter")
+        st.info(
+            "Coming soon — compares each team's actual record against a simulated record "
+            "if they had played every opponent each week. Tracks lucky and unlucky schedules "
+            "across all seasons and the current season live."
+        )
+    with sub_rtb:
+        st.title("Race to the Bottom")
+        st.info(
+            "Coming soon — ranks non-playoff teams by optimal points for (max possible lineup score). "
+            "Lowest optimal PF earns the first rookie draft pick."
+        )
