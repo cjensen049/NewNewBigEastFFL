@@ -1335,6 +1335,7 @@ with tab_inseason:
                 sim_games_per_team = luck_rows[0]["sim_wins"] + luck_rows[0]["sim_losses"] + luck_rows[0]["sim_ties"]
                 st.caption(f"{weeks_played} regular-season weeks · simulated W-L is each team vs all {sim_games_per_team} possible matchups")
 
+                luck_vals = [r["luck_diff"] for r in luck_rows]
                 table_rows = [
                     {
                         "Owner": r["owner"],
@@ -1344,20 +1345,20 @@ with tab_inseason:
                         "Simulated Win%": f"{r['sim_win_pct']:.1%}",
                         "Win% Diff": f"{(r['actual_win_pct'] - r['sim_win_pct']):+.1%}",
                         "Verdict": _luck_verdict(r["luck_diff"]),
-                        "_luck": r["luck_diff"],
                     }
                     for r in luck_rows
                 ]
                 df = pd.DataFrame(table_rows).set_index("Owner")
 
-                def _style_luck_rows(row):
-                    color = _row_color(row["_luck"])
-                    return [color] * len(row)
+                def _color_luck(df_inner, vals=luck_vals):
+                    styles = pd.DataFrame("", index=df_inner.index, columns=df_inner.columns)
+                    for i, v in enumerate(vals):
+                        c = _row_color(v)
+                        if c:
+                            styles.iloc[i, :] = c
+                    return styles
 
-                styled = (
-                    df.drop(columns=["_luck"])
-                    .style.apply(_style_luck_rows, axis=1, subset=pd.IndexSlice[:, df.drop(columns=["_luck"]).columns])
-                )
+                styled = df.style.apply(_color_luck, axis=None)
                 st.dataframe(styled, use_container_width=True, height=460)
 
                 st.divider()
@@ -1414,6 +1415,7 @@ with tab_inseason:
                 r["actual_win_pct"] = (r["aw"] + 0.5 * r["at"]) / ag if ag else 0.0
                 r["sim_win_pct"] = (r["sw"] + 0.5 * r["st"]) / sg if sg else 0.0
 
+            at_luck_vals = [r["luck"] for r in agg_rows]
             table_rows = [
                 {
                     "Owner": r["owner"],
@@ -1423,15 +1425,20 @@ with tab_inseason:
                     "Simulated Win%": f"{r['sim_win_pct']:.1%}",
                     "Win% Diff": f"{(r['actual_win_pct'] - r['sim_win_pct']):+.1%}",
                     "Verdict": _luck_verdict(r["luck"] / r["seasons"]),
-                    "_luck": r["luck"],
                 }
                 for r in agg_rows
             ]
             df_at = pd.DataFrame(table_rows).set_index("Owner")
-            styled_at = (
-                df_at.drop(columns=["_luck"])
-                .style.apply(_style_luck_rows, axis=1, subset=pd.IndexSlice[:, df_at.drop(columns=["_luck"]).columns])
-            )
+
+            def _color_at_luck(df_inner, vals=at_luck_vals):
+                styles = pd.DataFrame("", index=df_inner.index, columns=df_inner.columns)
+                for i, v in enumerate(vals):
+                    c = _row_color(v)
+                    if c:
+                        styles.iloc[i, :] = c
+                return styles
+
+            styled_at = df_at.style.apply(_color_at_luck, axis=None)
             st.dataframe(styled_at, use_container_width=True, height=460)
 
             st.divider()
