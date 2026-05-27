@@ -575,6 +575,70 @@ def get_owner_waiver_by_season(con: sqlite3.Connection) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Per-owner waiver / FA transaction log
+# ---------------------------------------------------------------------------
+
+def get_owner_waiver_log(con: sqlite3.Connection, owner_name: str) -> list[dict]:
+    """Return individual waiver and free-agent transactions for one owner.
+
+    Each row represents one transaction: the player added, player dropped,
+    transaction type, season, week, and FAAB bid if applicable.
+    """
+    roster_map = _roster_to_owner(con)
+    owner_rosters: set[tuple[str, int]] = {
+        (lid, rid) for (lid, rid), name in roster_map.items() if name == owner_name
+    }
+    if not owner_rosters:
+        return []
+
+    player_names = _player_names(con)
+
+    rows = con.execute(
+        """
+        SELECT league_id, season, week, type, adds_json, drops_json, waiver_bid_amount
+        FROM transactions
+        WHERE type IN ('waiver', 'free_agent') AND status = 'complete'
+        ORDER BY season DESC, COALESCE(week, 0) DESC
+        """
+    ).fetchall()
+
+    results = []
+    for league_id, season, week, txn_type, adds_raw, drops_raw, bid in rows:
+        adds: dict[str, int] = json.loads(adds_raw) if adds_raw else {}
+        drops: dict[str, int] = json.loads(drops_raw) if drops_raw else {}
+
+        # Only include if this owner made the transaction
+        is_owner = any(
+            (league_id, rid) in owner_rosters
+            for rid in list(adds.values()) + list(drops.values())
+        )
+        if not is_owner:
+            continue
+
+        added = [
+            player_names.get(pid, pid)
+            for pid, rid in adds.items()
+            if (league_id, rid) in owner_rosters
+        ]
+        dropped = [
+            player_names.get(pid, pid)
+            for pid, rid in drops.items()
+            if (league_id, rid) in owner_rosters
+        ]
+
+        results.append({
+            "season": season,
+            "week": week or 0,
+            "type": "Waiver" if txn_type == "waiver" else "Free Agent",
+            "added": ", ".join(added) if added else "—",
+            "dropped": ", ".join(dropped) if dropped else "—",
+            "faab_bid": bid if (txn_type == "waiver" and bid) else None,
+        })
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Trade partner matrix
 # ---------------------------------------------------------------------------
 

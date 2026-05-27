@@ -30,6 +30,7 @@ from fantasy_analyzer.analysis.history import (
     get_all_time_luck,
     get_race_to_bottom,
     get_rtb_history,
+    get_owner_top_players,
 )
 from fantasy_analyzer.analysis.rivalries import get_rivalry_pairs, get_nemesis_prey
 from fantasy_analyzer.analysis.transactions import (
@@ -42,6 +43,7 @@ from fantasy_analyzer.analysis.transactions import (
     get_player_add_drop_stats,
     get_owner_waiver_activity,
     get_owner_waiver_by_season,
+    get_owner_waiver_log,
     TreeNode,
 )
 
@@ -189,6 +191,14 @@ def load_owner_waiver_activity():
 @st.cache_data
 def load_owner_waiver_by_season():
     return get_owner_waiver_by_season(get_db())
+
+@st.cache_data
+def load_owner_top_players(owner: str, season: int | None = None):
+    return get_owner_top_players(get_db(), owner, season=season)
+
+@st.cache_data
+def load_owner_waiver_log(owner: str):
+    return get_owner_waiver_log(get_db(), owner)
 
 @st.cache_data
 def load_h2h(owner1: str, owner2: str) -> pd.DataFrame:
@@ -541,6 +551,94 @@ def page_owner_profile():
         use_container_width=True,
         height=420,
     )
+
+    st.divider()
+
+    # --- Top Scoring Players ---
+    st.subheader("Top Scoring Players")
+    st.caption("Regular season only · points scored while in the starting lineup")
+    tp_alltime, tp_season = st.tabs(["All-Time", "By Season"])
+
+    with tp_alltime:
+        top_all = load_owner_top_players(selected)
+        if not top_all:
+            st.info("No player scoring data available. Re-run ingest to populate.")
+        else:
+            df_tp = pd.DataFrame(top_all).rename(columns={
+                "player": "Player", "position": "Pos",
+                "total_pts": "Total Pts", "weeks_started": "Wks Started", "avg_pts": "Avg/Wk",
+            }).set_index("Player")
+            st.dataframe(df_tp, use_container_width=True, height=490)
+
+    with tp_season:
+        sel_tp_season = st.selectbox(
+            "Season", sorted(seasons, reverse=True), key="tp_season_sel"
+        )
+        top_s = load_owner_top_players(selected, season=sel_tp_season)
+        if not top_s:
+            st.info("No player scoring data for this season.")
+        else:
+            df_tps = pd.DataFrame(top_s).rename(columns={
+                "player": "Player", "position": "Pos",
+                "total_pts": "Total Pts", "weeks_started": "Wks Started", "avg_pts": "Avg/Wk",
+            }).set_index("Player")
+            st.dataframe(df_tps, use_container_width=True, height=490)
+
+    st.divider()
+
+    # --- Transaction History ---
+    st.subheader("Transaction History")
+    tr_trades, tr_waivers = st.tabs(["Trades", "Waivers & Free Agents"])
+
+    with tr_trades:
+        all_trades = load_trade_log()
+        owner_trades = [t for t in all_trades if selected in t.owners]
+        if not owner_trades:
+            st.info("No trades found.")
+        else:
+            trade_rows = []
+            for t in sorted(owner_trades, key=lambda x: (x.season, x.week), reverse=True):
+                received = [a.asset_name for a in t.assets if a.to_owner == selected]
+                sent = [a.asset_name for a in t.assets if a.from_owner == selected]
+                partners = [o for o in t.owners if o != selected]
+                trade_rows.append({
+                    "Season": t.season,
+                    "Week": t.week,
+                    "Partner(s)": ", ".join(partners) if partners else "—",
+                    "Received": ", ".join(received) if received else "—",
+                    "Sent": ", ".join(sent) if sent else "—",
+                })
+            st.caption(f"{len(trade_rows)} trades")
+            st.dataframe(
+                pd.DataFrame(trade_rows).set_index("Season"),
+                use_container_width=True,
+                height=460,
+            )
+
+    with tr_waivers:
+        waiver_log = load_owner_waiver_log(selected)
+        if not waiver_log:
+            st.info("No waiver or free agent activity found.")
+        else:
+            total_claims = sum(1 for r in waiver_log if r["type"] == "Waiver")
+            total_fa = sum(1 for r in waiver_log if r["type"] == "Free Agent")
+            total_faab = sum(r["faab_bid"] or 0 for r in waiver_log)
+            wc1, wc2, wc3 = st.columns(3)
+            wc1.metric("Waiver Claims", total_claims)
+            wc2.metric("FA Adds", total_fa)
+            wc3.metric("FAAB Spent", f"${total_faab}")
+            df_w = pd.DataFrame([
+                {
+                    "Season": r["season"],
+                    "Week": r["week"],
+                    "Type": r["type"],
+                    "Added": r["added"],
+                    "Dropped": r["dropped"],
+                    "FAAB Bid": f"${r['faab_bid']}" if r["faab_bid"] else "—",
+                }
+                for r in waiver_log
+            ]).set_index("Season")
+            st.dataframe(df_w, use_container_width=True, height=480)
 
 
 # ---------------------------------------------------------------------------

@@ -916,3 +916,72 @@ def get_rtb_history(con: sqlite3.Connection) -> list[dict]:
         rows = get_race_to_bottom(con, s["season"])
         all_rows.extend(rows)
     return all_rows
+
+
+# ---------------------------------------------------------------------------
+# Owner top scoring players
+# ---------------------------------------------------------------------------
+
+def get_owner_top_players(
+    con: sqlite3.Connection,
+    owner_name: str,
+    season: int | None = None,
+    top_n: int = 20,
+) -> list[dict]:
+    """Return the top N players by total regular-season points started for an owner.
+
+    Only weeks where both starters_json and players_points_json are populated
+    are counted — this covers all seasons where the full ingest has run.
+    """
+    row = con.execute(
+        "SELECT user_id FROM owners WHERE canonical_name = ?", (owner_name,)
+    ).fetchone()
+    if not row:
+        return []
+    user_id = row[0]
+
+    season_filter = "AND m.season = ?" if season is not None else ""
+    params: tuple = (user_id,) + ((season,) if season is not None else ())
+
+    rows = con.execute(
+        f"""
+        SELECT m.starters_json, m.players_points_json
+        FROM matchups m
+        WHERE m.user_id = ?
+          {season_filter}
+          AND m.starters_json IS NOT NULL
+          AND m.players_points_json IS NOT NULL
+          AND m.is_playoff = 0
+        """,
+        params,
+    ).fetchall()
+
+    totals: dict[str, float] = {}
+    weeks_started: dict[str, int] = {}
+
+    for starters_raw, pp_raw in rows:
+        starters = set(json.loads(starters_raw))
+        pp: dict[str, float] = json.loads(pp_raw)
+        for pid in starters:
+            pts = pp.get(pid, 0.0)
+            totals[pid] = totals.get(pid, 0.0) + pts
+            weeks_started[pid] = weeks_started.get(pid, 0) + 1
+
+    player_info = {
+        r[0]: (r[1], r[2])
+        for r in con.execute("SELECT player_id, full_name, position FROM players")
+    }
+
+    results = []
+    for pid, total_pts in sorted(totals.items(), key=lambda x: -x[1])[:top_n]:
+        name, pos = player_info.get(pid, (pid, "?"))
+        wk = weeks_started[pid]
+        results.append({
+            "player": name or pid,
+            "position": pos or "?",
+            "total_pts": round(total_pts, 1),
+            "weeks_started": wk,
+            "avg_pts": round(total_pts / wk, 1) if wk else 0.0,
+        })
+
+    return results
