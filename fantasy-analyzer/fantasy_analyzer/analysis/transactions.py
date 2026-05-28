@@ -726,18 +726,25 @@ def build_deep_trade_tree(
 
     visited_txns: set[str] = set()
 
-    def _follow(pid: str, depth: int) -> list[TreeNode]:
+    def _follow(
+        pid: str,
+        depth: int,
+        after: tuple[int, int] = (0, 0),
+    ) -> list[TreeNode]:
+        """Follow a player's trades, optionally restricted to those after (after_season, after_week)."""
         if depth > max_depth:
             return []
+        after_season, after_week = after
         rows = con.execute(
             """
             SELECT transaction_id, league_id, season, week, adds_json, drops_json
             FROM transactions
             WHERE type = 'trade'
               AND (adds_json LIKE ? OR drops_json LIKE ?)
+              AND (season > ? OR (season = ? AND week >= ?))
             ORDER BY season, week
             """,
-            (f'%"{pid}"%', f'%"{pid}"%'),
+            (f'%"{pid}"%', f'%"{pid}"%', after_season, after_season, after_week),
         ).fetchall()
 
         nodes: list[TreeNode] = []
@@ -784,7 +791,7 @@ def build_deep_trade_tree(
                     week=week,
                     transaction_id=txn_id,
                 )
-                counter.children = _follow(other_pid, depth + 1)
+                counter.children = _follow(other_pid, depth + 1, after=(season, week or 0))
                 node.children.append(counter)
 
             # Draft picks in this trade
@@ -825,7 +832,8 @@ def build_deep_trade_tree(
                         week=None,
                         transaction_id=None,
                     )
-                    draft_node.children = _follow(drafted_pid, depth + 1)
+                    # Drafted player's sub-trades: only from the draft year onwards
+                    draft_node.children = _follow(drafted_pid, depth + 1, after=(int(pick_season), 0))
                     pick_node.children.append(draft_node)
                 node.children.append(pick_node)
 

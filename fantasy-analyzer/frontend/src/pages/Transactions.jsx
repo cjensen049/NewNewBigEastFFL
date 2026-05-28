@@ -1,0 +1,661 @@
+/**
+ * Transactions.jsx — Trades and Waiver Wire page.
+ *
+ * Tabs: Trade Tree | Trade Log | Waivers | Tendencies
+ */
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  Handle,
+  Position,
+} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
+
+import { TabBar, TabPanel } from '../components/Tabs'
+import DataTable from '../components/DataTable'
+import LoadingSpinner from '../components/LoadingSpinner'
+
+const TABS = [
+  { id: 'tree',        label: 'Trade Tree' },
+  { id: 'log',         label: 'Trade Log' },
+  { id: 'waivers',     label: 'Waivers' },
+  { id: 'tendencies',  label: 'Tendencies' },
+]
+
+// ---------------------------------------------------------------------------
+// Trade Tree — visual node graph
+// ---------------------------------------------------------------------------
+
+// Color scheme matching the original Streamlit Graphviz visualization
+const NODE_STYLES = {
+  root:   { background: '#1a472a', border: '2px solid #2d6a4f' },
+  player: { background: '#154360', border: '2px solid #1a6090' },
+  pick:   { background: '#6e2c00', border: '2px solid #a04000' },
+  draft:  { background: '#7d5a00', border: '2px solid #a67c00' },
+}
+
+// Custom ReactFlow node — a colored rounded box with optional expand/collapse button
+function TradeNode({ data }) {
+  const style = NODE_STYLES[data.nodeType] ?? NODE_STYLES.player
+  return (
+    <div
+      style={style}
+      className="rounded-lg px-3 py-2 text-white text-xs min-w-[170px] max-w-[240px]"
+    >
+      <Handle type="target" position={Position.Left} style={{ background: '#6b7280' }} />
+      <div className="whitespace-pre-line leading-snug">{data.label}</div>
+      {/* Expand/collapse button shown only on nodes with hidden or shown sub-trades */}
+      {data.expandable && (
+        <button
+          onClick={(e) => { e.stopPropagation(); data.onToggle() }}
+          className="mt-1.5 w-full text-center text-gray-300 hover:text-white text-xs bg-black/30 hover:bg-black/50 rounded px-1 py-0.5 cursor-pointer transition-colors"
+        >
+          {data.expanded ? '▲ collapse' : `▶ ${data.childCount} more`}
+        </button>
+      )}
+      <Handle type="source" position={Position.Right} style={{ background: '#6b7280' }} />
+    </div>
+  )
+}
+
+// Register the custom node type with ReactFlow
+const nodeTypes = { tradeNode: TradeNode }
+
+/**
+ * Convert the API's recursive tree into ReactFlow's flat nodes + edges arrays.
+ *
+ * Layout: Graphviz-style left-to-right centering (leaves claim sequential y slots,
+ * internal nodes center between their outermost children).
+ *
+ * Depth expansion:
+ *   - Depth ≤ 2 always renders (root → trade → counter-assets → direct results).
+ *   - Depth 3+ only renders if the parent path is in expandedPaths.
+ *   - Collapsed nodes show an expand button with the hidden child count.
+ */
+function buildGraph(playerName, tradeNode, expandedPaths, onToggle) {
+  const nodes = []
+  const edges = []
+  let leafIndex = 0
+  const X_GAP = 280
+  const Y_GAP = 110
+
+  function makeLabel(apiNode) {
+    if (apiNode.asset_type === 'player') {
+      return `S${apiNode.season} Wk${apiNode.week}\n${apiNode.from_owner} → ${apiNode.to_owner}\n${apiNode.asset_name}`
+    } else if (apiNode.asset_type === 'pick') {
+      const draftedCount = (apiNode.children ?? []).filter(c => c.asset_type === 'draft').length
+      let lbl = `${apiNode.asset_name}\n${apiNode.from_owner} → ${apiNode.to_owner}`
+      return lbl + (draftedCount ? `\n(${draftedCount} drafted)` : '\n(future / no data)')
+    } else {
+      return `Drafted: ${apiNode.asset_name}\n${apiNode.to_owner} (${apiNode.season})`
+    }
+  }
+
+  // path is a stable string key for this node used for expansion state (e.g. "trade_0_2_1")
+  function traverse(apiNode, parentId, depth, path) {
+    const children = apiNode.children ?? []
+    const autoExpand = depth <= 2          // always show depths 1-3 (relative to root=0)
+    const userExpanded = expandedPaths.has(path)
+    const showChildren = children.length > 0 && (autoExpand || userExpanded)
+
+    let y
+    if (showChildren) {
+      const childYs = children.map((child, i) =>
+        traverse(child, path, depth + 1, `${path}_${i}`)
+      )
+      y = (childYs[0] + childYs[childYs.length - 1]) / 2
+    } else {
+      y = leafIndex++ * Y_GAP
+    }
+
+    // Only nodes at depth > 2 with children get an expand toggle
+    const expandable = children.length > 0 && !autoExpand
+    const capturedPath = path
+
+    nodes.push({
+      id: path,
+      type: 'tradeNode',
+      position: { x: depth * X_GAP, y },
+      data: {
+        label: makeLabel(apiNode),
+        nodeType: apiNode.asset_type,
+        expandable,
+        expanded: userExpanded,
+        childCount: children.length,
+        onToggle: expandable ? () => onToggle(capturedPath) : undefined,
+      },
+    })
+
+    if (parentId) {
+      edges.push({
+        id: `e-${parentId}-${path}`,
+        source: parentId,
+        target: path,
+        type: 'smoothstep',
+        style: { stroke: '#6b7280', strokeWidth: 1.5 },
+      })
+    }
+
+    return y
+  }
+
+  const rootY = traverse(tradeNode, 'root', 1, 'trade')
+
+  nodes.push({
+    id: 'root',
+    type: 'tradeNode',
+    position: { x: 0, y: rootY },
+    data: { label: playerName, nodeType: 'root', expandable: false },
+  })
+
+  return { nodes, edges, leafCount: leafIndex }
+}
+
+function TradeTreeTab() {
+  const [playerInput, setPlayerInput] = useState('')
+  const [selectedTradeIdx, setSelectedTradeIdx] = useState(0)
+  // Paths of nodes the user has expanded beyond the default depth
+  const [expandedPaths, setExpandedPaths] = useState(new Set())
+
+  const { data: playersData } = useQuery({
+    queryKey: ['traded-players'],
+    queryFn: () => fetch('/api/transactions/traded-players').then(r => r.json()),
+  })
+
+  const allPlayers = playersData?.players ?? []
+  // Only treat the input as a selected player when it exactly matches a known name
+  const selectedPlayer = allPlayers.includes(playerInput) ? playerInput : ''
+
+  const { data: treeData, isLoading } = useQuery({
+    queryKey: ['trade-tree', selectedPlayer],
+    queryFn: () =>
+      fetch(`/api/transactions/trade-tree/${encodeURIComponent(selectedPlayer)}`).then(r => r.json()),
+    enabled: !!selectedPlayer,
+  })
+
+  const handleInputChange = (e) => {
+    const val = e.target.value
+    const prevSelected = allPlayers.includes(playerInput) ? playerInput : ''
+    const newSelected = allPlayers.includes(val) ? val : ''
+    setPlayerInput(val)
+    // Reset trade/expansion state when the selected player actually changes
+    if (newSelected !== prevSelected) {
+      setSelectedTradeIdx(0)
+      setExpandedPaths(new Set())
+    }
+  }
+
+  const handleTradeChange = (i) => {
+    setSelectedTradeIdx(i)
+    setExpandedPaths(new Set())
+  }
+
+  const togglePath = (path) => {
+    setExpandedPaths(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  const trades = treeData?.trades ?? []
+  const activeTrade = trades[selectedTradeIdx] ?? null
+
+  const { nodes, edges, leafCount = 1 } = activeTrade
+    ? buildGraph(treeData.player, activeTrade, expandedPaths, togglePath)
+    : { nodes: [], edges: [], leafCount: 1 }
+
+  return (
+    <div>
+      <p className="text-sm text-gray-400 mb-4">
+        Select a player to trace their full trade history — every asset exchanged in return,
+        what picks were drafted, and where those players ended up.
+      </p>
+
+      <div className="mb-5">
+        <input
+          list="player-list"
+          value={playerInput}
+          onChange={handleInputChange}
+          placeholder="Type a player name..."
+          className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-emerald-500 w-72"
+        />
+        <datalist id="player-list">
+          {allPlayers.map(p => <option key={p} value={p} />)}
+        </datalist>
+      </div>
+
+      {isLoading && <LoadingSpinner />}
+
+      {treeData && !isLoading && (
+        <>
+          <h2 className="text-lg font-semibold mb-1">{treeData.player} — Trade Tree</h2>
+          <p className="text-sm text-gray-500 mb-3">{trades.length} trade(s) in league history</p>
+
+          {trades.length === 0 ? (
+            <p className="text-gray-500 italic">No recorded trades for this player.</p>
+          ) : (
+            <>
+              {/* Trade selector when player was traded multiple times */}
+              {trades.length > 1 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {trades.map((t, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleTradeChange(i)}
+                      className={`px-3 py-1 text-sm rounded border transition-colors ${
+                        selectedTradeIdx === i
+                          ? 'bg-emerald-700 border-emerald-600 text-white'
+                          : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                      }`}
+                    >
+                      S{t.season} Wk{t.week}: {t.from_owner} → {t.to_owner}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* ReactFlow graph — height scales with leaf count (leaves drive vertical space) */}
+              <div
+                className="rounded border border-gray-700 bg-gray-950"
+                style={{ height: Math.max(320, Math.min(680, leafCount * 110 + 120)) }}
+              >
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  nodeTypes={nodeTypes}
+                  fitView
+                  fitViewOptions={{ padding: 0.2 }}
+                  proOptions={{ hideAttribution: true }}
+                  minZoom={0.3}
+                  maxZoom={2}
+                >
+                  <Background color="#374151" gap={24} />
+                  <Controls showInteractive={false} />
+                </ReactFlow>
+              </div>
+
+              {/* Text summary below the graph */}
+              {activeTrade && (() => {
+                const children = activeTrade.children ?? []
+                // Split assets by direction: same side as the selected player vs opposite
+                const sentWith = children.filter(c => c.from_owner === activeTrade.from_owner)
+                const received = children.filter(c => c.from_owner !== activeTrade.from_owner)
+
+                function assetLine(c) {
+                  const picks = c.asset_type === 'pick'
+                    ? c.children?.filter(g => g.asset_type === 'draft').map(g => g.asset_name)
+                    : []
+                  return (
+                    <span>
+                      <strong>{c.asset_name}</strong>
+                      {picks?.length > 0 && (
+                        <span className="text-gray-400"> — used on: {picks.join(', ')}</span>
+                      )}
+                    </span>
+                  )
+                }
+
+                return (
+                  <div className="mt-4 rounded border border-gray-700 p-4 text-sm space-y-3">
+                    <p className="font-medium">
+                      S{activeTrade.season} Wk{activeTrade.week}:{' '}
+                      <span className="text-blue-300">{activeTrade.from_owner}</span>
+                      {' '}traded to{' '}
+                      <span className="text-red-300">{activeTrade.to_owner}</span>
+                    </p>
+
+                    <div>
+                      <p className="text-gray-400 mb-1 text-xs uppercase tracking-wide">
+                        {activeTrade.from_owner} sent
+                      </p>
+                      <ul className="space-y-0.5 text-gray-200">
+                        <li className="pl-3">• <strong>{treeData.player}</strong></li>
+                        {sentWith.map((c, i) => (
+                          <li key={i} className="pl-3">• {assetLine(c)}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {received.length > 0 && (
+                      <div>
+                        <p className="text-gray-400 mb-1 text-xs uppercase tracking-wide">
+                          {activeTrade.to_owner} sent back
+                        </p>
+                        <ul className="space-y-0.5 text-gray-200">
+                          {received.map((c, i) => (
+                            <li key={i} className="pl-3">• {assetLine(c)}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Trade Log tab
+// ---------------------------------------------------------------------------
+
+function TradeLogTab() {
+  const { data: ownersData } = useQuery({
+    queryKey: ['owners-list'],
+    queryFn: () => fetch('/api/owners/').then(r => r.json()),
+  })
+
+  const { data: seasonsData } = useQuery({
+    queryKey: ['history-seasons'],
+    queryFn: () => fetch('/api/history/seasons').then(r => r.json()),
+  })
+
+  const owners = ownersData?.owners ?? []
+  const seasons = seasonsData?.seasons ?? []
+
+  const [ownerFilter, setOwnerFilter] = useState('')
+  const [seasonFilter, setSeasonFilter] = useState('')
+
+  const params = new URLSearchParams()
+  if (ownerFilter) params.set('owner', ownerFilter)
+  if (seasonFilter) params.set('season', seasonFilter)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['trade-log', ownerFilter, seasonFilter],
+    queryFn: () =>
+      fetch(`/api/transactions/trades?${params}`).then(r => r.json()),
+  })
+
+  const trades = data?.trades ?? []
+  const rows = trades.map(t => ({
+    season: t.season,
+    week: t.week,
+    teams: t.owners.join(' & '),
+    players: t.players.map(p => `${p.name} (${p.from_owner} → ${p.to_owner})`).join(', ') || '—',
+    picks: t.picks.map(p => `${p.name} (${p.from_owner} → ${p.to_owner})`).join(', ') || '—',
+  }))
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-4 mb-5">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-400">Season:</label>
+          <select
+            value={seasonFilter}
+            onChange={e => setSeasonFilter(e.target.value)}
+            className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-emerald-500"
+          >
+            <option value="">All</option>
+            {seasons.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-400">Owner:</label>
+          <select
+            value={ownerFilter}
+            onChange={e => setOwnerFilter(e.target.value)}
+            className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-emerald-500"
+          >
+            <option value="">All</option>
+            {owners.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : (
+        <>
+          <p className="text-sm text-gray-500 mb-3">{rows.length} trades</p>
+          <DataTable
+            rows={rows}
+            maxHeight="540px"
+            columns={[
+              { key: 'season',  label: 'Season' },
+              { key: 'week',    label: 'Week',    align: 'right' },
+              { key: 'teams',   label: 'Teams' },
+              { key: 'players', label: 'Players' },
+              { key: 'picks',   label: 'Picks' },
+            ]}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Waivers tab
+// ---------------------------------------------------------------------------
+
+function WaiversTab() {
+  const { data: activityData, isLoading: loadAct } = useQuery({
+    queryKey: ['waiver-activity'],
+    queryFn: () => fetch('/api/transactions/waivers/activity').then(r => r.json()),
+  })
+
+  const { data: faabData, isLoading: loadFaab } = useQuery({
+    queryKey: ['waiver-faab'],
+    queryFn: () => fetch('/api/transactions/waivers/faab').then(r => r.json()),
+  })
+
+  const { data: playersData, isLoading: loadPlayers } = useQuery({
+    queryKey: ['waiver-players'],
+    queryFn: () => fetch('/api/transactions/waivers/players').then(r => r.json()),
+  })
+
+  const { data: bySeasonData } = useQuery({
+    queryKey: ['waiver-by-season'],
+    queryFn: () => fetch('/api/transactions/waivers/by-season').then(r => r.json()),
+  })
+
+  const [selectedSeason, setSelectedSeason] = useState(null)
+  const allSeasons = bySeasonData?.seasons ?? []
+  const activeSeason = selectedSeason ?? allSeasons[0]
+  const seasonRows = (bySeasonData?.by_season ?? []).filter(r => r.season === activeSeason)
+
+  if (loadAct || loadFaab || loadPlayers) return <LoadingSpinner />
+
+  const topBidRows = (faabData?.top_bids?.slice(0, 20) ?? []).map(b => ({
+    player: b.player,
+    owner: b.owner,
+    season: b.season,
+    week: b.week,
+    faab: `$${b.amount}`,
+  }))
+
+  const activityRows = (activityData?.activity ?? []).map(o => ({
+    owner: o.owner,
+    total_adds: o.total_adds,
+    waiver_claims: o.waiver_claims,
+    fa_adds: o.fa_adds,
+    drops: o.drops,
+    faab_spent: `$${o.faab_spent}`,
+    bid_win_pct: o.success_rate != null ? `${(o.success_rate * 100).toFixed(1)}%` : '—',
+  }))
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-lg font-semibold mb-1">Biggest FAAB Claims</h2>
+        <p className="text-xs text-gray-500 mb-3">Top 20 successful FAAB bids of all time</p>
+        <DataTable
+          rows={topBidRows}
+          maxHeight="380px"
+          columns={[
+            { key: 'player', label: 'Player' },
+            { key: 'owner',  label: 'Owner' },
+            { key: 'season', label: 'Season', align: 'right' },
+            { key: 'week',   label: 'Week',   align: 'right' },
+            { key: 'faab',   label: 'FAAB',   align: 'right' },
+          ]}
+        />
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Owner Activity — All Time</h2>
+        <DataTable
+          rows={activityRows}
+          maxHeight="460px"
+          columns={[
+            { key: 'owner',         label: 'Owner' },
+            { key: 'total_adds',    label: 'Total Adds', align: 'right' },
+            { key: 'waiver_claims', label: 'Waivers',    align: 'right' },
+            { key: 'fa_adds',       label: 'FA Adds',    align: 'right' },
+            { key: 'drops',         label: 'Drops',      align: 'right' },
+            { key: 'faab_spent',    label: 'FAAB $',     align: 'right' },
+            { key: 'bid_win_pct',   label: 'Bid Win%',   align: 'right' },
+          ]}
+        />
+      </div>
+
+      <div>
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-lg font-semibold">Activity by Season</h2>
+          <select
+            value={activeSeason ?? ''}
+            onChange={e => setSelectedSeason(Number(e.target.value))}
+            className="ml-2 bg-gray-800 border border-gray-600 rounded px-3 py-1 text-sm text-gray-200 focus:outline-none focus:border-emerald-500"
+          >
+            {allSeasons.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <DataTable
+          rows={[...seasonRows].sort((a, b) => -(a.waiver_claims + a.fa_adds - b.waiver_claims - b.fa_adds))}
+          maxHeight="460px"
+          columns={[
+            { key: 'owner',         label: 'Owner' },
+            { key: 'waiver_claims', label: 'Waivers',  align: 'right' },
+            { key: 'fa_adds',       label: 'FA Adds',  align: 'right' },
+            { key: 'drops',         label: 'Drops',    align: 'right' },
+            { key: 'faab_spent',    label: 'FAAB $',   align: 'right' },
+          ]}
+        />
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold mb-1">Revolving Door Players</h2>
+        <p className="text-xs text-gray-500 mb-3">Players with the most total moves (adds + drops)</p>
+        <DataTable
+          rows={playersData?.players?.slice(0, 20) ?? []}
+          maxHeight="440px"
+          columns={[
+            { key: 'player',      label: 'Player' },
+            { key: 'adds',        label: 'Adds',        align: 'right' },
+            { key: 'drops',       label: 'Drops',       align: 'right' },
+            { key: 'total_moves', label: 'Total Moves', align: 'right' },
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Tendencies tab
+// ---------------------------------------------------------------------------
+
+function TendenciesTab() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['trade-stats'],
+    queryFn: () => fetch('/api/transactions/trade-stats').then(r => r.json()),
+  })
+
+  if (isLoading) return <LoadingSpinner />
+
+  const stats = data?.stats ?? []
+  const owners = data?.owners ?? []
+  const heatmap = data?.heatmap ?? []
+  const maxVal = Math.max(...heatmap.flat().filter(v => v > 0), 1)
+
+  function heatColor(val) {
+    if (val === 0) return 'bg-gray-800 text-gray-600'
+    const intensity = val / maxVal
+    if (intensity > 0.7) return 'bg-blue-600 text-white font-bold'
+    if (intensity > 0.4) return 'bg-blue-700/70 text-blue-200'
+    return 'bg-blue-900/40 text-blue-300'
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Trade Activity by Owner</h2>
+        <DataTable
+          rows={stats}
+          maxHeight="460px"
+          columns={[
+            { key: 'owner',         label: 'Owner' },
+            { key: 'total_trades',  label: 'Trades',      align: 'right' },
+            { key: 'players_in',    label: 'Players In',  align: 'right' },
+            { key: 'players_out',   label: 'Players Out', align: 'right' },
+            { key: 'picks_in',      label: 'Picks In',    align: 'right' },
+            { key: 'picks_out',     label: 'Picks Out',   align: 'right' },
+            { key: 'waiver_claims', label: 'Waivers',     align: 'right' },
+            { key: 'fa_adds',       label: 'FA Adds',     align: 'right' },
+            { key: 'faab_spent',    label: 'FAAB $',      align: 'right' },
+          ]}
+        />
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold mb-1">Trade Partner Frequency</h2>
+        <p className="text-xs text-gray-500 mb-3">Number of trades between each pair</p>
+        <div className="overflow-auto rounded border border-gray-700">
+          <table className="text-xs text-gray-300">
+            <thead className="bg-gray-800 text-gray-400">
+              <tr>
+                <th className="px-2 py-2 sticky left-0 bg-gray-800"></th>
+                {owners.map(o => (
+                  <th key={o} className="px-2 py-2 text-center whitespace-nowrap">{o}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-700/50">
+              {owners.map((row, ri) => (
+                <tr key={row}>
+                  <td className="px-2 py-1.5 sticky left-0 bg-gray-900 font-medium whitespace-nowrap">{row}</td>
+                  {owners.map((col, ci) => {
+                    const val = heatmap[ri]?.[ci] ?? 0
+                    return (
+                      <td key={col} className={`px-2 py-1.5 text-center ${heatColor(val)}`}>
+                        {val || ''}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Page assembly
+// ---------------------------------------------------------------------------
+
+export default function Transactions() {
+  const [tab, setTab] = useState('tree')
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-6">Transactions</h1>
+      <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
+      <TabPanel id="tree"       activeTab={tab}><TradeTreeTab /></TabPanel>
+      <TabPanel id="log"        activeTab={tab}><TradeLogTab /></TabPanel>
+      <TabPanel id="waivers"    activeTab={tab}><WaiversTab /></TabPanel>
+      <TabPanel id="tendencies" activeTab={tab}><TendenciesTab /></TabPanel>
+    </div>
+  )
+}
