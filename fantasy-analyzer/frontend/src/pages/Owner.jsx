@@ -20,9 +20,32 @@ const TABS = [
   { id: 'seasons',   label: 'Seasons' },
   { id: 'h2h',       label: 'Head-to-Head' },
   { id: 'players',   label: 'Top Players' },
+  { id: 'draft',     label: 'Draft Picks' },
   { id: 'trades',    label: 'Trades' },
   { id: 'waivers',   label: 'Waivers' },
 ]
+
+// Position colours — mirrors Draft.jsx
+const POS_STYLE = {
+  QB:  { border: 'border-l-blue-500',   bg: 'bg-blue-900/30' },
+  RB:  { border: 'border-l-green-500',  bg: 'bg-green-900/30' },
+  WR:  { border: 'border-l-violet-500', bg: 'bg-violet-900/30' },
+  TE:  { border: 'border-l-orange-500', bg: 'bg-orange-900/30' },
+  K:   { border: 'border-l-gray-500',   bg: 'bg-gray-800/60' },
+  DEF: { border: 'border-l-red-500',    bg: 'bg-red-900/30' },
+}
+const POS_BADGE = {
+  QB: 'bg-blue-600', RB: 'bg-green-700', WR: 'bg-violet-700',
+  TE: 'bg-orange-600', K: 'bg-gray-500', DEF: 'bg-red-700',
+}
+function OwnerPosBadge({ pos }) {
+  if (!pos) return null
+  return (
+    <span className={`${POS_BADGE[pos] ?? 'bg-gray-600'} text-white text-xs font-bold px-1.5 py-0.5 rounded`}>
+      {pos}
+    </span>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Career summary metrics
@@ -204,6 +227,115 @@ function TopPlayersTab({ owner }) {
 }
 
 // ---------------------------------------------------------------------------
+// Draft picks with points scored while on this owner's roster
+// ---------------------------------------------------------------------------
+
+function DraftPicksTab({ owner }) {
+  const [sortMode, setSortMode] = useState('pts')
+
+  // Look up the owner's user_id — draft endpoints use user_id, not canonical name.
+  const { data: draftOwnersData } = useQuery({
+    queryKey: ['draft-owners'],
+    queryFn: () => fetch('/api/draft/owners').then(r => r.json()),
+    staleTime: Infinity,
+  })
+
+  const userId = draftOwnersData?.owners?.find(o => o.owner === owner)?.user_id
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['draft-owner-picks', userId],
+    queryFn: () => fetch(`/api/draft/owner/${userId}`).then(r => r.json()),
+    enabled: !!userId,
+  })
+
+  if (isLoading || !draftOwnersData) return <LoadingSpinner />
+  if (!userId) return <p className="text-gray-500">No draft data found for {owner}.</p>
+
+  const allPicks = data?.picks ?? []
+
+  const sorted = [...allPicks].sort((a, b) =>
+    sortMode === 'pts'
+      ? b.points_on_team - a.points_on_team
+      : (a.season - b.season) || (a.round - b.round) || (a.pick_no - b.pick_no)
+  )
+
+  const totalPts = allPicks.reduce((s, p) => s + (p.points_on_team ?? 0), 0)
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <h2 className="text-lg font-semibold">Draft Picks</h2>
+        <p className="text-xs text-gray-500">Points scored while on {owner}'s roster only</p>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <label className="text-gray-400 text-sm">Sort</label>
+          <div className="flex rounded overflow-hidden border border-gray-600">
+            {[['pts', 'By Points'], ['draft', 'By Draft']].map(([mode, label]) => (
+              <button
+                key={mode}
+                onClick={() => setSortMode(mode)}
+                className={`px-3 py-1 text-xs font-medium transition-colors ${
+                  sortMode === mode
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {allPicks.length > 0 && (
+        <p className="text-xs text-gray-500 mb-3">
+          {allPicks.length} career picks · {totalPts.toFixed(1)} total pts on roster
+        </p>
+      )}
+
+      <div className="rounded border border-gray-700 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-800 text-gray-400 text-left text-xs uppercase tracking-wide">
+              <th className="px-3 py-2">Player</th>
+              <th className="px-3 py-2 w-12">Pos</th>
+              <th className="px-3 py-2 w-16">Season</th>
+              <th className="px-3 py-2 w-14 text-center">Rd</th>
+              <th className="px-3 py-2 w-16 text-center">Pick</th>
+              <th className="px-3 py-2 w-28 text-right">Pts on Roster</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((p, i) => {
+              const { border, bg } = POS_STYLE[p.position] ?? { border: 'border-l-gray-600', bg: 'bg-gray-800/40' }
+              return (
+                <tr
+                  key={i}
+                  className={`border-l-4 ${border} ${bg} border-b border-gray-800/50`}
+                >
+                  <td className="px-3 py-2 text-white font-medium">{p.player_name}</td>
+                  <td className="px-3 py-2"><OwnerPosBadge pos={p.position} /></td>
+                  <td className="px-3 py-2 text-gray-400">{p.season}</td>
+                  <td className="px-3 py-2 text-gray-400 text-center">{p.round}</td>
+                  <td className="px-3 py-2 text-gray-400 text-center">{p.pick_no}</td>
+                  <td className={`px-3 py-2 text-right font-mono font-medium ${
+                    p.points_on_team > 500 ? 'text-emerald-400' :
+                    p.points_on_team > 200 ? 'text-emerald-600' :
+                    p.points_on_team > 0   ? 'text-gray-300'    : 'text-gray-600'
+                  }`}>
+                    {p.points_on_team > 0 ? p.points_on_team.toFixed(1) : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Trade history
 // ---------------------------------------------------------------------------
 
@@ -358,7 +490,8 @@ export default function Owner() {
       <TabPanel id="summary" activeTab={tab}><CareerSummaryTab owner={activeOwner} /></TabPanel>
       <TabPanel id="seasons" activeTab={tab}><SeasonsTab     owner={activeOwner} /></TabPanel>
       <TabPanel id="h2h"     activeTab={tab}><H2HTab         owner={activeOwner} /></TabPanel>
-      <TabPanel id="players" activeTab={tab}><TopPlayersTab  owner={activeOwner} /></TabPanel>
+      <TabPanel id="players" activeTab={tab}><TopPlayersTab   owner={activeOwner} /></TabPanel>
+      <TabPanel id="draft"   activeTab={tab}><DraftPicksTab  owner={activeOwner} /></TabPanel>
       <TabPanel id="trades"  activeTab={tab}><TradesTab      owner={activeOwner} /></TabPanel>
       <TabPanel id="waivers" activeTab={tab}><WaiversTab     owner={activeOwner} /></TabPanel>
     </div>

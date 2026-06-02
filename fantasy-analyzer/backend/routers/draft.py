@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fantasy_analyzer.analysis.draft import (
     get_draft_board,
     get_draft_seasons,
-    get_owner_picks,
+    get_owner_picks_with_points,
     get_owners_with_picks,
 )
 
@@ -52,5 +52,5 @@ def draft_owners(con: sqlite3.Connection = Depends(get_db)) -> dict:
 
 @router.get("/owner/{user_id}")
 def owner_draft(user_id: str, con: sqlite3.Connection = Depends(get_db)) -> dict:
-    """All picks by one owner across all seasons."""
-    return {"user_id": user_id, "picks": get_owner_picks(con, user_id)}
+    """All picks by one owner with fantasy points scored while on their roster."""
+    return {"user_id": user_id, "picks": get_owner_picks_with_points(con, user_id)}

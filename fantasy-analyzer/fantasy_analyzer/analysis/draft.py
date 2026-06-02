@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 
 
@@ -135,3 +136,65 @@ def get_owner_picks(con: sqlite3.Connection, user_id: str) -> list[dict]:
         }
         for r in rows
     ]
+
+
+def get_owner_picks_with_points(con: sqlite3.Connection, user_id: str) -> list[dict]:
+    """All picks by one owner with total fantasy points scored while on their roster.
+
+    Points are sourced from matchup players_points_json, which only contains
+    players actually on that owner's roster for the week — so if a player was
+    traded away, points after the trade date are not counted.
+    """
+    picks_rows = con.execute(
+        """
+        SELECT
+            dp.season,
+            d.type AS draft_type,
+            dp.round,
+            dp.pick_no,
+            dp.player_id,
+            COALESCE(dp.player_name, '—') AS player_name,
+            COALESCE(pl.position, '') AS position
+        FROM draft_picks dp
+        JOIN drafts d ON d.draft_id = dp.draft_id
+        LEFT JOIN players pl ON pl.player_id = dp.player_id
+        WHERE dp.user_id = ?
+        ORDER BY dp.season, dp.round, dp.pick_no
+        """,
+        (user_id,),
+    ).fetchall()
+
+    picks = [
+        {
+            "season": r[0],
+            "draft_type": r[1],
+            "round": r[2],
+            "pick_no": r[3],
+            "player_id": r[4],
+            "player_name": r[5],
+            "position": r[6],
+        }
+        for r in picks_rows
+    ]
+
+    # Sum each player's points from weeks they appeared on this owner's roster.
+    matchup_rows = con.execute(
+        "SELECT players_points_json FROM matchups WHERE user_id = ? AND players_points_json IS NOT NULL",
+        (user_id,),
+    ).fetchall()
+
+    player_totals: dict[str, float] = {}
+    for (json_str,) in matchup_rows:
+        try:
+            week_pts = json.loads(json_str)
+            for pid, pts in week_pts.items():
+                if pts:
+                    player_totals[pid] = player_totals.get(pid, 0.0) + float(pts)
+        except (ValueError, TypeError):
+            pass
+
+    for pick in picks:
+        pid = pick["player_id"] or ""
+        pick["points_on_team"] = round(player_totals.get(pid, 0.0), 1)
+
+    return picks
