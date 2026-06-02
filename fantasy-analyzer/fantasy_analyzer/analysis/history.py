@@ -895,6 +895,18 @@ def get_standings_snapshot(
     current_week: int = max_week_row[0] or 0
     next_week: int = current_week + 1
 
+    # Total points scored through current_week (for standings display)
+    pts_rows = con.execute(
+        """
+        SELECT user_id, ROUND(SUM(points), 1) as pts_for
+        FROM matchups
+        WHERE league_id=? AND is_playoff=0 AND week <= ? AND points IS NOT NULL
+        GROUP BY user_id
+        """,
+        (league_id, current_week),
+    ).fetchall()
+    pts_by_uid: dict[str, float] = {r[0]: r[1] for r in pts_rows}
+
     # Future schedule rows (exist only if Sleeper data has been ingested for those weeks)
     future_rows = con.execute(
         """
@@ -934,9 +946,12 @@ def get_standings_snapshot(
         uid = name_to_user.get(r["owner"])
         rows_out.append({
             **r,
+            "pts_for": pts_by_uid.get(uid, 0.0) if uid else 0.0,
             "next_opponent": next_opp.get(uid) if uid else None,
             "remaining_sos": sos.get(uid) if uid else None,
         })
+
+    rows_out.sort(key=lambda x: (-x["actual_wins"], -(x.get("pts_for") or 0)))
 
     return {
         "season": season,

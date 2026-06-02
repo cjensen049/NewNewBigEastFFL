@@ -649,7 +649,7 @@ export default function Transactions() {
   const [tab, setTab] = useState('tree')
 
   return (
-    <div>
+    <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 24px' }}>
       <h1 className="text-2xl font-bold mb-6">Transactions</h1>
       <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
       <TabPanel id="tree"       activeTab={tab}><TradeTreeTab /></TabPanel>

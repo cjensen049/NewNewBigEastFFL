@@ -161,7 +161,7 @@ export default function Calendar() {
   })
 
   return (
-    <div>
+    <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 24px' }}>
       <h1 className="text-2xl font-bold text-white mb-2">League Calendar</h1>
       <p className="text-gray-500 text-sm mb-8">
         Season milestones, drafts, and playoff schedules for all NNBE seasons.

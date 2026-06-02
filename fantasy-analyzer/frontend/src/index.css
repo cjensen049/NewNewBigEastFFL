@@ -1,10 +1,120 @@
-/* Tailwind base styles — this file is imported once in main.jsx */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar for dark theme */
+/* ─── Design tokens ─────────────────────────────────────────────────────────── */
+
+:root {
+  --bg-page:      #0b1220;
+  --bg-surface:   #0f1b2e;
+  --bg-raised:    #142035;
+  --border:       #1e2d47;
+  --border-mid:   #2a3f5f;
+  --brand-navy:   #1a3a6b;
+  --brand-red:    #cc1f2e;
+  --text-primary: #e6edf3;
+  --text-muted:   #7a93b4;
+  --text-faint:   #4a6380;
+  --green:        #3fb950;
+  --gold:         #e3b341;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+/* ─── Nav links ──────────────────────────────────────────────────────────────── */
+
+.nnbe-nav-link {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+.nnbe-nav-link:hover {
+  color: var(--text-primary);
+  background: var(--border);
+}
+.nnbe-nav-link.active {
+  color: var(--text-primary);
+  background: var(--border);
+  border-color: var(--border-mid);
+}
+
+/* ─── Explore cards ──────────────────────────────────────────────────────────── */
+
+.explore-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 16px 14px;
+  text-decoration: none;
+  display: block;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+.explore-card:hover {
+  border-color: var(--border-mid);
+  background: var(--bg-raised);
+  transform: translateY(-2px);
+}
+.explore-card .card-arrow {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+  font-size: 16px;
+  color: var(--border-mid);
+  transition: color 0.2s, transform 0.2s;
+}
+.explore-card:hover .card-arrow {
+  color: var(--text-muted);
+  transform: translate(2px, -2px);
+}
+
+/* ─── Standings / season table rows ─────────────────────────────────────────── */
+
+.standings-row:hover {
+  background: rgba(26, 58, 107, 0.1);
+}
+.season-table-row:hover {
+  background: rgba(26, 58, 107, 0.08);
+}
+
+/* ─── Owner tab bar ──────────────────────────────────────────────────────────── */
+
+.owner-tab {
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.owner-tab:hover {
+  color: var(--text-primary);
+}
+.owner-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--brand-red);
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #1f2937; }
-::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }

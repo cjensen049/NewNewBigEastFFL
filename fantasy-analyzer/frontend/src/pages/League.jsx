@@ -23,7 +23,7 @@ export default function League() {
   const [tab, setTab] = useState('history')
 
   return (
-    <div>
+    <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 24px' }}>
       <h1 className="text-2xl font-bold text-white mb-1">League</h1>
       <p className="text-gray-400 text-sm mb-6">
         What has happened historically — standings, records, matchups, luck, and draft history.

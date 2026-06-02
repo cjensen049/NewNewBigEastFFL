@@ -1,62 +1,122 @@
-/**
- * Home.jsx — landing page.
- *
- * Four loud nav cards (League / Owners / Transactions / Draft), a compact
- * in-season snapshot showing the current season's standings vs simulated
- * record, and a calendar widget showing this season's milestones.
- */
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 
-// ─── Nav cards ────────────────────────────────────────────────────────────────
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 24px' }
+
+function SectionLabel({ children }) {
+  return (
+    <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '12px' }}>
+      {children}
+    </p>
+  )
+}
+
+// ─── Hero section ─────────────────────────────────────────────────────────────
+
+function Hero() {
+  return (
+    <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+      {/* Radial glow top-right */}
+      <div style={{
+        position: 'absolute', top: 0, right: 0, width: '500px', height: '250px',
+        background: 'radial-gradient(ellipse, rgba(204,31,46,0.1) 0%, transparent 65%)',
+        pointerEvents: 'none',
+      }} />
+
+      <div style={{ ...CONTAINER, padding: '28px 24px 24px', position: 'relative' }}>
+        {/* Established badge */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(26,58,107,0.3)', border: '1px solid var(--border-mid)', borderRadius: '20px', padding: '4px 14px', marginBottom: '14px' }}>
+          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--brand-red)', flexShrink: 0 }} />
+          <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Established</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--brand-red)' }}>2021</span>
+        </div>
+
+        {/* Two-line title */}
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '44px', letterSpacing: '3px', lineHeight: 1, margin: 0 }}>
+          <div>
+            <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>The NEW </span>
+            <span style={{ color: 'var(--text-primary)' }}>NEW BIG EAST</span>
+          </div>
+          <div style={{ color: 'var(--brand-red)' }}>FANTASY FOOTBALL</div>
+        </h1>
+      </div>
+    </div>
+  )
+}
+
+// ─── Explore cards ────────────────────────────────────────────────────────────
 
 const NAV_CARDS = [
   {
     to: '/league',
-    icon: '📊',
+    icon: '🏆',
     title: 'League History',
-    description: 'All-time standings, records, head-to-head matchups, schedule luck, in-season tools, and full draft history.',
-    borderColor: 'border-l-blue-500',
+    description: 'All-time standings, records, head-to-head matchups, schedule luck, and full draft history.',
+    accentStyle: { background: 'var(--brand-navy)' },
+    iconBg: 'rgba(26,58,107,0.3)',
   },
   {
     to: '/owner',
     icon: '👤',
     title: 'Owner Dashboard',
-    description: 'Individual profiles — career summary, draft picks, trade activity, waiver trends, and nemesis/prey matchups.',
-    borderColor: 'border-l-red-500',
+    description: 'Individual profiles — career summary, draft picks, trade activity, waiver trends, and rivalry matchups.',
+    accentStyle: { background: 'var(--brand-red)' },
+    iconBg: 'rgba(204,31,46,0.15)',
   },
   {
     to: '/transactions',
-    icon: '💱',
+    icon: '🔄',
     title: 'Transaction History',
     description: 'Trade timelines, waiver wire activity, and transaction patterns across all seasons.',
-    borderColor: 'border-l-violet-500',
+    accentStyle: { background: 'linear-gradient(to right, var(--brand-navy), var(--brand-red))' },
+    iconBg: 'rgba(26,58,107,0.25)',
   },
 ]
 
-function NavCard({ to, icon, title, description, borderColor }) {
+function ExploreSection() {
   return (
-    <Link
-      to={to}
-      className={`block bg-gray-800 border border-gray-700 border-l-4 ${borderColor} rounded-lg p-5 hover:bg-gray-700/60 transition-colors group`}
-    >
-      <div className="flex items-start gap-4">
-        <span className="text-3xl shrink-0 mt-0.5">{icon}</span>
-        <div>
-          <h3 className="text-lg font-bold text-white mb-1 group-hover:text-emerald-400 transition-colors">
-            {title} →
-          </h3>
-          <p className="text-sm text-gray-400 leading-relaxed">{description}</p>
-        </div>
+    <div style={{ padding: '28px 0 24px' }}>
+      <SectionLabel>Explore</SectionLabel>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+        {NAV_CARDS.map(card => (
+          <Link key={card.to} to={card.to} className="explore-card">
+            {/* Top accent bar */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', borderRadius: '10px 10px 0 0', ...card.accentStyle }} />
+
+            {/* Icon box */}
+            <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: card.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', marginBottom: '12px' }}>
+              {card.icon}
+            </div>
+
+            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>{card.title}</p>
+            <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>{card.description}</p>
+
+            <span className="card-arrow">↗</span>
+          </Link>
+        ))}
       </div>
-    </Link>
+    </div>
   )
 }
 
-// ─── In-season snapshot ───────────────────────────────────────────────────────
+// ─── Standings panel ──────────────────────────────────────────────────────────
 
-function InSeasonSnapshot() {
+function wlStyle(wins, losses) {
+  if (wins > losses) return { background: 'rgba(63,185,80,0.12)', color: 'var(--green)' }
+  if (losses > wins) return { background: 'rgba(204,31,46,0.1)', color: 'var(--brand-red)' }
+  return { background: 'rgba(227,179,65,0.12)', color: 'var(--gold)' }
+}
+
+function rankStyle(i) {
+  if (i === 0) return { background: 'rgba(204,31,46,0.2)', color: 'var(--brand-red)' }
+  if (i === 1) return { background: 'rgba(26,58,107,0.3)', color: '#5b8dd9' }
+  return { background: 'var(--border)', color: 'var(--text-muted)' }
+}
+
+function StandingsPanel() {
   const { data: seasonsData, isLoading: loadSeasons } = useQuery({
     queryKey: ['inseason-seasons'],
     queryFn: () => fetch('/api/in-season/seasons').then(r => r.json()),
@@ -74,69 +134,68 @@ function InSeasonSnapshot() {
   if (loadSeasons || isLoading) return <LoadingSpinner />
 
   const rows = data?.rows ?? []
-  if (rows.length === 0) {
-    return <p className="text-gray-500 text-sm italic">No in-season data yet.</p>
-  }
-
-  const pct = v => v != null ? `${(v * 100).toFixed(1)}%` : '—'
-  const nextWeek = data?.next_week
-  const oppHeader = `Wk ${nextWeek ?? 1} Opp`
 
   return (
-    <div>
-      <p className="text-xs text-gray-500 mb-3">{currentSeason} · Actual record vs simulated schedule</p>
-      <div className="overflow-auto rounded border border-gray-700">
-        <table className="text-xs text-gray-300">
-          <thead className="bg-gray-800 text-gray-500 uppercase">
-            <tr>
-              <th className="px-2 py-2 text-left whitespace-nowrap">Owner</th>
-              <th className="px-2 py-2 text-right whitespace-nowrap">W-L</th>
-              <th className="px-2 py-2 text-right whitespace-nowrap">Sim W-L</th>
-              <th className="px-2 py-2 text-right whitespace-nowrap">Diff</th>
-              <th className="px-2 py-2 text-left whitespace-nowrap">Verdict</th>
-              <th className="px-2 py-2 text-left whitespace-nowrap">{oppHeader}</th>
-              <th className="px-2 py-2 text-right whitespace-nowrap">Rem SoS</th>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+      {/* Panel header */}
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Current Standings</span>
+        {currentSeason && (
+          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+            {currentSeason}
+          </span>
+        )}
+        <Link to="/league" style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', textDecoration: 'none' }}>
+          Full standings →
+        </Link>
+      </div>
+
+      {rows.length === 0 ? (
+        <p style={{ padding: '16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic' }}>No in-season data yet.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-page)' }}>
+              <th style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'left', width: '32px' }}>#</th>
+              <th style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'left' }}>Owner</th>
+              <th style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'right' }}>W-L</th>
+              <th style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'right' }}>Pts</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-700/40">
+          <tbody>
             {rows.map((r, i) => {
-              const diff = r.win_pct_diff
-              const diffStr = `${diff >= 0 ? '+' : ''}${pct(diff)}`
-              const diffColor = diff >= 0.1 ? 'text-emerald-400' : diff <= -0.1 ? 'text-red-400' : 'text-gray-400'
-              const sos = r.remaining_sos
-              const sosColor = sos == null ? 'text-gray-600'
-                : sos >= 0.55 ? 'text-red-400'
-                : sos <= 0.40 ? 'text-emerald-400'
-                : 'text-gray-400'
+              const wl = wlStyle(r.actual_wins, r.actual_losses)
+              const rk = rankStyle(i)
+              const pts = r.pts_for != null ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
               return (
-                <tr key={i} className="hover:bg-gray-700/20">
-                  <td className="px-2 py-1.5 font-medium whitespace-nowrap">{r.owner}</td>
-                  <td className="px-2 py-1.5 text-right">{r.actual_wins}-{r.actual_losses}</td>
-                  <td className="px-2 py-1.5 text-right">{r.sim_wins}-{r.sim_losses}</td>
-                  <td className={`px-2 py-1.5 text-right ${diffColor}`}>{diffStr}</td>
-                  <td className="px-2 py-1.5 text-gray-500">{r.verdict}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap">{r.next_opponent ?? '—'}</td>
-                  <td className={`px-2 py-1.5 text-right ${sosColor}`}>{pct(sos)}</td>
+                <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '9px 12px' }}>
+                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, ...rk }}>
+                      {i + 1}
+                    </div>
+                  </td>
+                  <td style={{ padding: '9px 12px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{r.owner}</td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+                    <span style={{ ...wl, borderRadius: '4px', padding: '2px 7px', fontSize: '12px', fontWeight: 600 }}>
+                      {r.actual_wins}-{r.actual_losses}
+                    </span>
+                  </td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{pts}</td>
                 </tr>
               )
             })}
           </tbody>
         </table>
-      </div>
-      <div className="mt-3">
-        <Link to="/league" className="text-xs text-emerald-400 hover:underline">
-          Full standings &amp; analysis →
-        </Link>
-      </div>
+      )}
     </div>
   )
 }
 
-// ─── Calendar widget ──────────────────────────────────────────────────────────
+// ─── Calendar panel ───────────────────────────────────────────────────────────
 
 const TYPE_ICON = { draft: '📋', dues: '💰', roster_deadline: '📝', regular_season: '🏈', trade_deadline: '⏰', playoffs: '⚔️', championship: '🏆' }
 
-function CalendarWidget() {
+function CalendarPanel() {
   const { data, isLoading } = useQuery({
     queryKey: ['calendar-events'],
     queryFn: () => fetch('/api/calendar/events').then(r => r.json()),
@@ -145,46 +204,78 @@ function CalendarWidget() {
   if (isLoading) return <LoadingSpinner />
 
   const events = data?.events ?? []
-  if (events.length === 0) return <p className="text-gray-500 text-sm">No events.</p>
+  if (events.length === 0) return null
 
-  // Show the current (newest) season's events
   const currentSeason = events[0].season
   const currentEvents = events.filter(e => e.season === currentSeason)
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm font-semibold text-gray-200">{currentSeason} Season</span>
-        <span className="text-xs bg-emerald-800 text-emerald-300 px-2 py-0.5 rounded">Current</span>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+      {/* Panel header */}
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Season Calendar</span>
+        <span style={{ background: 'rgba(35,134,54,0.15)', color: 'var(--green)', border: '1px solid rgba(63,185,80,0.25)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+          {currentSeason}
+        </span>
+        <Link to="/calendar" style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', textDecoration: 'none' }}>
+          Full calendar →
+        </Link>
       </div>
 
-      <div className="space-y-2.5">
+      <div>
         {currentEvents.map((e, i) => {
           const isActive = e.status === 'active' || e.status === 'drafting'
-          const statusLabel = e.status === 'drafting' ? 'Active' : e.status.charAt(0).toUpperCase() + e.status.slice(1)
-          const statusColor = isActive ? 'text-emerald-400' : e.status === 'complete' ? 'text-gray-600' : 'text-gray-500'
+          const dateStr = e.date_start_fmt
+            ? e.date_end_fmt && e.date_end_fmt !== e.date_start_fmt
+              ? `${e.date_start_fmt} – ${e.date_end_fmt}`
+              : e.date_start_fmt
+            : null
+
           return (
-            <div key={i} className={`flex items-center gap-3 text-sm ${isActive ? 'bg-gray-700/30 rounded px-2 py-1' : 'px-2 py-0.5'}`}>
-              <span className="text-base shrink-0">{TYPE_ICON[e.type] ?? '📅'}</span>
-              <div className="flex-1 min-w-0">
-                <span className={isActive ? 'text-white font-medium' : 'text-gray-300'}>{e.title}</span>
-                {e.date_start_fmt && (
-                  <span className="text-gray-600 text-xs ml-2">
-                    {e.date_start_fmt}
-                    {e.date_end_fmt && e.date_end_fmt !== e.date_start_fmt ? ` – ${e.date_end_fmt}` : ''}
-                  </span>
-                )}
-              </div>
-              <span className={`text-xs shrink-0 ${statusColor}`}>{statusLabel}</span>
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '9px 16px',
+              borderBottom: i < currentEvents.length - 1 ? '1px solid var(--border)' : 'none',
+            }}>
+              {/* Status dot */}
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0,
+                background: isActive ? 'var(--brand-red)' : 'var(--border)',
+                ...(isActive ? { boxShadow: '0 0 6px rgba(204,31,46,0.5)' } : {}),
+              }} />
+
+              {/* Icon + name */}
+              <span style={{ fontSize: '14px', flexShrink: 0 }}>{TYPE_ICON[e.type] ?? '📅'}</span>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0 }}>{e.title}</span>
+
+              {/* Date */}
+              {dateStr && <span style={{ fontSize: '11px', color: 'var(--text-faint)', flexShrink: 0 }}>{dateStr}</span>}
+
+              {/* Status label */}
+              {isActive ? (
+                <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--brand-red)', background: 'rgba(204,31,46,0.12)', borderRadius: '4px', padding: '2px 8px', flexShrink: 0 }}>Active</span>
+              ) : (
+                <span style={{ fontSize: '10px', color: 'var(--text-faint)', flexShrink: 0 }}>
+                  {e.status === 'complete' ? 'Complete' : 'Upcoming'}
+                </span>
+              )}
             </div>
           )
         })}
       </div>
+    </div>
+  )
+}
 
-      <div className="mt-4 pt-3 border-t border-gray-700">
-        <Link to="/calendar" className="text-xs text-emerald-400 hover:underline">
-          View full calendar →
-        </Link>
+// ─── This Season section ──────────────────────────────────────────────────────
+
+function ThisSeasonSection() {
+  return (
+    <div style={{ paddingBottom: '32px' }}>
+      <SectionLabel>This Season</SectionLabel>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <StandingsPanel />
+        <CalendarPanel />
       </div>
     </div>
   )
@@ -195,35 +286,10 @@ function CalendarWidget() {
 export default function Home() {
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <img
-          src="/logo.png"
-          alt="NNBE"
-          className="h-16 w-16 rounded-xl object-contain shrink-0"
-          onError={e => { e.target.style.display = 'none' }}
-        />
-        <div>
-          <h1 className="text-3xl font-bold text-white leading-tight">NNBE Fantasy Football</h1>
-          <p className="text-gray-400 text-sm mt-1">The New New Big East — 2021 through present</p>
-        </div>
-      </div>
-
-      {/* Nav cards — always stacked vertically */}
-      <div className="flex flex-col gap-3 mb-10">
-        {NAV_CARDS.map(card => <NavCard key={card.to} {...card} />)}
-      </div>
-
-      {/* Lower section: in-season snapshot + calendar */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-5">
-          <h2 className="text-sm font-semibold text-white mb-4">🏈 Current Season Snapshot</h2>
-          <InSeasonSnapshot />
-        </div>
-        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-5">
-          <h2 className="text-sm font-semibold text-white mb-4">📅 Season Calendar</h2>
-          <CalendarWidget />
-        </div>
+      <Hero />
+      <div style={CONTAINER}>
+        <ExploreSection />
+        <ThisSeasonSection />
       </div>
     </div>
   )
