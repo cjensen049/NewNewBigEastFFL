@@ -27,16 +27,13 @@ const TABS = [
 
 // Position colours — mirrors Draft.jsx
 const POS_STYLE = {
-  QB:  { border: 'border-l-blue-500',   bg: 'bg-blue-900/30' },
-  RB:  { border: 'border-l-green-500',  bg: 'bg-green-900/30' },
-  WR:  { border: 'border-l-violet-500', bg: 'bg-violet-900/30' },
-  TE:  { border: 'border-l-orange-500', bg: 'bg-orange-900/30' },
-  K:   { border: 'border-l-gray-500',   bg: 'bg-gray-800/60' },
-  DEF: { border: 'border-l-red-500',    bg: 'bg-red-900/30' },
+  QB: { border: 'border-l-blue-500',   bg: 'bg-blue-900/30' },
+  RB: { border: 'border-l-green-500',  bg: 'bg-green-900/30' },
+  WR: { border: 'border-l-violet-500', bg: 'bg-violet-900/30' },
+  TE: { border: 'border-l-orange-500', bg: 'bg-orange-900/30' },
 }
 const POS_BADGE = {
-  QB: 'bg-blue-600', RB: 'bg-green-700', WR: 'bg-violet-700',
-  TE: 'bg-orange-600', K: 'bg-gray-500', DEF: 'bg-red-700',
+  QB: 'bg-blue-600', RB: 'bg-green-700', WR: 'bg-violet-700', TE: 'bg-orange-600',
 }
 function OwnerPosBadge({ pos }) {
   if (!pos) return null
@@ -302,7 +299,9 @@ function DraftPicksTab({ owner }) {
               <th className="px-3 py-2 w-16">Season</th>
               <th className="px-3 py-2 w-14 text-center">Rd</th>
               <th className="px-3 py-2 w-16 text-center">Pick</th>
+              <th className="px-3 py-2 w-28 text-right">Total Pts</th>
               <th className="px-3 py-2 w-28 text-right">Pts on Roster</th>
+              <th className="px-3 py-2 w-24">Current Team</th>
             </tr>
           </thead>
           <tbody>
@@ -318,12 +317,20 @@ function DraftPicksTab({ owner }) {
                   <td className="px-3 py-2 text-gray-400">{p.season}</td>
                   <td className="px-3 py-2 text-gray-400 text-center">{p.round}</td>
                   <td className="px-3 py-2 text-gray-400 text-center">{p.pick_no}</td>
+                  <td className="px-3 py-2 text-right font-mono text-gray-300">
+                    {p.total_points > 0 ? p.total_points.toFixed(1) : '—'}
+                  </td>
                   <td className={`px-3 py-2 text-right font-mono font-medium ${
                     p.points_on_team > 500 ? 'text-emerald-400' :
                     p.points_on_team > 200 ? 'text-emerald-600' :
                     p.points_on_team > 0   ? 'text-gray-300'    : 'text-gray-600'
                   }`}>
                     {p.points_on_team > 0 ? p.points_on_team.toFixed(1) : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-sm">
+                    {p.current_team === 'Free Agent'
+                      ? <span className="text-gray-500 italic">Free Agent</span>
+                      : <span className="text-gray-300">{p.current_team}</span>}
                   </td>
                 </tr>
               )

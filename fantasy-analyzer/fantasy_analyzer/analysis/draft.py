@@ -139,11 +139,11 @@ def get_owner_picks(con: sqlite3.Connection, user_id: str) -> list[dict]:
 
 
 def get_owner_picks_with_points(con: sqlite3.Connection, user_id: str) -> list[dict]:
-    """All picks by one owner with total fantasy points scored while on their roster.
+    """All picks by one owner with points on roster, total league points, and current NFL team.
 
-    Points are sourced from matchup players_points_json, which only contains
-    players actually on that owner's roster for the week — so if a player was
-    traded away, points after the trade date are not counted.
+    - points_on_team: fantasy points scored while on THIS owner's roster (trade-aware)
+    - total_points:   fantasy points scored across ALL matchups in the league
+    - current_team:   player's current NFL team from the players table ("Free Agent" if none)
     """
     picks_rows = con.execute(
         """
@@ -154,7 +154,8 @@ def get_owner_picks_with_points(con: sqlite3.Connection, user_id: str) -> list[d
             dp.pick_no,
             dp.player_id,
             COALESCE(dp.player_name, '—') AS player_name,
-            COALESCE(pl.position, '') AS position
+            COALESCE(pl.position, '') AS position,
+            COALESCE(pl.team, '') AS team
         FROM draft_picks dp
         JOIN drafts d ON d.draft_id = dp.draft_id
         LEFT JOIN players pl ON pl.player_id = dp.player_id
@@ -173,28 +174,34 @@ def get_owner_picks_with_points(con: sqlite3.Connection, user_id: str) -> list[d
             "player_id": r[4],
             "player_name": r[5],
             "position": r[6],
+            "current_team": r[7] or "Free Agent",
         }
         for r in picks_rows
     ]
 
-    # Sum each player's points from weeks they appeared on this owner's roster.
-    matchup_rows = con.execute(
-        "SELECT players_points_json FROM matchups WHERE user_id = ? AND players_points_json IS NOT NULL",
-        (user_id,),
+    # One pass through ALL matchup rows: compute both owner-specific and league-wide totals.
+    all_matchup_rows = con.execute(
+        "SELECT user_id, players_points_json FROM matchups WHERE players_points_json IS NOT NULL"
     ).fetchall()
 
-    player_totals: dict[str, float] = {}
-    for (json_str,) in matchup_rows:
+    owner_totals: dict[str, float] = {}
+    league_totals: dict[str, float] = {}
+
+    for row_user_id, json_str in all_matchup_rows:
         try:
             week_pts = json.loads(json_str)
             for pid, pts in week_pts.items():
                 if pts:
-                    player_totals[pid] = player_totals.get(pid, 0.0) + float(pts)
+                    pts_f = float(pts)
+                    league_totals[pid] = league_totals.get(pid, 0.0) + pts_f
+                    if row_user_id == user_id:
+                        owner_totals[pid] = owner_totals.get(pid, 0.0) + pts_f
         except (ValueError, TypeError):
             pass
 
     for pick in picks:
         pid = pick["player_id"] or ""
-        pick["points_on_team"] = round(player_totals.get(pid, 0.0), 1)
+        pick["points_on_team"] = round(owner_totals.get(pid, 0.0), 1)
+        pick["total_points"] = round(league_totals.get(pid, 0.0), 1)
 
     return picks
