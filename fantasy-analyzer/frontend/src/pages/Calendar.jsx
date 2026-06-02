@@ -132,8 +132,8 @@ export default function Calendar() {
   const events = data?.events ?? []
 
   // Group events by season (preserving order — newest season first)
-  const bySeason: Record<number, typeof events> = {}
-  const seasonOrder: number[] = []
+  const bySeason = {}
+  const seasonOrder = []
   events.forEach(e => {
     if (!bySeason[e.season]) {
       bySeason[e.season] = []
