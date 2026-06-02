@@ -8,13 +8,11 @@
 import { NavLink } from 'react-router-dom'
 
 const links = [
-  { to: '/history',      label: '📊 History' },
-  { to: '/owner',        label: '👤 Owner' },
-  { to: '/h2h',          label: '⚔️ Head-to-Head' },
+  { to: '/',             label: '🏠 Home',         end: true },
+  { to: '/league',       label: '📊 League' },
+  { to: '/owner',        label: '👤 Owners' },
   { to: '/transactions', label: '💱 Transactions' },
-  { to: '/in-season',    label: '🏈 In-Season' },
   { to: '/draft',        label: '📋 Draft' },
-  { to: '/calendar',    label: '📅 Calendar' },
 ]
 
 export default function NavBar() {
@@ -22,8 +20,16 @@ export default function NavBar() {
     <nav className="bg-gray-800 border-b border-gray-700">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center h-14 gap-1">
-          {/* League name / logo */}
-          <span className="text-emerald-400 font-bold text-lg mr-6 shrink-0">NNBE</span>
+          {/* League logo + name */}
+          <div className="flex items-center gap-2 mr-6 shrink-0">
+            <img
+              src="/logo.png"
+              alt=""
+              className="h-7 w-7 rounded object-contain"
+              onError={e => { e.target.style.display = 'none' }}
+            />
+            <span className="text-emerald-400 font-bold text-lg">NNBE</span>
+          </div>
 
           {/* Navigation links — overflow-x-auto makes them scrollable on small screens */}
           <div className="flex overflow-x-auto gap-1">
@@ -31,6 +37,7 @@ export default function NavBar() {
               <NavLink
                 key={link.to}
                 to={link.to}
+                end={!!link.end}
                 className={({ isActive }) =>
                   `px-3 py-2 text-sm rounded whitespace-nowrap transition-colors ${
                     isActive

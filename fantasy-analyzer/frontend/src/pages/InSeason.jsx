@@ -408,12 +408,12 @@ function RTBTab() {
 // Page assembly
 // ---------------------------------------------------------------------------
 
-export default function InSeason() {
+export default function InSeason({ embedded = false }) {
   const [tab, setTab] = useState('luck')
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">In-Season</h1>
+      {!embedded && <h1 className="text-2xl font-bold mb-6">In-Season</h1>}
       <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
       <TabPanel id="luck" activeTab={tab}><LuckTab /></TabPanel>
       <TabPanel id="rtb"  activeTab={tab}><RTBTab /></TabPanel>

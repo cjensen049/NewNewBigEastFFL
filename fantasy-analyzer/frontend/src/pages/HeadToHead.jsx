@@ -316,12 +316,12 @@ function FullMatrixTab() {
 // Page assembly
 // ---------------------------------------------------------------------------
 
-export default function HeadToHead() {
+export default function HeadToHead({ embedded = false }) {
   const [tab, setTab] = useState('lookup')
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Head-to-Head</h1>
+      {!embedded && <h1 className="text-2xl font-bold mb-6">Head-to-Head</h1>}
       <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
       <TabPanel id="lookup"  activeTab={tab}><MatchupLookupTab /></TabPanel>
       <TabPanel id="rivalry" activeTab={tab}><RivalriesTab /></TabPanel>

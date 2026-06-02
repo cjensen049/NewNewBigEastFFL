@@ -470,13 +470,17 @@ const TABS = [
   { id: 'champions', label: 'Champions' },
 ]
 
-export default function History() {
+export default function History({ embedded = false }) {
   const [tab, setTab] = useState('standings')
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-1">NNBE League History</h1>
-      <p className="text-gray-400 text-sm mb-6">The New New Big East — 2021 through 2025</p>
+      {!embedded && (
+        <>
+          <h1 className="text-2xl font-bold mb-1">NNBE League History</h1>
+          <p className="text-gray-400 text-sm mb-6">The New New Big East — 2021 through 2025</p>
+        </>
+      )}
 
       <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
 
