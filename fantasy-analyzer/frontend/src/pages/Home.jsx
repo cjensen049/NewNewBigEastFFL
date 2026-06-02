@@ -116,6 +116,13 @@ function rankStyle(i) {
   return { background: 'var(--border)', color: 'var(--text-muted)' }
 }
 
+function luckVerdict(luckDiff) {
+  if (luckDiff == null) return null
+  if (luckDiff > 0.3) return { label: '↑ Lucky',   color: 'var(--green)',     bg: 'rgba(63,185,80,0.1)' }
+  if (luckDiff < -0.3) return { label: '↓ Unlucky', color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.08)' }
+  return { label: '→ Even',   color: 'var(--gold)',      bg: 'rgba(227,179,65,0.1)' }
+}
+
 function StandingsPanel() {
   const { data: seasonsData, isLoading: loadSeasons } = useQuery({
     queryKey: ['inseason-seasons'],
@@ -134,6 +141,14 @@ function StandingsPanel() {
   if (loadSeasons || isLoading) return <LoadingSpinner />
 
   const rows = data?.rows ?? []
+  const nextWeek = data?.next_week
+  const oppHeader = nextWeek ? `Wk ${nextWeek} Opp` : 'Next Opp'
+
+  const TH = ({ children, align = 'left', width }) => (
+    <th style={{ padding: '7px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: align, whiteSpace: 'nowrap', ...(width ? { width } : {}) }}>
+      {children}
+    </th>
+  )
 
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
@@ -153,39 +168,64 @@ function StandingsPanel() {
       {rows.length === 0 ? (
         <p style={{ padding: '16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic' }}>No in-season data yet.</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--bg-page)' }}>
-              <th style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'left', width: '32px' }}>#</th>
-              <th style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'left' }}>Owner</th>
-              <th style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'right' }}>W-L</th>
-              <th style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'right' }}>Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const wl = wlStyle(r.actual_wins, r.actual_losses)
-              const rk = rankStyle(i)
-              const pts = r.pts_for != null ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
-              return (
-                <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '9px 12px' }}>
-                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, ...rk }}>
-                      {i + 1}
-                    </div>
-                  </td>
-                  <td style={{ padding: '9px 12px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{r.owner}</td>
-                  <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                    <span style={{ ...wl, borderRadius: '4px', padding: '2px 7px', fontSize: '12px', fontWeight: 600 }}>
-                      {r.actual_wins}-{r.actual_losses}
-                    </span>
-                  </td>
-                  <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{pts}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-page)' }}>
+                <TH width="28px">#</TH>
+                <TH>Owner</TH>
+                <TH align="right">W-L</TH>
+                <TH align="right">Sim</TH>
+                <TH align="right">Pts</TH>
+                <TH align="center">Luck</TH>
+                <TH>{oppHeader}</TH>
+                <TH align="right">SoS</TH>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => {
+                const wl = wlStyle(r.actual_wins, r.actual_losses)
+                const simWl = wlStyle(r.sim_wins, r.sim_losses)
+                const rk = rankStyle(i)
+                const pts = r.pts_for != null ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
+                const verdict = luckVerdict(r.luck_diff)
+                const sos = r.remaining_sos != null ? `${(r.remaining_sos * 100).toFixed(1)}%` : '—'
+                return (
+                  <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '8px 10px' }}>
+                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, ...rk }}>
+                        {i + 1}
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 10px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600 }}>
+                        {r.actual_wins}-{r.actual_losses}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      <span style={{ ...simWl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600 }}>
+                        {r.sim_wins}-{r.sim_losses}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{pts}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                      {verdict && (
+                        <span style={{ background: verdict.bg, color: verdict.color, borderRadius: '4px', padding: '2px 6px', fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {verdict.label}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      {r.next_opponent ?? <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>—</span>}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: '12px', color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' }}>{sos}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
@@ -273,7 +313,7 @@ function ThisSeasonSection() {
   return (
     <div style={{ paddingBottom: '32px' }}>
       <SectionLabel>This Season</SectionLabel>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '10px' }}>
         <StandingsPanel />
         <CalendarPanel />
       </div>

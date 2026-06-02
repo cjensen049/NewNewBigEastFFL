@@ -29,13 +29,13 @@ const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 24px' }
 
 // Position colours — mirrors Draft.jsx
 const POS_STYLE = {
-  QB: { border: 'border-l-blue-500',   bg: 'bg-blue-900/30' },
+  QB: { border: 'border-l-red-500',    bg: 'bg-red-900/30' },
   RB: { border: 'border-l-green-500',  bg: 'bg-green-900/30' },
-  WR: { border: 'border-l-violet-500', bg: 'bg-violet-900/30' },
+  WR: { border: 'border-l-blue-500',   bg: 'bg-blue-900/30' },
   TE: { border: 'border-l-orange-500', bg: 'bg-orange-900/30' },
 }
 const POS_BADGE = {
-  QB: 'bg-blue-600', RB: 'bg-green-700', WR: 'bg-violet-700', TE: 'bg-orange-600',
+  QB: 'bg-red-700', RB: 'bg-green-700', WR: 'bg-blue-700', TE: 'bg-orange-600',
 }
 function OwnerPosBadge({ pos }) {
   if (!pos) return null

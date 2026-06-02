@@ -18,6 +18,30 @@ import { TabBar, TabPanel } from '../components/Tabs'
 import DataTable from '../components/DataTable'
 import LoadingSpinner from '../components/LoadingSpinner'
 
+// ─── Position colour helpers (used in Waivers tab) ───────────────────────────
+
+const WAV_POS_ROW = {
+  QB: { borderLeft: '3px solid #ef4444', background: 'rgba(127,29,29,0.18)' },
+  RB: { borderLeft: '3px solid #22c55e', background: 'rgba(20,83,45,0.18)' },
+  WR: { borderLeft: '3px solid #3b82f6', background: 'rgba(30,58,138,0.18)' },
+  TE: { borderLeft: '3px solid #f97316', background: 'rgba(124,45,18,0.18)' },
+}
+const WAV_POS_BADGE = {
+  QB: { background: '#b91c1c', color: '#fff' },
+  RB: { background: '#15803d', color: '#fff' },
+  WR: { background: '#1d4ed8', color: '#fff' },
+  TE: { background: '#c2410c', color: '#fff' },
+}
+function WavPosBadge({ pos }) {
+  if (!pos) return null
+  const s = WAV_POS_BADGE[pos] ?? { background: '#374151', color: '#fff' }
+  return (
+    <span style={{ ...s, borderRadius: '3px', padding: '1px 6px', fontSize: '10px', fontWeight: 700 }}>
+      {pos}
+    </span>
+  )
+}
+
 const TABS = [
   { id: 'tree',        label: 'Trade Tree' },
   { id: 'log',         label: 'Trade Log' },
@@ -487,14 +511,6 @@ function WaiversTab() {
 
   if (loadAct || loadFaab || loadPlayers) return <LoadingSpinner />
 
-  const topBidRows = (faabData?.top_bids?.slice(0, 20) ?? []).map(b => ({
-    player: b.player,
-    owner: b.owner,
-    season: b.season,
-    week: b.week,
-    faab: `$${b.amount}`,
-  }))
-
   const activityRows = (activityData?.activity ?? []).map(o => ({
     owner: o.owner,
     total_adds: o.total_adds,
@@ -510,17 +526,34 @@ function WaiversTab() {
       <div>
         <h2 className="text-lg font-semibold mb-1">Biggest FAAB Claims</h2>
         <p className="text-xs text-gray-500 mb-3">Top 20 successful FAAB bids of all time</p>
-        <DataTable
-          rows={topBidRows}
-          maxHeight="380px"
-          columns={[
-            { key: 'player', label: 'Player' },
-            { key: 'owner',  label: 'Owner' },
-            { key: 'season', label: 'Season', align: 'right' },
-            { key: 'week',   label: 'Week',   align: 'right' },
-            { key: 'faab',   label: 'FAAB',   align: 'right' },
-          ]}
-        />
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+          <div style={{ overflowY: 'auto', maxHeight: '380px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-page)', position: 'sticky', top: 0, zIndex: 1 }}>
+                  {['Player', 'Pos', 'Owner', 'Season', 'Wk', 'FAAB'].map((h, i) => (
+                    <th key={h} style={{ padding: '7px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i >= 3 ? 'right' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(faabData?.top_bids?.slice(0, 20) ?? []).map((b, i) => {
+                  const rowStyle = WAV_POS_ROW[b.position] ?? {}
+                  return (
+                    <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', ...rowStyle }}>
+                      <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>{b.player}</td>
+                      <td style={{ padding: '8px 12px' }}><WavPosBadge pos={b.position} /></td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)' }}>{b.owner}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.season}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.week}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--green)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>${b.amount}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div>
@@ -567,16 +600,33 @@ function WaiversTab() {
       <div>
         <h2 className="text-lg font-semibold mb-1">Revolving Door Players</h2>
         <p className="text-xs text-gray-500 mb-3">Players with the most total moves (adds + drops)</p>
-        <DataTable
-          rows={playersData?.players?.slice(0, 20) ?? []}
-          maxHeight="440px"
-          columns={[
-            { key: 'player',      label: 'Player' },
-            { key: 'adds',        label: 'Adds',        align: 'right' },
-            { key: 'drops',       label: 'Drops',       align: 'right' },
-            { key: 'total_moves', label: 'Total Moves', align: 'right' },
-          ]}
-        />
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+          <div style={{ overflowY: 'auto', maxHeight: '440px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-page)', position: 'sticky', top: 0, zIndex: 1 }}>
+                  {[['Player', 'left'], ['Pos', 'left'], ['Adds', 'right'], ['Drops', 'right'], ['Total', 'right']].map(([h, align]) => (
+                    <th key={h} style={{ padding: '7px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: align, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(playersData?.players?.slice(0, 20) ?? []).map((p, i) => {
+                  const rowStyle = WAV_POS_ROW[p.position] ?? {}
+                  return (
+                    <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', ...rowStyle }}>
+                      <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>{p.player}</td>
+                      <td style={{ padding: '8px 12px' }}><WavPosBadge pos={p.position} /></td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.adds}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.drops}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.total_moves}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   )

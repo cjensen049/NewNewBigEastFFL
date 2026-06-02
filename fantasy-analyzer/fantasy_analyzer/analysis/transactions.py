@@ -73,6 +73,14 @@ def _player_names(con: sqlite3.Connection) -> dict[str, str]:
     return {r[0]: r[1] or r[0] for r in rows}
 
 
+def _player_positions(con: sqlite3.Connection) -> dict[str, str]:
+    """Return {player_id: position}."""
+    rows = con.execute(
+        "SELECT player_id, position FROM players WHERE position IS NOT NULL"
+    ).fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
 def _original_pick_owner(con: sqlite3.Connection, league_id: str, roster_map: dict) -> dict[int, str]:
     """Return {roster_id: canonical_name} for original pick owners in a league."""
     rows = con.execute(
@@ -362,6 +370,7 @@ def get_faab_records(con: sqlite3.Connection) -> dict:
     """
     roster_map = _roster_to_owner(con)
     player_names_map = _player_names(con)
+    positions_map = _player_positions(con)
 
     rows = con.execute(
         """
@@ -387,6 +396,7 @@ def get_faab_records(con: sqlite3.Connection) -> dict:
             if status == "complete":
                 top_bids.append({
                     "player": name,
+                    "position": positions_map.get(pid),
                     "owner": owner or "?",
                     "season": season,
                     "week": week,
@@ -420,6 +430,7 @@ def get_player_add_drop_stats(con: sqlite3.Connection) -> list[dict]:
     Sorted by total activity (adds + drops) descending.
     """
     player_names_map = _player_names(con)
+    positions_map = _player_positions(con)
 
     add_counts: dict[str, int] = {}
     drop_counts: dict[str, int] = {}
@@ -443,6 +454,7 @@ def get_player_add_drop_stats(con: sqlite3.Connection) -> list[dict]:
         drops = drop_counts.get(pid, 0)
         rows.append({
             "player": name,
+            "position": positions_map.get(pid),
             "adds": adds,
             "drops": drops,
             "total_moves": adds + drops,
