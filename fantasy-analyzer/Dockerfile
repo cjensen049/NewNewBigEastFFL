@@ -9,7 +9,7 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY fantasy-analyzer/frontend/package*.json ./
-RUN NODE_OPTIONS=--use-system-ca npm ci
+RUN npm ci
 COPY fantasy-analyzer/frontend/ ./
 RUN npm run build
 

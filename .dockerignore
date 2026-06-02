@@ -1,0 +1,13 @@
+# Exclude dev/test artifacts from Docker build context
+fantasy-analyzer/tests/
+fantasy-analyzer/streamlit_app.py
+fantasy-analyzer/frontend/node_modules/
+fantasy-analyzer/frontend/dist/
+fantasy-analyzer/*.md
+fantasy-analyzer/errors.md
+fantasy-analyzer/memory.md
+*.md
+__pycache__/
+**/__pycache__/
+*.pyc
+.git/
