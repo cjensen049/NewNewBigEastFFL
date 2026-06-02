@@ -9,11 +9,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import NavBar from './components/NavBar'
 import Home from './pages/Home'
 import League from './pages/League'
-import History from './pages/History'
 import Owner from './pages/Owner'
-import HeadToHead from './pages/HeadToHead'
 import Transactions from './pages/Transactions'
-import InSeason from './pages/InSeason'
 import Calendar from './pages/Calendar'
 
 export default function App() {
@@ -29,7 +26,6 @@ export default function App() {
             <Route path="/league"       element={<League />} />
             <Route path="/owner"        element={<Owner />} />
             <Route path="/transactions" element={<Transactions />} />
-            <Route path="/draft"        element={<Draft />} />
             <Route path="/calendar"     element={<Calendar />} />
             {/* Legacy redirects — old direct links still work */}
             <Route path="/history"   element={<Navigate to="/league" replace />} />

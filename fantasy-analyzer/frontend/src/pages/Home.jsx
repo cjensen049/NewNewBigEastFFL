@@ -80,7 +80,7 @@ function InSeasonSnapshot() {
 
   const pct = v => v != null ? `${(v * 100).toFixed(1)}%` : '—'
   const nextWeek = data?.next_week
-  const oppHeader = nextWeek ? `Wk ${nextWeek} Opp` : 'Next Opp'
+  const oppHeader = `Wk ${nextWeek ?? 1} Opp`
 
   return (
     <div>
