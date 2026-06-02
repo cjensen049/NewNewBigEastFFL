@@ -112,6 +112,12 @@ body {
   border-bottom-color: var(--brand-red);
 }
 
+/* ─── Search input ───────────────────────────────────────────────────────────── */
+
+.search-input::placeholder {
+  color: var(--text-faint);
+}
+
 /* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }

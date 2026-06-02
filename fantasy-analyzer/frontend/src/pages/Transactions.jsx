@@ -211,23 +211,45 @@ function TradeTreeTab() {
 
   return (
     <div>
-      <p className="text-sm text-gray-400 mb-4">
-        Select a player to trace their full trade history — every asset exchanged in return,
-        what picks were drafted, and where those players ended up.
-      </p>
-
-      <div className="mb-5">
+      {/* Search input */}
+      <div style={{ marginBottom: '20px' }}>
+        <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '8px' }}>Search Player</p>
         <input
           list="player-list"
           value={playerInput}
           onChange={handleInputChange}
           placeholder="Type a player name..."
-          className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-emerald-500 w-72"
+          className="search-input"
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-mid)',
+            borderRadius: '8px',
+            padding: '10px 14px',
+            maxWidth: '400px',
+            width: '100%',
+            color: 'var(--text-primary)',
+            fontSize: '13px',
+            fontFamily: 'var(--font-body)',
+            outline: 'none',
+            transition: 'border-color 0.15s',
+          }}
+          onFocus={e => { e.target.style.borderColor = 'var(--brand-navy)' }}
+          onBlur={e => { e.target.style.borderColor = 'var(--border-mid)' }}
         />
         <datalist id="player-list">
           {allPlayers.map(p => <option key={p} value={p} />)}
         </datalist>
       </div>
+
+      {/* Empty state — shown when no player typed */}
+      {!playerInput && !treeData && (
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔍</div>
+          <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+            Search for a player to trace their trade history
+          </p>
+        </div>
+      )}
 
       {isLoading && <LoadingSpinner />}
 
@@ -645,17 +667,40 @@ function TendenciesTab() {
 // Page assembly
 // ---------------------------------------------------------------------------
 
+const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 24px' }
+
 export default function Transactions() {
   const [tab, setTab] = useState('tree')
 
   return (
-    <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 24px' }}>
-      <h1 className="text-2xl font-bold mb-6">Transactions</h1>
-      <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
-      <TabPanel id="tree"       activeTab={tab}><TradeTreeTab /></TabPanel>
-      <TabPanel id="log"        activeTab={tab}><TradeLogTab /></TabPanel>
-      <TabPanel id="waivers"    activeTab={tab}><WaiversTab /></TabPanel>
-      <TabPanel id="tendencies" activeTab={tab}><TendenciesTab /></TabPanel>
+    <div>
+      {/* Full-width header */}
+      <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ ...CONTAINER, padding: '20px 24px 0' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '36px', letterSpacing: '2px', color: 'var(--text-primary)', lineHeight: 1, marginBottom: '4px' }}>
+            Transactions
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+            Trade trees, waiver wire activity, and transaction patterns across all seasons.
+          </p>
+          {/* Tab bar — flush to bottom of header */}
+          <div style={{ display: 'flex', marginBottom: '-1px', overflowX: 'auto' }}>
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} className={`owner-tab${tab === t.id ? ' active' : ''}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div style={{ ...CONTAINER, padding: '24px 24px' }}>
+        <TabPanel id="tree"       activeTab={tab}><TradeTreeTab /></TabPanel>
+        <TabPanel id="log"        activeTab={tab}><TradeLogTab /></TabPanel>
+        <TabPanel id="waivers"    activeTab={tab}><WaiversTab /></TabPanel>
+        <TabPanel id="tendencies" activeTab={tab}><TendenciesTab /></TabPanel>
+      </div>
     </div>
   )
 }

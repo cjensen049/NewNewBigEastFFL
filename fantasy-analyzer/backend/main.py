@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.routers import history, owner, h2h, transactions, in_season, draft, calendar
@@ -44,9 +45,26 @@ app.include_router(in_season.router, prefix="/api/in-season")
 app.include_router(draft.router, prefix="/api/draft")
 app.include_router(calendar.router, prefix="/api/calendar")
 
-# In production, serve the built React app as static files.
-# This mount must come LAST — it catches everything not matched by the API routes.
 _frontend_dist = BASE_DIR / "frontend" / "dist"
+
+
+@app.get("/{full_path:path}")
+async def serve_react(full_path: str) -> FileResponse:
+    """Serve the React SPA for all non-API paths (enables client-side routing).
+
+    Serves actual static assets when they exist; falls back to index.html so
+    React Router can handle the path on the client side.
+    """
+    static_file = _frontend_dist / full_path
+    if static_file.is_file():
+        return FileResponse(str(static_file))
+    index = _frontend_dist / "index.html"
+    if index.is_file():
+        return FileResponse(str(index))
+    return FileResponse(str(static_file))  # let OS raise the 404
+
+
+# StaticFiles mount kept as a fallback for HEAD/OPTIONS and cache-header support.
 if _frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="static")
 

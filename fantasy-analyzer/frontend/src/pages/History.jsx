@@ -26,14 +26,33 @@ import LoadingSpinner from '../components/LoadingSpinner'
 // ---------------------------------------------------------------------------
 const pct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
 
+function rankCircleStyle(rank) {
+  if (rank === 1) return { background: 'rgba(204,31,46,0.2)', color: 'var(--brand-red)' }
+  if (rank === 2) return { background: 'rgba(26,58,107,0.3)', color: '#5b8dd9' }
+  return { background: 'var(--border)', color: 'var(--text-muted)' }
+}
+
+function wlPillStyle(record) {
+  if (!record) return {}
+  const [w, l] = record.split('-').map(Number)
+  if (w > l) return { background: 'rgba(63,185,80,0.12)', color: 'var(--green)' }
+  if (l > w) return { background: 'rgba(204,31,46,0.1)',  color: 'var(--brand-red)' }
+  return { background: 'rgba(227,179,65,0.12)', color: 'var(--gold)' }
+}
+
+function winPctColor(v) {
+  if (v == null) return 'var(--text-faint)'
+  const p = v * 100
+  if (p < 40) return 'var(--brand-red)'
+  if (p < 55) return 'var(--gold)'
+  return 'var(--green)'
+}
+
 // ---------------------------------------------------------------------------
 // Standings tab
 // ---------------------------------------------------------------------------
 
 function StandingsTab() {
-  // useQuery fetches data from the API.
-  // queryKey: a unique identifier — React Query re-fetches when this changes
-  // queryFn: the function that actually calls the API
   const { data, isLoading, error } = useQuery({
     queryKey: ['history-standings'],
     queryFn: () => fetch('/api/history/standings').then(r => r.json()),
@@ -42,14 +61,6 @@ function StandingsTab() {
   if (isLoading) return <LoadingSpinner />
   if (error) return <p className="text-red-400">Error: {error.message}</p>
 
-  const rows = data.standings.map(s => ({
-    ...s,
-    win_pct_fmt: pct(s.win_pct),
-    playoffs: `${s.playoff_appearances}/${s.seasons}`,
-    titles: s.championships || '',
-  }))
-
-  // Data shaped for Recharts BarChart
   const chartData = data.standings.map(s => ({
     name: s.owner,
     'Win %': parseFloat((s.win_pct * 100).toFixed(1)),
@@ -58,48 +69,74 @@ function StandingsTab() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-3">All-Time Standings</h2>
-      <DataTable
-        rows={rows}
-        maxHeight="480px"
-        columns={[
-          { key: 'rank',         label: 'Rank',    align: 'right' },
-          { key: 'owner',        label: 'Owner' },
-          { key: 'seasons',      label: 'Seasons', align: 'right' },
-          { key: 'record',       label: 'W-L' },
-          { key: 'win_pct_fmt',  label: 'Win%',    align: 'right' },
-          { key: 'total_pts',    label: 'Total Pts', align: 'right' },
-          { key: 'ppg',          label: 'PPG',     align: 'right' },
-          { key: 'playoffs',     label: 'Playoffs', align: 'right' },
-          { key: 'titles',       label: 'Titles',  align: 'right' },
-        ]}
-      />
+      {/* Styled standings table */}
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginBottom: '32px' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>All-Time Standings</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-page)' }}>
+                {['#', 'Owner', 'Seasons', 'W-L', 'Win%', 'Total Pts', 'PPG', 'Playoffs', 'Titles'].map((col, i) => (
+                  <th key={col} style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i <= 1 ? 'left' : 'right', whiteSpace: 'nowrap' }}>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.standings.map((s) => {
+                const rk = rankCircleStyle(s.rank)
+                const wl = wlPillStyle(s.record)
+                return (
+                  <tr key={s.owner} className="season-table-row" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '9px 12px' }}>
+                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, ...rk }}>
+                        {s.rank}
+                      </div>
+                    </td>
+                    <td style={{ padding: '9px 12px', fontSize: '13px', fontWeight: 500, color: s.championships > 0 ? '#e3b341' : 'var(--text-primary)' }}>
+                      {s.owner}
+                    </td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>{s.seasons}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 8px', fontSize: '12px', fontWeight: 600 }}>{s.record}</span>
+                    </td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: winPctColor(s.win_pct) }}>{pct(s.win_pct)}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                      {s.total_pts != null ? Number(s.total_pts).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'}
+                    </td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>{s.ppg}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>{s.playoff_appearances}/{s.seasons}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: s.championships > 0 ? '#e3b341' : 'var(--text-faint)' }}>
+                      {s.championships > 0 ? '🏆'.repeat(Math.min(s.championships, 4)) : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      <h2 className="text-lg font-semibold mt-8 mb-3">All-Time Win Percentage</h2>
-      <p className="text-xs text-gray-500 mb-3">Gold bars = at least one championship</p>
-      {/* ResponsiveContainer makes the chart fill its parent's width */}
+      {/* Win % bar chart */}
+      <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>All-Time Win Percentage</h2>
+      <p style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '12px' }}>Gold bars = at least one championship</p>
       <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-          <XAxis dataKey="name" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
-          <YAxis
-            stroke="#9CA3AF"
-            domain={[0, 100]}
-            tick={{ fontSize: 12 }}
-            tickFormatter={v => `${v}%`}
-          />
+        <BarChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }} style={{ background: 'transparent' }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e2d47" />
+          <XAxis dataKey="name" tick={{ fill: '#4a6380', fontSize: 12 }} axisLine={{ stroke: '#1e2d47' }} tickLine={false} />
+          <YAxis domain={[0, 100]} tick={{ fill: '#4a6380', fontSize: 12 }} tickFormatter={v => `${v}%`} axisLine={false} tickLine={false} />
           <Tooltip
             formatter={(v) => [`${v}%`, 'Win %']}
-            contentStyle={{
-              backgroundColor: '#1f2937',
-              border: '1px solid #374151',
-              borderRadius: '6px',
-            }}
+            contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '6px' }}
+            labelStyle={{ color: 'var(--text-primary)' }}
+            itemStyle={{ color: 'var(--text-muted)' }}
           />
-          {/* Cell lets us color each bar individually */}
-          <Bar dataKey="Win %" label={{ position: 'top', fill: '#9CA3AF', fontSize: 10 }}>
+          <Bar dataKey="Win %" label={{ position: 'top', fill: '#4a6380', fontSize: 10 }}>
             {chartData.map((entry, i) => (
-              <Cell key={i} fill={entry.isChamp ? '#FFD700' : '#4a90d9'} />
+              <Cell key={i} fill={entry.isChamp ? '#e3b341' : '#1a3a6b'} />
             ))}
           </Bar>
         </BarChart>
