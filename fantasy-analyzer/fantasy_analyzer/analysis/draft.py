@@ -138,12 +138,83 @@ def get_owner_picks(con: sqlite3.Connection, user_id: str) -> list[dict]:
     ]
 
 
+def _resolve_current_owners(
+    con: sqlite3.Connection,
+    player_ids: set[str],
+    drafter_user_id: str,
+) -> dict[str, str]:
+    """Walk transactions newest-to-oldest to find the current NNBE owner of each player.
+
+    - A player last seen in adds_json → current owner is the receiving team.
+    - A player last seen in drops_json (but not in the same transaction's adds) → Free Agent.
+    - A player with no transaction history → still with the original drafter.
+    """
+    if not player_ids:
+        return {}
+
+    user_to_name: dict[str, str] = dict(
+        con.execute("SELECT user_id, canonical_name FROM owners").fetchall()
+    )
+
+    # Build (league_id, roster_id) → user_id for all seasons so trade-era roster_ids resolve.
+    lo_rows = con.execute("SELECT league_id, roster_id, user_id FROM league_owners").fetchall()
+    league_roster_to_user: dict[tuple, str] = {
+        (r[0], int(r[1])): r[2] for r in lo_rows
+    }
+
+    tx_rows = con.execute(
+        """
+        SELECT league_id, adds_json, drops_json
+        FROM transactions
+        WHERE adds_json IS NOT NULL OR drops_json IS NOT NULL
+        ORDER BY season DESC, week DESC, created_epoch DESC
+        """
+    ).fetchall()
+
+    current_owners: dict[str, str] = {}
+    remaining = set(player_ids)
+
+    for league_id, adds_str, drops_str in tx_rows:
+        if not remaining:
+            break
+
+        # Adds must be checked first: in a trade the same player appears in both
+        # adds and drops; the add reflects the new owner.
+        if adds_str:
+            try:
+                for pid, roster_id in json.loads(adds_str).items():
+                    if pid in remaining:
+                        uid = league_roster_to_user.get((league_id, int(roster_id)))
+                        if uid:
+                            current_owners[pid] = user_to_name.get(uid, uid)
+                            remaining.discard(pid)
+            except (ValueError, TypeError):
+                pass
+
+        # Drops with no matching add in this transaction = player was released.
+        if drops_str:
+            try:
+                for pid in json.loads(drops_str):
+                    if pid in remaining:
+                        current_owners[pid] = "Free Agent"
+                        remaining.discard(pid)
+            except (ValueError, TypeError):
+                pass
+
+    # Players with no transactions are still on the original drafter's roster.
+    drafter_name = user_to_name.get(drafter_user_id, drafter_user_id)
+    for pid in remaining:
+        current_owners[pid] = drafter_name
+
+    return current_owners
+
+
 def get_owner_picks_with_points(con: sqlite3.Connection, user_id: str) -> list[dict]:
-    """All picks by one owner with points on roster, total league points, and current NFL team.
+    """All picks by one owner with points on roster, total league points, and current NNBE owner.
 
     - points_on_team: fantasy points scored while on THIS owner's roster (trade-aware)
     - total_points:   fantasy points scored across ALL matchups in the league
-    - current_team:   player's current NFL team from the players table ("Free Agent" if none)
+    - current_owner:  which NNBE owner currently holds the player ("Free Agent" if unclaimed)
     """
     picks_rows = con.execute(
         """
@@ -154,8 +225,7 @@ def get_owner_picks_with_points(con: sqlite3.Connection, user_id: str) -> list[d
             dp.pick_no,
             dp.player_id,
             COALESCE(dp.player_name, '—') AS player_name,
-            COALESCE(pl.position, '') AS position,
-            COALESCE(pl.team, '') AS team
+            COALESCE(pl.position, '') AS position
         FROM draft_picks dp
         JOIN drafts d ON d.draft_id = dp.draft_id
         LEFT JOIN players pl ON pl.player_id = dp.player_id
@@ -174,7 +244,6 @@ def get_owner_picks_with_points(con: sqlite3.Connection, user_id: str) -> list[d
             "player_id": r[4],
             "player_name": r[5],
             "position": r[6],
-            "current_team": r[7] or "Free Agent",
         }
         for r in picks_rows
     ]
@@ -199,9 +268,14 @@ def get_owner_picks_with_points(con: sqlite3.Connection, user_id: str) -> list[d
         except (ValueError, TypeError):
             pass
 
+    # Resolve current NNBE owner for each drafted player.
+    player_ids = {p["player_id"] for p in picks if p["player_id"]}
+    current_owners = _resolve_current_owners(con, player_ids, user_id)
+
     for pick in picks:
         pid = pick["player_id"] or ""
         pick["points_on_team"] = round(owner_totals.get(pid, 0.0), 1)
         pick["total_points"] = round(league_totals.get(pid, 0.0), 1)
+        pick["current_owner"] = current_owners.get(pid, "Free Agent")
 
     return picks

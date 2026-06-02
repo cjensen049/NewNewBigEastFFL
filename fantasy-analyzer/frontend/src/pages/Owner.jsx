@@ -301,7 +301,7 @@ function DraftPicksTab({ owner }) {
               <th className="px-3 py-2 w-16 text-center">Pick</th>
               <th className="px-3 py-2 w-28 text-right">Total Pts</th>
               <th className="px-3 py-2 w-28 text-right">Pts on Roster</th>
-              <th className="px-3 py-2 w-24">Current Team</th>
+              <th className="px-3 py-2 w-24">Current Owner</th>
             </tr>
           </thead>
           <tbody>
@@ -328,9 +328,9 @@ function DraftPicksTab({ owner }) {
                     {p.points_on_team > 0 ? p.points_on_team.toFixed(1) : '—'}
                   </td>
                   <td className="px-3 py-2 text-sm">
-                    {p.current_team === 'Free Agent'
+                    {p.current_owner === 'Free Agent'
                       ? <span className="text-gray-500 italic">Free Agent</span>
-                      : <span className="text-gray-300">{p.current_team}</span>}
+                      : <span className="text-gray-300">{p.current_owner}</span>}
                   </td>
                 </tr>
               )
