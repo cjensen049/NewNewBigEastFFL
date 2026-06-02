@@ -17,7 +17,6 @@ const pct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
 
 const TABS = [
   { id: 'summary',   label: 'Career Summary' },
-  { id: 'seasons',   label: 'Seasons' },
   { id: 'h2h',       label: 'Head-to-Head' },
   { id: 'players',   label: 'Top Players' },
   { id: 'draft',     label: 'Draft Picks' },
@@ -505,7 +504,6 @@ export default function Owner() {
       <TabBar tabs={TABS} activeTab={tab} onChange={setTab} />
 
       <TabPanel id="summary" activeTab={tab}><CareerSummaryTab owner={activeOwner} /></TabPanel>
-      <TabPanel id="seasons" activeTab={tab}><SeasonsTab     owner={activeOwner} /></TabPanel>
       <TabPanel id="h2h"     activeTab={tab}><H2HTab         owner={activeOwner} /></TabPanel>
       <TabPanel id="players" activeTab={tab}><TopPlayersTab   owner={activeOwner} /></TabPanel>
       <TabPanel id="draft"   activeTab={tab}><DraftPicksTab  owner={activeOwner} /></TabPanel>

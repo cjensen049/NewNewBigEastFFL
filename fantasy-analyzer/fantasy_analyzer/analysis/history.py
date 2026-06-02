@@ -851,6 +851,101 @@ def get_all_time_luck(con: sqlite3.Connection) -> list[dict]:
     return all_rows
 
 
+def get_standings_snapshot(
+    con: sqlite3.Connection,
+    league_id: str,
+    season: int,
+    playoff_week_start: int,
+) -> dict:
+    """Standings snapshot: luck scores + next opponent + remaining schedule SoS.
+
+    next_opponent: the opponent each owner faces in the upcoming week (None if no data).
+    remaining_sos: average current-season win% of all remaining regular-season opponents.
+    Returns {} when the season has no matchup data yet.
+    """
+    from collections import defaultdict
+
+    reg_end_week = playoff_week_start - 1
+
+    luck_rows = compute_luck_scores(con, league_id, season, playoff_week_start)
+    if not luck_rows:
+        return {}
+
+    # user_id ↔ canonical_name for this league
+    user_rows = con.execute(
+        """
+        SELECT lo.user_id, o.canonical_name
+        FROM league_owners lo
+        JOIN owners o ON lo.user_id = o.user_id
+        WHERE lo.league_id = ?
+        """,
+        (league_id,),
+    ).fetchall()
+    user_to_name: dict[str, str] = {r[0]: r[1] for r in user_rows}
+    name_to_user: dict[str, str] = {v: k for k, v in user_to_name.items()}
+
+    # Current win% per owner name (for SoS denominator)
+    win_pct_by_name: dict[str, float] = {r["owner"]: r["actual_win_pct"] for r in luck_rows}
+
+    # Most recent played week (non-null points)
+    max_week_row = con.execute(
+        "SELECT MAX(week) FROM matchups WHERE league_id=? AND is_playoff=0 AND points IS NOT NULL",
+        (league_id,),
+    ).fetchone()
+    current_week: int = max_week_row[0] or 0
+    next_week: int = current_week + 1
+
+    # Future schedule rows (exist only if Sleeper data has been ingested for those weeks)
+    future_rows = con.execute(
+        """
+        SELECT week, matchup_id, user_id
+        FROM matchups
+        WHERE league_id=? AND is_playoff=0 AND week >= ? AND week <= ?
+        """,
+        (league_id, next_week, reg_end_week),
+    ).fetchall()
+
+    # schedule[(week, matchup_id)] = [user_id_a, user_id_b]
+    schedule: dict[tuple, list[str]] = defaultdict(list)
+    for week, matchup_id, user_id in future_rows:
+        schedule[(week, matchup_id)].append(user_id)
+
+    # Next opponent per owner
+    next_opp: dict[str, str | None] = {uid: None for uid in user_to_name}
+    for (week, _), users in schedule.items():
+        if week == next_week and len(users) == 2:
+            next_opp[users[0]] = user_to_name.get(users[1])
+            next_opp[users[1]] = user_to_name.get(users[0])
+
+    # Remaining SoS: avg opponent win% across all future regular-season weeks
+    sos: dict[str, float | None] = {}
+    for uid in user_to_name:
+        opp_wps: list[float] = []
+        for (_, _), users in schedule.items():
+            if uid in users and len(users) == 2:
+                opp_id = next(u for u in users if u != uid)
+                opp_name = user_to_name.get(opp_id)
+                if opp_name in win_pct_by_name:
+                    opp_wps.append(win_pct_by_name[opp_name])
+        sos[uid] = round(sum(opp_wps) / len(opp_wps), 4) if opp_wps else None
+
+    rows_out = []
+    for r in luck_rows:
+        uid = name_to_user.get(r["owner"])
+        rows_out.append({
+            **r,
+            "next_opponent": next_opp.get(uid) if uid else None,
+            "remaining_sos": sos.get(uid) if uid else None,
+        })
+
+    return {
+        "season": season,
+        "current_week": current_week,
+        "next_week": next_week if next_week <= reg_end_week else None,
+        "rows": rows_out,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Race to the Bottom
 # ---------------------------------------------------------------------------

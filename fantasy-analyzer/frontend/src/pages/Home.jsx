@@ -15,30 +15,23 @@ const NAV_CARDS = [
   {
     to: '/league',
     icon: '📊',
-    title: 'League',
-    description: 'All-time standings, records, weekly scoring, head-to-head matchups, and schedule luck.',
+    title: 'League History',
+    description: 'All-time standings, records, head-to-head matchups, schedule luck, in-season tools, and full draft history.',
     borderColor: 'border-l-blue-500',
   },
   {
     to: '/owner',
     icon: '👤',
-    title: 'Owners',
-    description: 'Individual profiles — season finishes, draft grades, trade activity, and top players.',
-    borderColor: 'border-l-emerald-500',
+    title: 'Owner Dashboard',
+    description: 'Individual profiles — career summary, draft picks, trade activity, waiver trends, and nemesis/prey matchups.',
+    borderColor: 'border-l-red-500',
   },
   {
     to: '/transactions',
     icon: '💱',
-    title: 'Transactions',
+    title: 'Transaction History',
     description: 'Trade timelines, waiver wire activity, and transaction patterns across all seasons.',
     borderColor: 'border-l-violet-500',
-  },
-  {
-    to: '/draft',
-    icon: '📋',
-    title: 'Draft',
-    description: 'Draft boards by season and how every pick has scored for its owner.',
-    borderColor: 'border-l-orange-500',
   },
 ]
 
@@ -72,33 +65,37 @@ function InSeasonSnapshot() {
   const seasons = seasonsData?.seasons ?? []
   const currentSeason = seasons[0]
 
-  const { data: luckData, isLoading: loadLuck } = useQuery({
-    queryKey: ['luck-season', currentSeason],
-    queryFn: () => fetch(`/api/in-season/luck/${currentSeason}`).then(r => r.json()),
+  const { data, isLoading } = useQuery({
+    queryKey: ['inseason-snapshot', currentSeason],
+    queryFn: () => fetch(`/api/in-season/snapshot/${currentSeason}`).then(r => r.json()),
     enabled: !!currentSeason,
   })
 
-  if (loadSeasons || loadLuck) return <LoadingSpinner />
+  if (loadSeasons || isLoading) return <LoadingSpinner />
 
-  const rows = luckData?.rows ?? []
+  const rows = data?.rows ?? []
   if (rows.length === 0) {
     return <p className="text-gray-500 text-sm italic">No in-season data yet.</p>
   }
 
   const pct = v => v != null ? `${(v * 100).toFixed(1)}%` : '—'
+  const nextWeek = data?.next_week
+  const oppHeader = nextWeek ? `Wk ${nextWeek} Opp` : 'Next Opp'
 
   return (
     <div>
-      <p className="text-xs text-gray-500 mb-3">{currentSeason} · Actual record vs simulated (every-team) schedule</p>
+      <p className="text-xs text-gray-500 mb-3">{currentSeason} · Actual record vs simulated schedule</p>
       <div className="overflow-auto rounded border border-gray-700">
-        <table className="w-full text-xs text-gray-300">
+        <table className="text-xs text-gray-300">
           <thead className="bg-gray-800 text-gray-500 uppercase">
             <tr>
-              <th className="px-2 py-2 text-left">Owner</th>
-              <th className="px-2 py-2 text-right">W-L</th>
-              <th className="px-2 py-2 text-right">Sim W-L</th>
-              <th className="px-2 py-2 text-right">Diff</th>
-              <th className="px-2 py-2 text-left">Verdict</th>
+              <th className="px-2 py-2 text-left whitespace-nowrap">Owner</th>
+              <th className="px-2 py-2 text-right whitespace-nowrap">W-L</th>
+              <th className="px-2 py-2 text-right whitespace-nowrap">Sim W-L</th>
+              <th className="px-2 py-2 text-right whitespace-nowrap">Diff</th>
+              <th className="px-2 py-2 text-left whitespace-nowrap">Verdict</th>
+              <th className="px-2 py-2 text-left whitespace-nowrap">{oppHeader}</th>
+              <th className="px-2 py-2 text-right whitespace-nowrap">Rem SoS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700/40">
@@ -106,13 +103,20 @@ function InSeasonSnapshot() {
               const diff = r.win_pct_diff
               const diffStr = `${diff >= 0 ? '+' : ''}${pct(diff)}`
               const diffColor = diff >= 0.1 ? 'text-emerald-400' : diff <= -0.1 ? 'text-red-400' : 'text-gray-400'
+              const sos = r.remaining_sos
+              const sosColor = sos == null ? 'text-gray-600'
+                : sos >= 0.55 ? 'text-red-400'
+                : sos <= 0.40 ? 'text-emerald-400'
+                : 'text-gray-400'
               return (
                 <tr key={i} className="hover:bg-gray-700/20">
-                  <td className="px-2 py-1.5 font-medium">{r.owner}</td>
+                  <td className="px-2 py-1.5 font-medium whitespace-nowrap">{r.owner}</td>
                   <td className="px-2 py-1.5 text-right">{r.actual_wins}-{r.actual_losses}</td>
                   <td className="px-2 py-1.5 text-right">{r.sim_wins}-{r.sim_losses}</td>
                   <td className={`px-2 py-1.5 text-right ${diffColor}`}>{diffStr}</td>
-                  <td className="px-2 py-1.5 text-gray-500 text-xs">{r.verdict}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{r.verdict}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap">{r.next_opponent ?? '—'}</td>
+                  <td className={`px-2 py-1.5 text-right ${sosColor}`}>{pct(sos)}</td>
                 </tr>
               )
             })}
@@ -205,8 +209,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Nav cards — 2×2 grid on desktop, stacked on mobile */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+      {/* Nav cards — always stacked vertically */}
+      <div className="flex flex-col gap-3 mb-10">
         {NAV_CARDS.map(card => <NavCard key={card.to} {...card} />)}
       </div>
 

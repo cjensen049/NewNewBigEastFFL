@@ -16,6 +16,7 @@ from fantasy_analyzer.analysis.history import (
     get_available_seasons,
     get_race_to_bottom,
     get_rtb_history,
+    get_standings_snapshot,
 )
 
 router = APIRouter()
@@ -46,6 +47,18 @@ def luck_seasons(con: sqlite3.Connection = Depends(get_db)) -> dict:
     """List of available seasons for in-season tools."""
     seasons = sorted(get_available_seasons(con), reverse=True)
     return {"seasons": seasons}
+
+
+@router.get("/snapshot/{season}")
+def standings_snapshot(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Standings snapshot: luck scores + next opponent + remaining SoS for the home page."""
+    row = con.execute(
+        "SELECT league_id, playoff_week_start FROM leagues WHERE season = ?", (season,)
+    ).fetchone()
+    if not row:
+        return {"season": season, "current_week": 0, "next_week": None, "rows": []}
+    result = get_standings_snapshot(con, row[0], season, row[1])
+    return result if result else {"season": season, "current_week": 0, "next_week": None, "rows": []}
 
 
 @router.get("/luck/all-time")
