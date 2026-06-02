@@ -130,7 +130,7 @@ function InSeasonSnapshot() {
 
 // ─── Calendar widget ──────────────────────────────────────────────────────────
 
-const TYPE_ICON = { draft: '📋', regular_season: '🏈', playoffs: '⚔️', championship: '🏆' }
+const TYPE_ICON = { draft: '📋', dues: '💰', roster_deadline: '📝', regular_season: '🏈', trade_deadline: '⏰', playoffs: '⚔️', championship: '🏆' }
 
 function CalendarWidget() {
   const { data, isLoading } = useQuery({

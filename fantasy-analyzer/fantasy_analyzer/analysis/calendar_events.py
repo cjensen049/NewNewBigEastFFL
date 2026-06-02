@@ -45,6 +45,15 @@ def _fmt(iso: str | None) -> str:
     return d.strftime("%b %-d, %Y")
 
 
+def _deadline_status(deadline: date | None, league_status: str) -> str:
+    """Return complete/upcoming for a fixed deadline date."""
+    if league_status == "complete":
+        return "complete"
+    if deadline is None:
+        return "upcoming"
+    return "complete" if date.today() > deadline else "upcoming"
+
+
 def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
     """Return all calendar events sorted newest season first, then by week within season."""
     leagues = con.execute(
@@ -62,6 +71,8 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
         reg_end_week = (playoff_week_start or 15) - 1  # last regular-season week
         playoff_start_week = playoff_week_start or 15
         champ_week = last_scored_leg or 17
+        league_active = status == "in_season"
+        league_complete = status == "complete"
 
         # ── Draft ────────────────────────────────────────────────────────────
         draft = drafts_by_season.get(season, {})
@@ -79,18 +90,58 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
             "date_end": None,
         })
 
+        # ── League dues (due by Sept 1) ───────────────────────────────────────
+        dues_date = date(season, 9, 1)
+        events.append({
+            "season": season,
+            "sort_key": 1,
+            "type": "dues",
+            "status": _deadline_status(dues_date, status),
+            "title": f"{season} League Dues",
+            "subtitle": "Due by September 1",
+            "date_start": dues_date.isoformat(),
+            "date_end": dues_date.isoformat(),
+        })
+
+        # ── Roster / taxi deadline (Week 1 kickoff) ───────────────────────────
+        week1_date = NFL_WEEK1.get(season)
+        events.append({
+            "season": season,
+            "sort_key": 2,
+            "type": "roster_deadline",
+            "status": _deadline_status(week1_date, status),
+            "title": f"{season} Roster & Taxi Deadline",
+            "subtitle": "Locks at Week 1 kickoff",
+            "date_start": week1_date.isoformat() if week1_date else None,
+            "date_end": week1_date.isoformat() if week1_date else None,
+        })
+
         # ── Regular season ───────────────────────────────────────────────────
         rs_start, _ = _week_range(season, 1)
         _, rs_end = _week_range(season, reg_end_week)
         events.append({
             "season": season,
-            "sort_key": 1,
+            "sort_key": 3,
             "type": "regular_season",
-            "status": "complete" if status == "complete" else ("active" if status == "in_season" else "upcoming"),
+            "status": "complete" if league_complete else ("active" if league_active else "upcoming"),
             "title": f"{season} Regular Season",
             "subtitle": f"Weeks 1–{reg_end_week}",
             "date_start": rs_start,
             "date_end": rs_end,
+        })
+
+        # ── Trade deadline (end of Week 13) ───────────────────────────────────
+        _, td_end = _week_range(season, 13)
+        td_date = date.fromisoformat(td_end) if td_end else None
+        events.append({
+            "season": season,
+            "sort_key": 4,
+            "type": "trade_deadline",
+            "status": _deadline_status(td_date, status),
+            "title": f"{season} Trade Deadline",
+            "subtitle": "End of Week 13",
+            "date_start": td_end,
+            "date_end": td_end,
         })
 
         # ── Playoffs ─────────────────────────────────────────────────────────
@@ -98,9 +149,9 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
         _, pl_end = _week_range(season, champ_week - 1)
         events.append({
             "season": season,
-            "sort_key": 2,
+            "sort_key": 5,
             "type": "playoffs",
-            "status": "complete" if status == "complete" else ("active" if status == "in_season" else "upcoming"),
+            "status": "complete" if league_complete else ("active" if league_active else "upcoming"),
             "title": f"{season} Playoffs",
             "subtitle": f"Weeks {playoff_start_week}–{champ_week - 1}",
             "date_start": pl_start,
@@ -111,16 +162,16 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
         champ_start, champ_end = _week_range(season, champ_week)
         events.append({
             "season": season,
-            "sort_key": 3,
+            "sort_key": 6,
             "type": "championship",
-            "status": "complete" if status == "complete" else ("active" if status == "in_season" else "upcoming"),
+            "status": "complete" if league_complete else ("active" if league_active else "upcoming"),
             "title": f"{season} Championship",
             "subtitle": f"Week {champ_week}",
             "date_start": champ_start,
             "date_end": champ_end,
         })
 
-    # Sort: newest season first, then by sort_key (draft → reg → playoffs → champ)
+    # Sort: newest season first, then by sort_key within each season
     events.sort(key=lambda e: (-e["season"], e["sort_key"]))
 
     # Format dates for display

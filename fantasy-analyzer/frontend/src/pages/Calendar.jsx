@@ -18,11 +18,29 @@ const EVENT_CONFIG = {
     color: 'border-l-violet-500',
     badge: { complete: 'bg-gray-700 text-gray-300', drafting: 'bg-emerald-700 text-white', upcoming: 'bg-gray-800 text-gray-400' },
   },
+  dues: {
+    icon: '💰',
+    label: 'League Dues',
+    color: 'border-l-pink-500',
+    badge: { complete: 'bg-gray-700 text-gray-300', upcoming: 'bg-pink-900 text-pink-300' },
+  },
+  roster_deadline: {
+    icon: '📝',
+    label: 'Roster & Taxi Deadline',
+    color: 'border-l-teal-500',
+    badge: { complete: 'bg-gray-700 text-gray-300', upcoming: 'bg-teal-900 text-teal-300' },
+  },
   regular_season: {
     icon: '🏈',
     label: 'Regular Season',
     color: 'border-l-blue-500',
     badge: { complete: 'bg-gray-700 text-gray-300', active: 'bg-blue-700 text-white', upcoming: 'bg-gray-800 text-gray-400' },
+  },
+  trade_deadline: {
+    icon: '⏰',
+    label: 'Trade Deadline',
+    color: 'border-l-red-500',
+    badge: { complete: 'bg-gray-700 text-gray-300', upcoming: 'bg-red-900 text-red-300' },
   },
   playoffs: {
     icon: '⚔️',
