@@ -29,6 +29,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/api/health")
+def health() -> dict:
+    """Railway health check endpoint."""
+    return {"status": "ok"}
+
+
 # Register all API routers
 app.include_router(history.router, prefix="/api/history")
 app.include_router(owner.router, prefix="/api/owners")
