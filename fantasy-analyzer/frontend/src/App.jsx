@@ -12,6 +12,7 @@ import Owner from './pages/Owner'
 import HeadToHead from './pages/HeadToHead'
 import Transactions from './pages/Transactions'
 import InSeason from './pages/InSeason'
+import Draft from './pages/Draft'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/h2h" element={<HeadToHead />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/in-season" element={<InSeason />} />
+            <Route path="/draft" element={<Draft />} />
           </Routes>
         </main>
       </div>

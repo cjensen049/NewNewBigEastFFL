@@ -13,6 +13,7 @@ const links = [
   { to: '/h2h',          label: '⚔️ Head-to-Head' },
   { to: '/transactions', label: '💱 Transactions' },
   { to: '/in-season',    label: '🏈 In-Season' },
+  { to: '/draft',        label: '📋 Draft' },
 ]
 
 export default function NavBar() {
