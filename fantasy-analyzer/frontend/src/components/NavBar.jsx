@@ -15,7 +15,7 @@ const links = [
 
 export default function NavBar() {
   return (
-    <nav className="bg-slate-950 border-t-4 border-red-600 border-b border-slate-800">
+    <nav className="bg-blue-950 border-t-4 border-t-red-600 border-b border-b-slate-700">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center h-14 gap-1">
           {/* Clickable logo + name — takes user back to home */}
