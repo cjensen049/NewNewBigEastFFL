@@ -25,7 +25,7 @@ const TABS = [
   { id: 'waivers', label: 'Waivers' },
 ]
 
-const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 24px' }
+const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px, 3vw, 24px)' }
 
 // Position colours — mirrors Draft.jsx
 const POS_STYLE = {
@@ -136,7 +136,7 @@ function CareerSummaryTab({ owner }) {
   return (
     <div>
       {/* Row 1 stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '10px' }}>
+      <div className="stat-cards-grid" style={{ marginBottom: '10px' }}>
         <StatCard label="Record"   value={c.record} />
         <StatCard label="Win %"    value={c.win_pct != null ? `${(c.win_pct * 100).toFixed(1)}` : '—'} />
         <StatCard label="Avg PPG"  value={c.avg_ppg} />
@@ -144,7 +144,7 @@ function CareerSummaryTab({ owner }) {
       </div>
 
       {/* Row 2 stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' }}>
+      <div className="stat-cards-grid" style={{ marginBottom: '20px' }}>
         <StatCard label="Championships" value={c.championships} />
         <StatCard label="Best Finish"   value={c.best_finish} />
         <StatCard label="Total Trades"  value={c.total_trades} />
@@ -152,7 +152,7 @@ function CareerSummaryTab({ owner }) {
       </div>
 
       {/* Nemesis / Prey row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px' }}>
+      <div className="nemesis-prey-grid">
         <div style={{ background: 'rgba(204,31,46,0.08)', border: '1px solid rgba(204,31,46,0.25)', borderRadius: '10px', padding: '16px' }}>
           <p style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--brand-red)', marginBottom: '6px' }}>☠ Nemesis</p>
           <p style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: 'var(--text-primary)', lineHeight: 1, marginBottom: '4px' }}>
@@ -561,7 +561,7 @@ export default function Owner() {
     <div>
       {/* Full-width header */}
       <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ ...CONTAINER, padding: '20px 24px 0' }}>
+        <div style={{ ...CONTAINER, padding: '20px clamp(12px, 3vw, 24px) 0' }}>
 
           {/* Owner selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -619,7 +619,7 @@ export default function Owner() {
       </div>
 
       {/* Tab content */}
-      <div style={{ ...CONTAINER, padding: '24px 24px' }}>
+      <div style={{ ...CONTAINER, padding: '24px clamp(12px, 3vw, 24px)' }}>
         <TabPanel id="summary" activeTab={tab}><CareerSummaryTab owner={activeOwner} /></TabPanel>
         <TabPanel id="h2h"     activeTab={tab}><H2HTab           owner={activeOwner} /></TabPanel>
         <TabPanel id="players" activeTab={tab}><TopPlayersTab    owner={activeOwner} /></TabPanel>

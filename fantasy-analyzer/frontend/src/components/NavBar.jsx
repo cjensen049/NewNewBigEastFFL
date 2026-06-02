@@ -16,7 +16,7 @@ export default function NavBar() {
       top: 0,
       zIndex: 50,
     }}>
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 24px', height: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px, 3vw, 24px)', height: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
 
         {/* Logo + wordmark */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginRight: '24px', textDecoration: 'none', flexShrink: 0 }}>

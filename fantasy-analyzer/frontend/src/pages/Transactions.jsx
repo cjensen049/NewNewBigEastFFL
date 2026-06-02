@@ -717,7 +717,7 @@ function TendenciesTab() {
 // Page assembly
 // ---------------------------------------------------------------------------
 
-const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 24px' }
+const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px, 3vw, 24px)' }
 
 export default function Transactions() {
   const [tab, setTab] = useState('tree')
@@ -726,7 +726,7 @@ export default function Transactions() {
     <div>
       {/* Full-width header */}
       <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ ...CONTAINER, padding: '20px 24px 0' }}>
+        <div style={{ ...CONTAINER, padding: '20px clamp(12px, 3vw, 24px) 0' }}>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '36px', letterSpacing: '2px', color: 'var(--text-primary)', lineHeight: 1, marginBottom: '4px' }}>
             Transactions
           </h1>
@@ -745,7 +745,7 @@ export default function Transactions() {
       </div>
 
       {/* Tab content */}
-      <div style={{ ...CONTAINER, padding: '24px 24px' }}>
+      <div style={{ ...CONTAINER, padding: '24px clamp(12px, 3vw, 24px)' }}>
         <TabPanel id="tree"       activeTab={tab}><TradeTreeTab /></TabPanel>
         <TabPanel id="log"        activeTab={tab}><TradeLogTab /></TabPanel>
         <TabPanel id="waivers"    activeTab={tab}><WaiversTab /></TabPanel>

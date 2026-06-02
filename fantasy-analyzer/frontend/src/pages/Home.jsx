@@ -4,7 +4,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 24px' }
+const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px, 3vw, 24px)' }
 
 function SectionLabel({ children }) {
   return (
@@ -26,7 +26,7 @@ function Hero() {
         pointerEvents: 'none',
       }} />
 
-      <div style={{ ...CONTAINER, padding: '28px 24px 24px', position: 'relative' }}>
+      <div style={{ ...CONTAINER, padding: 'clamp(20px, 4vw, 28px) clamp(12px, 3vw, 24px) 24px', position: 'relative' }}>
         {/* Established badge */}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(26,58,107,0.3)', border: '1px solid var(--border-mid)', borderRadius: '20px', padding: '4px 14px', marginBottom: '14px' }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--brand-red)', flexShrink: 0 }} />
@@ -35,7 +35,7 @@ function Hero() {
         </div>
 
         {/* Two-line title */}
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '44px', letterSpacing: '3px', lineHeight: 1, margin: 0 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 9vw, 44px)', letterSpacing: 'clamp(1px, 0.5vw, 3px)', lineHeight: 1, margin: 0 }}>
           <div>
             <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>The NEW </span>
             <span style={{ color: 'var(--text-primary)' }}>NEW BIG EAST</span>
@@ -80,7 +80,7 @@ function ExploreSection() {
   return (
     <div style={{ padding: '28px 0 24px' }}>
       <SectionLabel>Explore</SectionLabel>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+      <div className="home-explore-grid">
         {NAV_CARDS.map(card => (
           <Link key={card.to} to={card.to} className="explore-card">
             {/* Top accent bar */}
@@ -313,7 +313,7 @@ function ThisSeasonSection() {
   return (
     <div style={{ paddingBottom: '32px' }}>
       <SectionLabel>This Season</SectionLabel>
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '10px' }}>
+      <div className="home-season-grid">
         <StandingsPanel />
         <CalendarPanel />
       </div>
