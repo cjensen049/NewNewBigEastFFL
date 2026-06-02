@@ -13,6 +13,7 @@ import HeadToHead from './pages/HeadToHead'
 import Transactions from './pages/Transactions'
 import InSeason from './pages/InSeason'
 import Draft from './pages/Draft'
+import Calendar from './pages/Calendar'
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/in-season" element={<InSeason />} />
             <Route path="/draft" element={<Draft />} />
+            <Route path="/calendar" element={<Calendar />} />
           </Routes>
         </main>
       </div>

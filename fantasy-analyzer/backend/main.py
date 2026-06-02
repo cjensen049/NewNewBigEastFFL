@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.routers import history, owner, h2h, transactions, in_season, draft
+from backend.routers import history, owner, h2h, transactions, in_season, draft, calendar
 
 # Resolve paths relative to the project root (fantasy-analyzer/)
 BASE_DIR = Path(__file__).parent.parent
@@ -42,6 +42,7 @@ app.include_router(h2h.router, prefix="/api/h2h")
 app.include_router(transactions.router, prefix="/api/transactions")
 app.include_router(in_season.router, prefix="/api/in-season")
 app.include_router(draft.router, prefix="/api/draft")
+app.include_router(calendar.router, prefix="/api/calendar")
 
 # In production, serve the built React app as static files.
 # This mount must come LAST — it catches everything not matched by the API routes.

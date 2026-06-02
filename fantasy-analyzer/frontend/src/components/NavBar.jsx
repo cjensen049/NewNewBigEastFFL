@@ -14,6 +14,7 @@ const links = [
   { to: '/transactions', label: '💱 Transactions' },
   { to: '/in-season',    label: '🏈 In-Season' },
   { to: '/draft',        label: '📋 Draft' },
+  { to: '/calendar',    label: '📅 Calendar' },
 ]
 
 export default function NavBar() {
