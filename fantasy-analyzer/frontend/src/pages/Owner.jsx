@@ -64,10 +64,18 @@ function CareerSummaryTab({ owner }) {
     enabled: !!owner,
   })
 
+  const { data: rivalData } = useQuery({
+    queryKey: ['h2h-nemesis-prey'],
+    queryFn: () => fetch('/api/h2h/nemesis-prey').then(r => r.json()),
+    staleTime: Infinity,
+  })
+
   if (isLoading) return <LoadingSpinner />
   if (error || data?.error) return <p className="text-red-400">{data?.error ?? error.message}</p>
 
   const c = data.career
+  const rival = rivalData?.nemesis_prey?.find(r => r.owner === owner)
+
   return (
     <div>
       <h2 className="text-lg font-semibold mb-4">{owner} — Career Summary</h2>
@@ -80,6 +88,8 @@ function CareerSummaryTab({ owner }) {
         <MetricCard label="Best Finish"   value={c.best_finish} />
         <MetricCard label="Total Trades"  value={c.total_trades} />
         <MetricCard label="Top Scorer"    value={c.top_scorer} />
+        <MetricCard label="Nemesis" value={rival ? `${rival.nemesis} (${rival.nemesis_record})` : '—'} />
+        <MetricCard label="Prey"    value={rival ? `${rival.prey} (${rival.prey_record})` : '—'} />
       </div>
 
       <h3 className="text-base font-semibold mb-2 text-gray-300">Season-by-Season</h3>
@@ -253,7 +263,7 @@ function DraftPicksTab({ owner }) {
   const sorted = [...allPicks].sort((a, b) =>
     sortMode === 'pts'
       ? b.points_on_team - a.points_on_team
-      : (a.season - b.season) || (a.round - b.round) || (a.pick_no - b.pick_no)
+      : (b.season - a.season) || (a.round - b.round) || (a.pick_no - b.pick_no)
   )
 
   const totalPts = allPicks.reduce((s, p) => s + (p.points_on_team ?? 0), 0)

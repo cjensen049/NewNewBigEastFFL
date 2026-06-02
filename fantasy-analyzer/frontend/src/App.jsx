@@ -14,7 +14,6 @@ import Owner from './pages/Owner'
 import HeadToHead from './pages/HeadToHead'
 import Transactions from './pages/Transactions'
 import InSeason from './pages/InSeason'
-import Draft from './pages/Draft'
 import Calendar from './pages/Calendar'
 
 export default function App() {
@@ -36,6 +35,7 @@ export default function App() {
             <Route path="/history"   element={<Navigate to="/league" replace />} />
             <Route path="/in-season" element={<Navigate to="/league" replace />} />
             <Route path="/h2h"       element={<Navigate to="/league" replace />} />
+            <Route path="/draft"     element={<Navigate to="/league" replace />} />
           </Routes>
         </main>
       </div>

@@ -10,6 +10,7 @@
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { TabBar, TabPanel } from '../components/Tabs'
 
 // ─── Position colours ────────────────────────────────────────────────────────
 // Each position gets a left-border colour and a subtle row background tint.
@@ -76,11 +77,11 @@ function ByOwnerTab() {
 
   const allPicks = picksData?.picks ?? []
 
-  // Sort based on mode
+  // Sort based on mode — "By Draft" shows newest season first
   const sorted = [...allPicks].sort((a, b) =>
     sortMode === 'pts'
       ? b.points_on_team - a.points_on_team
-      : (a.season - b.season) || (a.round - b.round) || (a.pick_no - b.pick_no)
+      : (b.season - a.season) || (a.round - b.round) || (a.pick_no - b.pick_no)
   )
 
   const totalPts = allPicks.reduce((s, p) => s + (p.points_on_team ?? 0), 0)
@@ -297,32 +298,15 @@ function DraftBoardTab() {
 
 // ─── Page root ───────────────────────────────────────────────────────────────
 
-export default function Draft() {
+export default function Draft({ embedded = false }) {
   const [activeTab, setActiveTab] = useState('owner')
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">Draft History</h1>
-
-      {/* Tab bar */}
-      <div className="flex gap-1 mb-6 border-b border-gray-700">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium rounded-t transition-colors ${
-              activeTab === tab.id
-                ? 'bg-gray-700 text-white border-b-2 border-emerald-500'
-                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'owner' && <ByOwnerTab />}
-      {activeTab === 'board' && <DraftBoardTab />}
+      {!embedded && <h1 className="text-2xl font-bold text-white mb-6">Draft History</h1>}
+      <TabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+      <TabPanel id="owner" activeTab={activeTab}><ByOwnerTab /></TabPanel>
+      <TabPanel id="board" activeTab={activeTab}><DraftBoardTab /></TabPanel>
     </div>
   )
 }

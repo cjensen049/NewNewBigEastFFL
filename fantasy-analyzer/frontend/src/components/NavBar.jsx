@@ -12,7 +12,6 @@ const links = [
   { to: '/league',       label: '📊 League' },
   { to: '/owner',        label: '👤 Owners' },
   { to: '/transactions', label: '💱 Transactions' },
-  { to: '/draft',        label: '📋 Draft' },
 ]
 
 export default function NavBar() {
