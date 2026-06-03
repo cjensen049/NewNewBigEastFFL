@@ -534,9 +534,7 @@ function WaiversTab() {
 
   const activityRows = (activityData?.activity ?? []).map(o => ({
     owner: o.owner,
-    total_adds: o.total_adds,
     waiver_claims: o.waiver_claims,
-    fa_adds: o.fa_adds,
     drops: o.drops,
     faab_spent: `$${o.faab_spent}`,
     bid_win_pct: o.success_rate != null ? `${(o.success_rate * 100).toFixed(1)}%` : '—',
@@ -584,12 +582,10 @@ function WaiversTab() {
           maxHeight="460px"
           columns={[
             { key: 'owner',         label: 'Owner' },
-            { key: 'total_adds',    label: 'Total Adds', align: 'right' },
-            { key: 'waiver_claims', label: 'Waivers',    align: 'right' },
-            { key: 'fa_adds',       label: 'FA Adds',    align: 'right' },
-            { key: 'drops',         label: 'Drops',      align: 'right' },
-            { key: 'faab_spent',    label: 'FAAB $',     align: 'right' },
-            { key: 'bid_win_pct',   label: 'Bid Win%',   align: 'right' },
+            { key: 'waiver_claims', label: 'Waivers',  align: 'right' },
+            { key: 'drops',         label: 'Drops',    align: 'right' },
+            { key: 'faab_spent',    label: 'FAAB $',   align: 'right' },
+            { key: 'bid_win_pct',   label: 'Bid Win%', align: 'right' },
           ]}
         />
       </div>
@@ -606,14 +602,13 @@ function WaiversTab() {
           </select>
         </div>
         <DataTable
-          rows={[...seasonRows].sort((a, b) => -(a.waiver_claims + a.fa_adds - b.waiver_claims - b.fa_adds))}
+          rows={[...seasonRows].sort((a, b) => b.waiver_claims - a.waiver_claims)}
           maxHeight="460px"
           columns={[
             { key: 'owner',         label: 'Owner' },
-            { key: 'waiver_claims', label: 'Waivers',  align: 'right' },
-            { key: 'fa_adds',       label: 'FA Adds',  align: 'right' },
-            { key: 'drops',         label: 'Drops',    align: 'right' },
-            { key: 'faab_spent',    label: 'FAAB $',   align: 'right' },
+            { key: 'waiver_claims', label: 'Waivers', align: 'right' },
+            { key: 'drops',         label: 'Drops',   align: 'right' },
+            { key: 'faab_spent',    label: 'FAAB $',  align: 'right' },
           ]}
         />
       </div>
