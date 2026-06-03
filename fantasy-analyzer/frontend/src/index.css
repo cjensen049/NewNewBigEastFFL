@@ -166,3 +166,39 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── League sidebar ─────────────────────────────────────────────────────────── */
+
+.league-sidebar-item {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.league-sidebar-item:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-raised) !important;
+}
+
+/* ─── Mobile pill scroller (League main nav + Owner tab bar) ─────────────────── */
+
+.league-mobile-pills {
+  display: flex;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.league-mobile-pills::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Luck table rows ────────────────────────────────────────────────────────── */
+
+.luck-table-row:hover {
+  filter: brightness(1.15);
+}

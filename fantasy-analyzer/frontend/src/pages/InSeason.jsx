@@ -30,6 +30,14 @@ function luckRowClass(diff) {
 
 const pct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
 
+function verdictColor(v) {
+  if (!v) return 'var(--text-muted)'
+  const l = v.toLowerCase()
+  if (l.includes('unlucky')) return 'var(--brand-red)'
+  if (l.includes('lucky'))   return 'var(--green)'
+  return 'var(--gold)'
+}
+
 // ---------------------------------------------------------------------------
 // Luck-o-Meter tab
 // ---------------------------------------------------------------------------
@@ -102,11 +110,16 @@ function LuckTab() {
           <button
             key={id}
             onClick={() => setSubTab(id)}
-            className={`px-4 py-1.5 text-sm rounded border transition-colors ${
-              subTab === id
-                ? 'bg-emerald-700 border-emerald-600 text-white'
-                : 'border-gray-600 text-gray-400 hover:border-gray-500'
-            }`}
+            style={{
+              padding: '6px 16px',
+              fontSize: '13px',
+              borderRadius: '6px',
+              border: subTab === id ? '1px solid transparent' : '1px solid var(--border-mid)',
+              background: subTab === id ? 'var(--brand-navy)' : 'var(--border)',
+              color: subTab === id ? '#ffffff' : 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
           >
             {i === 0 ? 'By Season' : 'All-Time'}
           </button>
@@ -130,29 +143,33 @@ function LuckTab() {
           {loadSeason ? <LoadingSpinner /> : (
             <>
               {/* Luck table with color-coded rows */}
-              <div className="overflow-auto rounded border border-gray-700 mb-6" style={{ maxHeight: '460px' }}>
-                <table className="w-full text-sm text-left text-gray-300">
-                  <thead className="sticky top-0 bg-gray-800 text-gray-400 uppercase text-xs">
-                    <tr>
-                      {['Owner', 'Actual W-L', 'Actual Win%', 'Sim W-L', 'Sim Win%', 'Diff', 'Verdict'].map(h => (
-                        <th key={h} className="px-3 py-2">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700/50">
-                    {seasonRows.map((r, i) => (
-                      <tr key={i} className={luckRowClass(r.luck_diff)}>
-                        <td className="px-3 py-2 font-medium whitespace-nowrap">{r.owner}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.actual_record}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.actual_pct_fmt}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.sim_record}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.sim_pct_fmt}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.diff_fmt}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.verdict}</td>
+              <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
+                <div style={{ overflowX: 'auto', maxHeight: '460px', overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead className="sticky top-0">
+                      <tr>
+                        {['Owner', 'Actual W-L', 'Actual Win%', 'Sim W-L', 'Sim Win%', 'Diff', 'Verdict'].map((h, hi) => (
+                          <th key={h} style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', textAlign: hi === 0 ? 'left' : 'right', whiteSpace: 'nowrap' }}>
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {seasonRows.map((r, i) => (
+                        <tr key={i} className={`luck-table-row ${luckRowClass(r.luck_diff)}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '9px 12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{r.actual_record}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{r.actual_pct_fmt}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{r.sim_record}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{r.sim_pct_fmt}</td>
+                          <td style={{ padding: '9px 12px', fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap', color: r.win_pct_diff > 0 ? 'var(--green)' : r.win_pct_diff < 0 ? 'var(--brand-red)' : 'var(--text-muted)' }}>{r.diff_fmt}</td>
+                          <td style={{ padding: '9px 12px', fontWeight: 500, textAlign: 'right', whiteSpace: 'nowrap', color: verdictColor(r.verdict) }}>{r.verdict}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Luck bar chart */}
@@ -183,29 +200,33 @@ function LuckTab() {
         <div>
           {loadAllTime ? <LoadingSpinner /> : (
             <>
-              <div className="overflow-auto rounded border border-gray-700 mb-6" style={{ maxHeight: '460px' }}>
-                <table className="w-full text-sm text-left text-gray-300">
-                  <thead className="sticky top-0 bg-gray-800 text-gray-400 uppercase text-xs">
-                    <tr>
-                      {['Owner', 'Actual W-L', 'Actual Win%', 'Sim W-L', 'Sim Win%', 'Diff', 'Verdict'].map(h => (
-                        <th key={h} className="px-3 py-2">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700/50">
-                    {allTimeRows.map((r, i) => (
-                      <tr key={i} className={luckRowClass(r.total_luck)}>
-                        <td className="px-3 py-2 font-medium whitespace-nowrap">{r.owner}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.actual_record}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.actual_pct_fmt}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.sim_record}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.sim_pct_fmt}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.diff_fmt}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{r.verdict}</td>
+              <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
+                <div style={{ overflowX: 'auto', maxHeight: '460px', overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead className="sticky top-0">
+                      <tr>
+                        {['Owner', 'Actual W-L', 'Actual Win%', 'Sim W-L', 'Sim Win%', 'Diff', 'Verdict'].map((h, hi) => (
+                          <th key={h} style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', textAlign: hi === 0 ? 'left' : 'right', whiteSpace: 'nowrap' }}>
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {allTimeRows.map((r, i) => (
+                        <tr key={i} className={`luck-table-row ${luckRowClass(r.total_luck)}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '9px 12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{r.actual_record}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{r.actual_pct_fmt}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{r.sim_record}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{r.sim_pct_fmt}</td>
+                          <td style={{ padding: '9px 12px', fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap', color: r.win_pct_diff > 0 ? 'var(--green)' : r.win_pct_diff < 0 ? 'var(--brand-red)' : 'var(--text-muted)' }}>{r.diff_fmt}</td>
+                          <td style={{ padding: '9px 12px', fontWeight: 500, textAlign: 'right', whiteSpace: 'nowrap', color: verdictColor(r.verdict) }}>{r.verdict}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <h3 className="text-sm font-semibold mb-3">All-Time Schedule Luck (Actual Win% − Sim Win%)</h3>
@@ -292,11 +313,16 @@ function RTBTab() {
           <button
             key={id}
             onClick={() => setSubTab(id)}
-            className={`px-4 py-1.5 text-sm rounded border transition-colors ${
-              subTab === id
-                ? 'bg-emerald-700 border-emerald-600 text-white'
-                : 'border-gray-600 text-gray-400 hover:border-gray-500'
-            }`}
+            style={{
+              padding: '6px 16px',
+              fontSize: '13px',
+              borderRadius: '6px',
+              border: subTab === id ? '1px solid transparent' : '1px solid var(--border-mid)',
+              background: subTab === id ? 'var(--brand-navy)' : 'var(--border)',
+              color: subTab === id ? '#ffffff' : 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
           >
             {i === 0 ? 'By Season' : 'History'}
           </button>

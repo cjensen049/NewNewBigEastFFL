@@ -30,7 +30,7 @@ export default function NavBar() {
             <span style={{ color: '#f0f0f0' }}>N</span>
             <span style={{ color: '#f0f0f0' }}>N</span>
             <span style={{ color: '#cc1f2e' }}>B</span>
-            <span style={{ color: '#1a3a6b' }}>E</span>
+            <span style={{ color: '#4a7fd4' }}>E</span>
           </span>
         </Link>
 

@@ -100,17 +100,27 @@ function MatchupLookupTab() {
         <>
           {/* Summary metrics */}
           <div className="flex gap-4 mb-6">
-            <div className="bg-gray-800 rounded border border-gray-700 px-4 py-3 text-center">
-              <p className="text-xs text-gray-400 mb-1">{o1} Wins</p>
-              <p className="text-2xl font-bold text-blue-400">{data.wins1}</p>
+            <div style={{
+              borderRadius: '8px',
+              border: `1px solid ${data.wins1 > data.wins2 ? 'rgba(63,185,80,0.2)' : data.wins2 > data.wins1 ? 'rgba(204,31,46,0.2)' : 'var(--border)'}`,
+              background: data.wins1 > data.wins2 ? 'rgba(63,185,80,0.08)' : data.wins2 > data.wins1 ? 'rgba(204,31,46,0.08)' : 'var(--bg-surface)',
+              padding: '12px 16px', textAlign: 'center',
+            }}>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>{o1} Wins</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '28px', lineHeight: 1, color: data.wins1 > data.wins2 ? 'var(--green)' : data.wins2 > data.wins1 ? 'var(--brand-red)' : 'var(--text-primary)' }}>{data.wins1}</p>
             </div>
-            <div className="bg-gray-800 rounded border border-gray-700 px-4 py-3 text-center">
-              <p className="text-xs text-gray-400 mb-1">Ties</p>
-              <p className="text-2xl font-bold">{data.ties}</p>
+            <div style={{ borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-surface)', padding: '12px 16px', textAlign: 'center' }}>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Ties</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '28px', lineHeight: 1, color: 'var(--text-primary)' }}>{data.ties}</p>
             </div>
-            <div className="bg-gray-800 rounded border border-gray-700 px-4 py-3 text-center">
-              <p className="text-xs text-gray-400 mb-1">{o2} Wins</p>
-              <p className="text-2xl font-bold text-red-400">{data.wins2}</p>
+            <div style={{
+              borderRadius: '8px',
+              border: `1px solid ${data.wins2 > data.wins1 ? 'rgba(63,185,80,0.2)' : data.wins1 > data.wins2 ? 'rgba(204,31,46,0.2)' : 'var(--border)'}`,
+              background: data.wins2 > data.wins1 ? 'rgba(63,185,80,0.08)' : data.wins1 > data.wins2 ? 'rgba(204,31,46,0.08)' : 'var(--bg-surface)',
+              padding: '12px 16px', textAlign: 'center',
+            }}>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>{o2} Wins</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '28px', lineHeight: 1, color: data.wins2 > data.wins1 ? 'var(--green)' : data.wins1 > data.wins2 ? 'var(--brand-red)' : 'var(--text-primary)' }}>{data.wins2}</p>
             </div>
           </div>
 
@@ -130,7 +140,7 @@ function MatchupLookupTab() {
                 contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '6px' }}
               />
               <Legend verticalAlign="top" />
-              <Line type="monotone" dataKey={o1} stroke="#4a90d9" dot strokeWidth={2} />
+              <Line type="monotone" dataKey={o1} stroke="#1a3a6b" dot strokeWidth={2} />
               <Line type="monotone" dataKey={o2} stroke="#e05a5a" dot strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>

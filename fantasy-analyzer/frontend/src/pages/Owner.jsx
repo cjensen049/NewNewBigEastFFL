@@ -598,13 +598,37 @@ export default function Owner() {
             </div>
           </div>
 
-          {/* Tab bar — flush to bottom of header */}
-          <div style={{ display: 'flex', gap: '0', marginBottom: '-1px', overflowX: 'auto' }}>
+          {/* Tab bar — desktop: flush to bottom of header */}
+          <div className="hidden md:flex" style={{ gap: '0', marginBottom: '-1px', overflowX: 'auto' }}>
             {TABS.map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={`owner-tab${tab === t.id ? ' active' : ''}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab bar — mobile: pill scroller */}
+          <div className="league-mobile-pills md:hidden" style={{ padding: '10px 0 8px' }}>
+            {TABS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                style={{
+                  display: 'inline-block',
+                  padding: '6px 16px',
+                  borderRadius: '20px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginRight: '8px',
+                  cursor: 'pointer',
+                  border: tab === t.id ? 'none' : '1px solid var(--border)',
+                  background: tab === t.id ? 'var(--brand-red)' : 'var(--bg-surface)',
+                  color: tab === t.id ? '#ffffff' : 'var(--text-muted)',
+                }}
               >
                 {t.label}
               </button>

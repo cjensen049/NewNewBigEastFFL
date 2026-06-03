@@ -12,39 +12,70 @@ const TABS = [
   { id: 'draft',    label: '📋 Draft' },
 ]
 
-const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px, 3vw, 24px)' }
-
 export default function League() {
   const [tab, setTab] = useState('history')
 
   return (
-    <div>
-      {/* Full-width header */}
-      <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ ...CONTAINER, padding: '20px clamp(12px, 3vw, 24px) 0' }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '36px', letterSpacing: '2px', color: 'var(--text-primary)', lineHeight: 1, marginBottom: '4px' }}>
-            League
-          </h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-            All-time standings, records, matchups, luck, and draft history.
-          </p>
-          {/* Tab bar — flush to bottom of header */}
-          <div style={{ display: 'flex', marginBottom: '-1px', overflowX: 'auto' }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`owner-tab${tab === t.id ? ' active' : ''}`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
+    <div style={{ display: 'flex', minHeight: 'calc(100vh - 52px)', alignItems: 'stretch' }}>
+
+      {/* Desktop sidebar — hidden below md */}
+      <div className="hidden md:flex flex-col" style={{
+        width: '180px',
+        flexShrink: 0,
+        background: 'var(--bg-surface)',
+        borderRight: '1px solid var(--border)',
+      }}>
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className="league-sidebar-item"
+            style={{
+              borderLeft: tab === t.id ? '3px solid var(--brand-red)' : '3px solid transparent',
+              background: tab === t.id ? 'var(--bg-raised)' : 'transparent',
+              color: tab === t.id ? 'var(--text-primary)' : 'var(--text-muted)',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Tab content */}
-      <div style={{ ...CONTAINER, padding: '24px clamp(12px, 3vw, 24px)' }}>
-        <TabPanel id="history"  activeTab={tab}><History    embedded /></TabPanel>
-        <TabPanel id="inseason" activeTab={tab}><InSeason   embedded /></TabPanel>
-        <TabPanel id="h2h"      activeTab={tab}><HeadToHead embedded /></TabPanel>
-        <TabPanel id="draft"    activeTab={tab}><Draft      embedded /></TabPanel>
+      {/* Right content area */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+
+        {/* Mobile pill row — hidden at md+ */}
+        <div className="league-mobile-pills md:hidden" style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                display: 'inline-block',
+                padding: '6px 16px',
+                borderRadius: '20px',
+                fontSize: '13px',
+                fontWeight: 500,
+                marginRight: '8px',
+                cursor: 'pointer',
+                border: tab === t.id ? 'none' : '1px solid var(--border)',
+                background: tab === t.id ? 'var(--brand-red)' : 'var(--bg-surface)',
+                color: tab === t.id ? '#ffffff' : 'var(--text-muted)',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Page content */}
+        <div style={{ padding: '24px clamp(12px, 3vw, 24px)' }}>
+          <TabPanel id="history"  activeTab={tab}><History    embedded /></TabPanel>
+          <TabPanel id="inseason" activeTab={tab}><InSeason   embedded /></TabPanel>
+          <TabPanel id="h2h"      activeTab={tab}><HeadToHead embedded /></TabPanel>
+          <TabPanel id="draft"    activeTab={tab}><Draft      embedded /></TabPanel>
+        </div>
+
       </div>
     </div>
   )
