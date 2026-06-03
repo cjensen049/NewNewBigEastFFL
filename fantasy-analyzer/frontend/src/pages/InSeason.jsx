@@ -93,7 +93,7 @@ function applySort(rows, key, dir) {
 
 // ─── Playoff Picture ──────────────────────────────────────────────────────────
 
-function PlayoffPicture({ zoneRows, nextWeek }) {
+function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
   const { sortKey, sortDir, handleSort, reset } = useSort('desc')
 
   // Reference points for BACK column:
@@ -191,7 +191,10 @@ function PlayoffPicture({ zoneRows, nextWeek }) {
               const verdict = luckVerdictFromDiff(r.luck_diff)
               return (
                 <tr key={item.key} className="standings-row" style={{ borderBottom: '1px solid var(--border)', background: zone.bg }}>
-                  <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
+                  <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                    {finishEmoji[r.owner] && <span style={{ marginRight: '5px' }}>{finishEmoji[r.owner]}</span>}
+                    {r.owner}
+                  </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <span style={{ ...wl, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', fontWeight: 600 }}>{r.actual_wins}-{r.actual_losses}</span>
                   </td>
@@ -311,6 +314,23 @@ export default function InSeason({ embedded = false }) {
     enabled: !!activeSeason,
   })
 
+  const { data: historyData } = useQuery({
+    queryKey: ['history-season', activeSeason],
+    queryFn: () => fetch(`/api/history/season/${activeSeason}`).then(r => r.json()),
+    enabled: !!activeSeason,
+  })
+
+  // Map owner name → trophy emoji for completed seasons
+  const finishEmoji = useMemo(() => {
+    const map = {}
+    for (const row of historyData?.standings ?? []) {
+      if (row.finish === 'Champion')   map[row.owner] = '🏆'
+      else if (row.finish === 'Runner-up') map[row.owner] = '🥈'
+      else if (row.finish === '3rd')   map[row.owner] = '🥉'
+    }
+    return map
+  }, [historyData])
+
   // Compute canonical zone order from snapshot rows:
   //   Playoff  (0–3): top 4 by W-L / pts_for (API sort)
   //   Wild Card (4–5): top 2 pts scorers from remaining 8
@@ -371,7 +391,7 @@ export default function InSeason({ embedded = false }) {
 
       {(loadSnap || loadRTB) ? <LoadingSpinner /> : (
         <>
-          <PlayoffPicture zoneRows={zoneRows} nextWeek={snapshotData?.next_week} />
+          <PlayoffPicture zoneRows={zoneRows} nextWeek={snapshotData?.next_week} finishEmoji={finishEmoji} />
           <RaceToBottom rows={rtbRows} />
         </>
       )}
