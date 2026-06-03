@@ -7,6 +7,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
+import PowerRankings from './PowerRankings'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -365,6 +366,8 @@ export default function InSeason({ embedded = false }) {
           </select>
         </div>
       )}
+
+      <PowerRankings season={activeSeason} />
 
       {(loadSnap || loadRTB) ? <LoadingSpinner /> : (
         <>

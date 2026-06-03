@@ -18,6 +18,7 @@ from fantasy_analyzer.analysis.history import (
     get_rtb_history,
     get_standings_snapshot,
 )
+from fantasy_analyzer.analysis.power_rankings import compute_power_rankings
 
 router = APIRouter()
 
@@ -128,6 +129,17 @@ def luck_by_season(season: int, con: sqlite3.Connection = Depends(get_db)) -> di
             "verdict": _luck_verdict(r["luck_diff"]),
         })
     return {"season": season, "rows": out}
+
+
+@router.get("/power-rankings/{season}")
+def power_rankings(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Power rankings for the current season with playoff odds via Monte Carlo."""
+    row = con.execute(
+        "SELECT league_id, playoff_week_start FROM leagues WHERE season = ?", (season,)
+    ).fetchone()
+    if not row:
+        return {"season": season, "current_week": 0, "rows": []}
+    return compute_power_rankings(con, row[0], season, row[1])
 
 
 @router.get("/rtb/{season}")
