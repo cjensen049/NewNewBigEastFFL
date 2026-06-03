@@ -13,6 +13,7 @@ import History from './History'
 import InSeason from './InSeason'
 import HeadToHead from './HeadToHead'
 import Draft from './Draft'
+import Schedule from './Schedule'
 
 const TABS = [
   { id: 'inseason',  label: '📅 In-Season' },
@@ -58,13 +59,7 @@ export default function League() {
         <TabPanel id="history"   activeTab={tab}><History    embedded /></TabPanel>
         <TabPanel id="h2h"       activeTab={tab}><HeadToHead embedded /></TabPanel>
         <TabPanel id="draft"     activeTab={tab}><Draft      embedded /></TabPanel>
-        <TabPanel id="schedule"  activeTab={tab}>
-          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: '40px', marginBottom: '16px' }}>🗓</div>
-            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>Schedule</p>
-            <p style={{ fontSize: '13px', color: 'var(--text-faint)' }}>Coming soon</p>
-          </div>
-        </TabPanel>
+        <TabPanel id="schedule"  activeTab={tab}><Schedule      embedded /></TabPanel>
       </div>
     </div>
   )

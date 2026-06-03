@@ -145,6 +145,19 @@ def standings_history(con: sqlite3.Connection = Depends(get_db)) -> dict:
     }
 
 
+@router.get("/finish-order/{year}")
+def finish_order(year: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Return owners sorted by final finish position 1-12 for a completed season."""
+    history = get_standings_history(con)
+    if year not in history:
+        return {"season": year, "teams": []}
+    teams = [
+        {"finish": rank, "owner": name}
+        for rank, name in sorted(history[year].items())
+    ]
+    return {"season": year, "teams": teams}
+
+
 @router.get("/records")
 def records(
     include_playoffs: bool = Query(False),

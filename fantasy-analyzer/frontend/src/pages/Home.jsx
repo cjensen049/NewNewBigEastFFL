@@ -297,6 +297,47 @@ function CalendarPanel() {
   )
 }
 
+// ─── League resources section ─────────────────────────────────────────────────
+
+const RESOURCE_LINKS = [
+  {
+    href: 'https://docs.google.com/document/d/1dJn0QMIQJVdLu63IDUQ147Mut7E-DMKHHFuc3XnvxQc/edit?tab=t.0',
+    icon: '📄',
+    title: 'League Bylaws',
+    desc: 'Rules, scoring settings, roster requirements, and commissioner policies.',
+  },
+  {
+    href: 'https://docs.google.com/spreadsheets/d/1Tk0I7NaAw-Vp-5dyg8NR3viDcY7qKA72u_kFYRaOBVU/edit?gid=0#gid=0',
+    icon: '💰',
+    title: 'Finances & Dues',
+    desc: 'League dues, payouts, and historical financial records.',
+  },
+]
+
+function ResourcesSection() {
+  return (
+    <div style={{ paddingBottom: '28px' }}>
+      <SectionLabel>League Resources</SectionLabel>
+      <div className="home-resources-grid">
+        {RESOURCE_LINKS.map(link => (
+          <a
+            key={link.href}
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="resource-link-card"
+          >
+            <span style={{ position: 'absolute', top: '12px', right: '14px', fontSize: '13px', color: 'var(--text-faint)' }}>↗</span>
+            <div style={{ fontSize: '20px', marginBottom: '8px' }}>{link.icon}</div>
+            <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>{link.title}</p>
+            <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{link.desc}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── This Season section ──────────────────────────────────────────────────────
 
 function ThisSeasonSection() {
@@ -320,6 +361,7 @@ export default function Home() {
       <div style={CONTAINER}>
         <ExploreSection />
         <ThisSeasonSection />
+        <ResourcesSection />
       </div>
     </div>
   )

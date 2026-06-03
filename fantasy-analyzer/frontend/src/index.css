@@ -261,3 +261,46 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Home page resource link cards ─────────────────────────────────────────── */
+
+.home-resources-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .home-resources-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.resource-link-card {
+  display: block;
+  position: relative;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.resource-link-card:hover {
+  background: var(--bg-raised);
+  border-color: var(--border-mid);
+}
+
+/* ─── Schedule divisions grid ────────────────────────────────────────────────── */
+
+.schedule-divisions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .schedule-divisions-grid {
+    grid-template-columns: 1fr;
+  }
+}
