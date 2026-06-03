@@ -20,11 +20,12 @@ const TOP_NAV = [
 ]
 
 const LEAGUE_SUBS = [
-  { tab: 'inseason',  label: 'In-Season',    emoji: '📅' },
-  { tab: 'history',   label: 'History',      emoji: '📊' },
-  { tab: 'h2h',       label: 'Head-to-Head', emoji: '⚔️' },
-  { tab: 'draft',     label: 'Draft',        emoji: '📋' },
-  { tab: 'schedule',  label: 'Schedule',     emoji: '🗓' },
+  { tab: 'inseason',  label: 'In-Season',      emoji: '📅' },
+  { tab: 'rankings',  label: 'Power Rankings', emoji: '🏆' },
+  { tab: 'history',   label: 'History',        emoji: '📊' },
+  { tab: 'h2h',       label: 'Head-to-Head',   emoji: '⚔️' },
+  { tab: 'draft',     label: 'Draft',          emoji: '📋' },
+  { tab: 'schedule',  label: 'Schedule',       emoji: '🗓' },
 ]
 
 function Wordmark() {

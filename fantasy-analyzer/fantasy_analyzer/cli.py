@@ -44,6 +44,12 @@ def main() -> None:
     scrape_p.add_argument("--season", type=int, default=None, help="Season year (default: auto-detect)")
     scrape_p.add_argument("--week",   type=int, default=None, help="NFL week to scrape (default: auto-detect)")
 
+    # scrape-dynasty
+    sub.add_parser(
+        "scrape-dynasty",
+        help="Fetch DynastyProcess player + pick values and refresh Sleeper rosters",
+    )
+
     # report
     report_p = sub.add_parser("report", help="Show analysis reports")
     report_sub = report_p.add_subparsers(dest="report_type", required=True)
@@ -78,6 +84,9 @@ def main() -> None:
 
     elif args.command == "scrape-projections":
         _run_scrape_projections(args, db_path)
+
+    elif args.command == "scrape-dynasty":
+        _run_scrape_dynasty(db_path, cfg)
 
     elif args.command == "report":
         con = sqlite3.connect(db_path)
@@ -131,6 +140,27 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
 
         proj_count = run_projections_scrape(con, season, week)
         print(f"  Projections: {proj_count} players stored for week {week}")
+    finally:
+        con.close()
+
+
+def _run_scrape_dynasty(db_path: str, cfg: dict) -> None:
+    """Fetch DynastyProcess values and refresh Sleeper rosters."""
+    from fantasy_analyzer.scraping.dynastyprocess import run_dynasty_scrape
+    from fantasy_analyzer.scraping.fantasypros import update_current_rosters
+
+    con = sqlite3.connect(db_path)
+    try:
+        # Get the active/most recent league_id to refresh rosters
+        row = con.execute(
+            "SELECT league_id FROM leagues ORDER BY season DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            roster_count = update_current_rosters(con, row[0])
+            print(f"  Rosters: {roster_count} player-roster entries updated")
+
+        players_stored, picks_stored = run_dynasty_scrape(con)
+        print(f"  Dynasty values: {players_stored} players, {picks_stored} picks stored")
     finally:
         con.close()
 

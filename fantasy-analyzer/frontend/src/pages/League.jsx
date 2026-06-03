@@ -14,9 +14,11 @@ import InSeason from './InSeason'
 import HeadToHead from './HeadToHead'
 import Draft from './Draft'
 import Schedule from './Schedule'
+import PowerRankingsTab from './PowerRankingsTab'
 
 const TABS = [
   { id: 'inseason',  label: '📅 In-Season' },
+  { id: 'rankings',  label: '🏆 Power Rankings' },
   { id: 'history',   label: '📊 History' },
   { id: 'h2h',       label: '⚔️ Head-to-Head' },
   { id: 'draft',     label: '📋 Draft' },
@@ -55,11 +57,12 @@ export default function League() {
 
       {/* Page content */}
       <div style={{ padding: '24px clamp(12px, 3vw, 24px)' }}>
-        <TabPanel id="inseason"  activeTab={tab}><InSeason   embedded /></TabPanel>
-        <TabPanel id="history"   activeTab={tab}><History    embedded /></TabPanel>
-        <TabPanel id="h2h"       activeTab={tab}><HeadToHead embedded /></TabPanel>
-        <TabPanel id="draft"     activeTab={tab}><Draft      embedded /></TabPanel>
-        <TabPanel id="schedule"  activeTab={tab}><Schedule      embedded /></TabPanel>
+        <TabPanel id="inseason"  activeTab={tab}><InSeason         embedded /></TabPanel>
+        <TabPanel id="rankings"  activeTab={tab}><PowerRankingsTab /></TabPanel>
+        <TabPanel id="history"   activeTab={tab}><History          embedded /></TabPanel>
+        <TabPanel id="h2h"       activeTab={tab}><HeadToHead       embedded /></TabPanel>
+        <TabPanel id="draft"     activeTab={tab}><Draft            embedded /></TabPanel>
+        <TabPanel id="schedule"  activeTab={tab}><Schedule         embedded /></TabPanel>
       </div>
     </div>
   )

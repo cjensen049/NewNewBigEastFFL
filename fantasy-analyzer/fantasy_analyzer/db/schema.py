@@ -147,6 +147,23 @@ CREATE TABLE IF NOT EXISTS current_rosters (
     PRIMARY KEY (league_id, roster_id, player_id)
 );
 
+CREATE TABLE IF NOT EXISTS player_dynasty_values (
+    player_id   TEXT    NOT NULL,
+    value       REAL    NOT NULL,
+    age         REAL,
+    scraped_at  TEXT    NOT NULL,
+    PRIMARY KEY (player_id)
+);
+
+CREATE TABLE IF NOT EXISTS pick_dynasty_values (
+    season      INTEGER NOT NULL,
+    round       INTEGER NOT NULL,
+    tier        TEXT    NOT NULL DEFAULT 'mid',
+    value       REAL    NOT NULL,
+    scraped_at  TEXT    NOT NULL,
+    PRIMARY KEY (season, round, tier)
+);
+
 CREATE INDEX IF NOT EXISTS idx_matchups_league_week ON matchups(league_id, week);
 CREATE INDEX IF NOT EXISTS idx_matchups_user ON matchups(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_league ON transactions(league_id);
@@ -241,6 +258,25 @@ async def apply_migrations(db_path: str) -> None:
                 status      TEXT    NOT NULL DEFAULT 'active',
                 updated_at  TEXT    NOT NULL,
                 PRIMARY KEY (league_id, roster_id, player_id)
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS player_dynasty_values (
+                player_id   TEXT    NOT NULL,
+                value       REAL    NOT NULL,
+                age         REAL,
+                scraped_at  TEXT    NOT NULL,
+                PRIMARY KEY (player_id)
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS pick_dynasty_values (
+                season      INTEGER NOT NULL,
+                round       INTEGER NOT NULL,
+                tier        TEXT    NOT NULL DEFAULT 'mid',
+                value       REAL    NOT NULL,
+                scraped_at  TEXT    NOT NULL,
+                PRIMARY KEY (season, round, tier)
             )
         """)
         await db.commit()

@@ -19,6 +19,7 @@ from fantasy_analyzer.analysis.history import (
     get_standings_snapshot,
 )
 from fantasy_analyzer.analysis.power_rankings import compute_power_rankings
+from fantasy_analyzer.analysis.dynasty_rankings import compute_dynasty_rankings
 
 router = APIRouter()
 
@@ -129,6 +130,17 @@ def luck_by_season(season: int, con: sqlite3.Connection = Depends(get_db)) -> di
             "verdict": _luck_verdict(r["luck_diff"]),
         })
     return {"season": season, "rows": out}
+
+
+@router.get("/dynasty-rankings/{season}")
+def dynasty_rankings(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Dynasty power rankings: roster value + draft capital + age curve."""
+    row = con.execute(
+        "SELECT league_id FROM leagues WHERE season = ?", (season,)
+    ).fetchone()
+    if not row:
+        return {"season": season, "data_date": None, "rows": []}
+    return compute_dynasty_rankings(con, row[0], season)
 
 
 @router.get("/power-rankings/{season}")

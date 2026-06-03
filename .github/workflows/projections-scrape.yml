@@ -31,6 +31,9 @@ jobs:
       - name: Scrape projections and refresh rosters
         run: python -m fantasy_analyzer.cli scrape-projections
 
+      - name: Fetch dynasty values (DynastyProcess)
+        run: python -m fantasy_analyzer.cli scrape-dynasty
+
       - name: Commit updated DB
         run: |
           git config user.name "github-actions[bot]"
