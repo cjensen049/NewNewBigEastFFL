@@ -6,7 +6,7 @@
  *   Luck         — By Season / All-Time schedule luck analysis
  *   Race History — RTB season-by-season grid
  */
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -71,74 +71,145 @@ const SeasonSelect = ({ seasons, value, onChange }) => (
   </div>
 )
 
+// ─── Shared BACK column formatter ────────────────────────────────────────────
+
+function formatBack(val) {
+  if (val == null) return { text: '—', color: 'var(--text-faint)' }
+  if (val === 0)   return { text: '0.0', color: 'var(--text-muted)' }
+  const abs = Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return val > 0
+    ? { text: `+${abs}`, color: 'var(--green)' }
+    : { text: `-${abs}`, color: 'var(--brand-red)' }
+}
+
 // ─── Playoff Picture panel ────────────────────────────────────────────────────
 
 const ZONES = [
-  { start: 0, end: 4,  label: '🏆 Playoff',   color: 'var(--green)',     bg: 'rgba(63,185,80,0.06)',  border: 'rgba(63,185,80,0.25)' },
-  { start: 4, end: 6,  label: '🎯 Wild Card',  color: 'var(--gold)',      bg: 'rgba(227,179,65,0.06)', border: 'rgba(227,179,65,0.3)' },
-  { start: 6, end: 12, label: '✗ Eliminated',  color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.04)', border: 'rgba(204,31,46,0.2)' },
+  { id: 'playoff',   label: '🏆 Playoff',   color: 'var(--green)',     bg: 'rgba(63,185,80,0.06)',  border: 'rgba(63,185,80,0.25)' },
+  { id: 'wildcard',  label: '🎯 Wild Card',  color: 'var(--gold)',      bg: 'rgba(227,179,65,0.06)', border: 'rgba(227,179,65,0.3)' },
+  { id: 'eliminated',label: '✗ Eliminated',  color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.04)', border: 'rgba(204,31,46,0.2)' },
 ]
+const ZONE_MAP = Object.fromEntries(ZONES.map(z => [z.id, z]))
 
-function getZone(pos) {
-  return ZONES.find(z => pos >= z.start && pos < z.end) ?? ZONES[2]
-}
+function PlayoffPicture({ rows: rawRows, nextWeek }) {
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('desc')
 
-function PlayoffPicture({ rows, nextWeek }) {
-  if (!rows || rows.length === 0) {
+  // Correct zone ordering:
+  //   Playoff  (pos 0–3): top 4 from API (already sorted by W-L desc, pts_for desc)
+  //   Wild Card (pos 4–5): top 2 by pts_for from the remaining 8
+  //   Eliminated (pos 6–11): the remaining 6, sorted by pts_for desc
+  const zoneRows = useMemo(() => {
+    if (!rawRows || rawRows.length === 0) return []
+    const top4 = rawRows.slice(0, 4)
+    const rest = [...rawRows.slice(4)].sort((a, b) => (b.pts_for ?? 0) - (a.pts_for ?? 0))
+    return [
+      ...top4.map((r, i)  => ({ ...r, _pos: i,     _zoneId: 'playoff' })),
+      ...rest.slice(0, 2).map((r, i) => ({ ...r, _pos: 4 + i, _zoneId: 'wildcard' })),
+      ...rest.slice(2).map((r, i)    => ({ ...r, _pos: 6 + i, _zoneId: 'eliminated' })),
+    ]
+  }, [rawRows])
+
+  // Reference points for BACK column:
+  //   refWC   = 5th place pts_for (Wild Card leader — Chris in the example)
+  //   refElim = 6th place pts_for (last Wild Card spot — Andy in the example)
+  //   Positions 0–3: BACK vs refWC  → positive (ahead of WC leader)
+  //   Position  4:   BACK = "—"     (IS the reference)
+  //   Position  5:   BACK vs refWC  → negative (behind WC leader)
+  //   Positions 6–11:BACK vs refElim → negative (behind last WC spot)
+  const refWC   = zoneRows[4]?._pos === 4 ? (zoneRows[4]?.pts_for ?? null) : null
+  const refElim = zoneRows[5]?._pos === 5 ? (zoneRows[5]?.pts_for ?? null) : null
+
+  const enrichedRows = useMemo(() => zoneRows.map(r => {
+    let back = null
+    if (r._pos === 4)                       back = null
+    else if (r._pos < 6 && refWC != null)   back = (r.pts_for ?? 0) - refWC
+    else if (r._pos >= 6 && refElim != null) back = (r.pts_for ?? 0) - refElim
+    const winPctDiff = (r.actual_win_pct ?? 0) - (r.sim_win_pct ?? 0)
+    return { ...r, _back: back, _winPctDiff: winPctDiff }
+  }), [zoneRows, refWC, refElim])
+
+  // User-triggered sort
+  const displayRows = useMemo(() => {
+    if (!sortKey) return enrichedRows
+    return [...enrichedRows].sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey]
+      const an = parseFloat(av), bn = parseFloat(bv)
+      const cmp = !isNaN(an) && !isNaN(bn) ? an - bn : String(av ?? '').localeCompare(String(bv ?? ''))
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [enrichedRows, sortKey, sortDir])
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  const isSorted = !!sortKey
+  const oppHeader = nextWeek ? `Wk ${nextWeek}` : 'Next'
+
+  if (!rawRows || rawRows.length === 0) {
     return <p style={{ color: 'var(--text-faint)', fontSize: '13px', fontStyle: 'italic', padding: '16px' }}>No in-season data yet.</p>
   }
 
-  // PTS BACK — everyone is measured against 1st place
-  const leader = rows[0]?.pts_for ?? 0
+  const SortTH = ({ colKey, children, align = 'left' }) => {
+    const active = sortKey === colKey
+    return (
+      <th onClick={() => handleSort(colKey)} style={{
+        padding: '8px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px',
+        textTransform: 'uppercase', background: 'var(--bg-page)', whiteSpace: 'nowrap',
+        borderBottom: '1px solid var(--border)', textAlign: align,
+        cursor: 'pointer', userSelect: 'none',
+        color: active ? 'var(--text-primary)' : 'var(--text-faint)',
+      }}>
+        {children}
+        <span style={{ marginLeft: '4px', opacity: active ? 1 : 0.45, fontSize: '9px' }}>
+          {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </th>
+    )
+  }
 
-  const TH = ({ children, align = 'left' }) => (
-    <th style={{ padding: '8px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', textAlign: align, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
-      {children}
-    </th>
-  )
-
-  const oppHeader = nextWeek ? `Wk ${nextWeek}` : 'Next'
-
-  let lastZone = null
-  const tableRows = []
-  rows.forEach((r, i) => {
-    const zone = getZone(i)
-
-    // Insert zone divider row when entering a new zone
-    if (zone !== lastZone) {
-      lastZone = zone
-      tableRows.push({ _divider: true, zone, key: `div-${i}` })
+  // Build rows with optional zone dividers
+  const tableItems = []
+  let lastZoneId = null
+  displayRows.forEach((r, idx) => {
+    const zone = ZONE_MAP[r._zoneId]
+    if (!isSorted && r._zoneId !== lastZoneId) {
+      lastZoneId = r._zoneId
+      tableItems.push({ _divider: true, zone, key: `div-${idx}` })
     }
-
-    const ptsBack = i === 0 ? null : (leader - (r.pts_for ?? 0))
-    const wl = wlStyle(r.actual_wins, r.actual_losses)
-    const simWl = wlStyle(r.sim_wins, r.sim_losses)
-    const winPctDiff = (r.actual_win_pct ?? 0) - (r.sim_win_pct ?? 0)
-    const verdict = luckVerdictFromDiff(r.luck_diff)
-    tableRows.push({ _divider: false, r, i, zone, ptsBack, wl, simWl, winPctDiff, verdict, key: `row-${i}` })
+    tableItems.push({ _divider: false, r, zone, key: `row-${idx}` })
   })
 
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Playoff Picture</span>
+        {isSorted && (
+          <button onClick={() => setSortKey(null)} style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}>
+            Reset ×
+          </button>
+        )}
       </div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '480px' }}>
           <thead>
             <tr>
-              <TH>Owner</TH>
-              <TH align="right">W-L</TH>
-              <TH align="right">Pts</TH>
-              <TH align="right">Back</TH>
-              <TH align="right">Sim</TH>
-              <TH align="right">Diff</TH>
-              <TH align="right">Verdict</TH>
-              <TH>{oppHeader}</TH>
+              <SortTH colKey="owner">Owner</SortTH>
+              <SortTH colKey="actual_wins" align="right">W-L</SortTH>
+              <SortTH colKey="pts_for" align="right">Pts</SortTH>
+              <SortTH colKey="_back" align="right">Back</SortTH>
+              <SortTH colKey="sim_wins" align="right">Sim</SortTH>
+              <SortTH colKey="_winPctDiff" align="right">Diff</SortTH>
+              <SortTH colKey="luck_diff" align="right">Verdict</SortTH>
+              <th style={{ padding: '8px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
+                {oppHeader}
+              </th>
             </tr>
           </thead>
           <tbody>
-            {tableRows.map(item => {
+            {tableItems.map(item => {
               if (item._divider) {
                 return (
                   <tr key={item.key}>
@@ -150,10 +221,16 @@ function PlayoffPicture({ rows, nextWeek }) {
                   </tr>
                 )
               }
-              const { r, i, zone, ptsBack, wl, simWl, winPctDiff, verdict } = item
+              const { r, zone } = item
               const pts = r.pts_for != null ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
-              const backStr = ptsBack != null ? ptsBack.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
-              const diffStr = `${winPctDiff >= 0 ? '+' : ''}${(winPctDiff * 100).toFixed(1)}%`
+              const back = formatBack(r._back)
+              const diff = r._winPctDiff
+              const diffAbs = Math.abs(diff * 100).toFixed(1)
+              const diffStr = diff > 0 ? `+${diffAbs}%` : diff < 0 ? `-${diffAbs}%` : `0.0%`
+              const diffColor = diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--brand-red)' : 'var(--text-muted)'
+              const wl = wlStyle(r.actual_wins, r.actual_losses)
+              const simWl = wlStyle(r.sim_wins, r.sim_losses)
+              const verdict = luckVerdictFromDiff(r.luck_diff)
               return (
                 <tr key={item.key} className="standings-row" style={{ borderBottom: '1px solid var(--border)', background: zone.bg }}>
                   <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
@@ -163,15 +240,13 @@ function PlayoffPicture({ rows, nextWeek }) {
                     </span>
                   </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{pts}</td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{backStr}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', color: back.color }}>{back.text}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <span style={{ ...simWl, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', fontWeight: 600 }}>
                       {r.sim_wins}-{r.sim_losses}
                     </span>
                   </td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', color: winPctDiff > 0 ? 'var(--green)' : winPctDiff < 0 ? 'var(--brand-red)' : 'var(--text-muted)' }}>
-                    {diffStr}
-                  </td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', color: diffColor }}>{diffStr}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: verdictColor(verdict), fontWeight: 500, fontSize: '11px' }}>
                     {verdict ?? '—'}
                   </td>
@@ -190,8 +265,29 @@ function PlayoffPicture({ rows, nextWeek }) {
 
 // ─── Race to the Bottom panel ─────────────────────────────────────────────────
 
-function RTBPanel({ rows }) {
-  if (!rows || rows.length === 0) {
+function RTBPanel({ rows: rawRows }) {
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
+
+  // rows already sorted by draft_pick ASC (1 = lowest optimal pts = best pick)
+  const basePts = rawRows[0]?.optimal_pts ?? 0
+
+  const displayRows = useMemo(() => {
+    if (!sortKey || !rawRows) return rawRows ?? []
+    return [...rawRows].sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey]
+      const an = parseFloat(av), bn = parseFloat(bv)
+      const cmp = !isNaN(an) && !isNaN(bn) ? an - bn : String(av ?? '').localeCompare(String(bv ?? ''))
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [rawRows, sortKey, sortDir])
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  if (!rawRows || rawRows.length === 0) {
     return (
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px' }}>
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '8px' }}>Race to the Bottom</span>
@@ -200,14 +296,23 @@ function RTBPanel({ rows }) {
     )
   }
 
-  // rows sorted by draft_pick ASC (1 = best pick = lowest optimal pts)
-  const basePts = rows[0]?.optimal_pts ?? 0
-
-  const TH = ({ children, align = 'left' }) => (
-    <th style={{ padding: '7px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', textAlign: align, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
-      {children}
-    </th>
-  )
+  const SortTH = ({ colKey, children, align = 'left' }) => {
+    const active = sortKey === colKey
+    return (
+      <th onClick={() => handleSort(colKey)} style={{
+        padding: '7px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px',
+        textTransform: 'uppercase', background: 'var(--bg-page)', whiteSpace: 'nowrap',
+        borderBottom: '1px solid var(--border)', textAlign: align,
+        cursor: 'pointer', userSelect: 'none',
+        color: active ? 'var(--text-primary)' : 'var(--text-faint)',
+      }}>
+        {children}
+        <span style={{ marginLeft: '4px', opacity: active ? 1 : 0.45, fontSize: '9px' }}>
+          {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </th>
+    )
+  }
 
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
@@ -218,22 +323,25 @@ function RTBPanel({ rows }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
           <thead>
             <tr>
-              <TH>#</TH>
-              <TH>Owner</TH>
-              <TH align="right">W-L</TH>
-              <TH align="right">Opt PF</TH>
-              <TH align="right">Back</TH>
+              <SortTH colKey="draft_pick">#</SortTH>
+              <SortTH colKey="owner">Owner</SortTH>
+              <SortTH colKey="wins" align="right">W-L</SortTH>
+              <SortTH colKey="optimal_pts" align="right">Opt PF</SortTH>
+              <SortTH colKey="actual_pts" align="right">Act PF</SortTH>
+              <SortTH colKey="lineup_pct" align="right">Lineup%</SortTH>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => {
+            {displayRows.map((r, i) => {
               const wl = wlStyle(r.wins, r.losses)
               const optPts = r.optimal_pts != null ? Number(r.optimal_pts).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
-              const back = r.optimal_pts != null ? (r.optimal_pts - basePts).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
+              const actPts = r.actual_pts != null ? Number(r.actual_pts).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
+              const lineupPct = r.lineup_pct != null ? `${Number(r.lineup_pct).toFixed(1)}%` : '—'
+              const isLeader = r.draft_pick === 1
               return (
                 <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', background: 'rgba(204,31,46,0.04)' }}>
                   <td style={{ padding: '8px 10px', fontWeight: 700, fontSize: '11px' }}>
-                    <span style={{ background: 'rgba(204,31,46,0.15)', color: 'var(--brand-red)', borderRadius: '4px', padding: '2px 6px' }}>
+                    <span style={{ background: isLeader ? 'rgba(204,31,46,0.2)' : 'rgba(204,31,46,0.1)', color: 'var(--brand-red)', borderRadius: '4px', padding: '2px 6px' }}>
                       #{r.draft_pick}
                     </span>
                   </td>
@@ -244,9 +352,8 @@ function RTBPanel({ rows }) {
                     </span>
                   </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{optPts}</td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', color: i === 0 ? 'var(--brand-red)' : 'var(--text-faint)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontWeight: i === 0 ? 600 : 400 }}>
-                    {i === 0 ? 'Leader' : `+${back}`}
-                  </td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{actPts}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{lineupPct}</td>
                 </tr>
               )
             })}
