@@ -15,15 +15,16 @@ import HeadToHead from './HeadToHead'
 import Draft from './Draft'
 
 const TABS = [
-  { id: 'history',  label: '📊 History' },
-  { id: 'inseason', label: '🏈 In-Season' },
-  { id: 'h2h',      label: '⚔️ Head-to-Head' },
-  { id: 'draft',    label: '📋 Draft' },
+  { id: 'inseason',  label: '📅 In-Season' },
+  { id: 'history',   label: '📊 History' },
+  { id: 'h2h',       label: '⚔️ Head-to-Head' },
+  { id: 'draft',     label: '📋 Draft' },
+  { id: 'schedule',  label: '🗓 Schedule' },
 ]
 
 export default function League() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab = searchParams.get('tab') || 'history'
+  const tab = searchParams.get('tab') || 'inseason'
 
   return (
     <div>
@@ -53,10 +54,17 @@ export default function League() {
 
       {/* Page content */}
       <div style={{ padding: '24px clamp(12px, 3vw, 24px)' }}>
-        <TabPanel id="history"  activeTab={tab}><History    embedded /></TabPanel>
-        <TabPanel id="inseason" activeTab={tab}><InSeason   embedded /></TabPanel>
-        <TabPanel id="h2h"      activeTab={tab}><HeadToHead embedded /></TabPanel>
-        <TabPanel id="draft"    activeTab={tab}><Draft      embedded /></TabPanel>
+        <TabPanel id="inseason"  activeTab={tab}><InSeason   embedded /></TabPanel>
+        <TabPanel id="history"   activeTab={tab}><History    embedded /></TabPanel>
+        <TabPanel id="h2h"       activeTab={tab}><HeadToHead embedded /></TabPanel>
+        <TabPanel id="draft"     activeTab={tab}><Draft      embedded /></TabPanel>
+        <TabPanel id="schedule"  activeTab={tab}>
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <div style={{ fontSize: '40px', marginBottom: '16px' }}>🗓</div>
+            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>Schedule</p>
+            <p style={{ fontSize: '13px', color: 'var(--text-faint)' }}>Coming soon</p>
+          </div>
+        </TabPanel>
       </div>
     </div>
   )

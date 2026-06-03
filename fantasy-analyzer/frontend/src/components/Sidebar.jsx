@@ -20,10 +20,11 @@ const TOP_NAV = [
 ]
 
 const LEAGUE_SUBS = [
-  { tab: 'history',  label: 'History',      emoji: '📊' },
-  { tab: 'inseason', label: 'In-Season',    emoji: '🏈' },
-  { tab: 'h2h',      label: 'Head-to-Head', emoji: '⚔️' },
-  { tab: 'draft',    label: 'Draft',        emoji: '📋' },
+  { tab: 'inseason',  label: 'In-Season',    emoji: '📅' },
+  { tab: 'history',   label: 'History',      emoji: '📊' },
+  { tab: 'h2h',       label: 'Head-to-Head', emoji: '⚔️' },
+  { tab: 'draft',     label: 'Draft',        emoji: '📋' },
+  { tab: 'schedule',  label: 'Schedule',     emoji: '🗓' },
 ]
 
 function Wordmark() {
@@ -40,7 +41,7 @@ function Wordmark() {
 function SidebarContent({ onNavClick }) {
   const location = useLocation()
   const isLeague = location.pathname.startsWith('/league')
-  const activeTab = new URLSearchParams(location.search).get('tab') || 'history'
+  const activeTab = new URLSearchParams(location.search).get('tab') || 'inseason'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

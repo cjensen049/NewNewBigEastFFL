@@ -1,50 +1,75 @@
 /**
- * DataTable.jsx — a scrollable table rendered from an array of row objects.
+ * DataTable.jsx — a scrollable, sortable table rendered from an array of row objects.
  *
  * Props:
- *   rows     — array of plain objects (one object = one table row)
- *   columns  — array of column descriptors:
- *                { key: string,      ← matches the key in each row object
- *                  label: string,    ← column header text
- *                  align?: 'right',  ← optional right-align (default left)
- *                  render?: (value, row) => ReactNode }  ← optional custom cell renderer
- *   maxHeight — CSS string for max height of the scrollable area (default '420px')
+ *   rows       — array of plain objects (one object = one table row)
+ *   columns    — array of column descriptors:
+ *                  { key: string,      ← matches the key in each row object
+ *                    label: string,    ← column header text
+ *                    align?: 'right',  ← optional right-align (default left)
+ *                    sortable?: false, ← pass false to disable sort on a column (default sortable)
+ *                    render?: (value, row) => ReactNode }  ← optional custom cell renderer
+ *   maxHeight  — CSS string for max height of the scrollable area (default '420px')
+ *   defaultSort — key of the column to sort by initially (default null = no sort)
+ *   defaultDir  — 'asc' | 'desc' (default 'asc')
  *
- * Example:
- *   <DataTable
- *     rows={[{ owner: 'Jensen', wins: 52 }]}
- *     columns={[
- *       { key: 'owner', label: 'Owner' },
- *       { key: 'wins',  label: 'Wins', align: 'right' },
- *     ]}
- *   />
+ * Clicking a header sorts by that column; clicking again reverses direction.
+ * Sort indicator: ↑ ascending, ↓ descending, no icon when unsorted.
  */
-export default function DataTable({ rows, columns, maxHeight = '420px' }) {
+import { useSortableTable } from '../hooks/useSortableTable'
+
+export default function DataTable({ rows, columns, maxHeight = '420px', defaultSort = null, defaultDir = 'asc' }) {
+  const { sorted, sortKey, sortDir, handleSort } = useSortableTable(rows, defaultSort, defaultDir)
+
   if (!rows || rows.length === 0) {
-    return <p className="text-gray-500 text-sm py-4 italic">No data available.</p>
+    return <p style={{ color: 'var(--text-faint)', fontSize: '13px', padding: '16px 0', fontStyle: 'italic' }}>No data available.</p>
   }
 
   return (
-    <div
-      className="overflow-auto rounded border border-gray-700 text-sm"
-      style={{ maxHeight }}
-    >
-      <table className="w-full text-left text-gray-300">
-        <thead className="sticky top-0 bg-gray-800 text-gray-400 uppercase text-xs">
+    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight, borderRadius: '8px', border: '1px solid var(--border)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+        <thead className="sticky top-0">
           <tr>
-            {columns.map(col => (
-              <th
-                key={col.key}
-                className={`px-3 py-2 font-medium whitespace-nowrap ${col.align === 'right' ? 'text-right' : ''}`}
-              >
-                {col.label}
-              </th>
-            ))}
+            {columns.map(col => {
+              const isSorted = sortKey === col.key
+              const canSort = col.sortable !== false
+              return (
+                <th
+                  key={col.key}
+                  onClick={canSort ? () => handleSort(col.key) : undefined}
+                  style={{
+                    padding: '8px 12px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                    color: isSorted ? 'var(--text-primary)' : 'var(--text-faint)',
+                    background: 'var(--bg-page)',
+                    textAlign: col.align === 'right' ? 'right' : 'left',
+                    whiteSpace: 'nowrap',
+                    cursor: canSort ? 'pointer' : 'default',
+                    userSelect: 'none',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  {col.label}
+                  {canSort && (
+                    <span style={{ marginLeft: '4px', opacity: isSorted ? 1 : 0.35, fontSize: '9px' }}>
+                      {isSorted ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  )}
+                </th>
+              )
+            })}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-700/50">
-          {rows.map((row, i) => (
-            <tr key={i} className="hover:bg-gray-700/20">
+        <tbody>
+          {sorted.map((row, i) => (
+            <tr
+              key={i}
+              style={{ borderBottom: '1px solid var(--border)' }}
+              className="standings-row"
+            >
               {columns.map(col => {
                 const value = row[col.key]
                 const display = col.render
@@ -53,7 +78,12 @@ export default function DataTable({ rows, columns, maxHeight = '420px' }) {
                 return (
                   <td
                     key={col.key}
-                    className={`px-3 py-2 whitespace-nowrap ${col.align === 'right' ? 'text-right' : ''}`}
+                    style={{
+                      padding: '8px 12px',
+                      color: 'var(--text-muted)',
+                      textAlign: col.align === 'right' ? 'right' : 'left',
+                      whiteSpace: 'nowrap',
+                    }}
                   >
                     {display}
                   </td>

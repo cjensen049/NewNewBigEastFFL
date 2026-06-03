@@ -245,3 +245,19 @@ body {
 .luck-table-row:hover {
   filter: brightness(1.15);
 }
+
+/* ─── In-Season two-panel grid ───────────────────────────────────────────────── */
+
+.inseason-main-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  margin-bottom: 28px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .inseason-main-grid {
+    grid-template-columns: 1fr;
+  }
+}

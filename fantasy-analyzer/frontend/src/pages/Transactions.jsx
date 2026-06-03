@@ -3,7 +3,7 @@
  *
  * Tabs: Trade Tree | Trade Log | Waivers | Tendencies
  */
-import { useState } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ReactFlow,
@@ -180,10 +180,12 @@ function buildGraph(playerName, tradeNode, expandedPaths, onToggle) {
 
 function TradeTreeTab() {
   const [playerInput, setPlayerInput] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')  // what was actually submitted
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
   const [selectedTradeIdx, setSelectedTradeIdx] = useState(0)
-  // Paths of nodes the user has expanded beyond the default depth
   const [expandedPaths, setExpandedPaths] = useState(new Set())
+  const inputRef = useRef(null)
+  const dropdownRef = useRef(null)
 
   const { data: playersData } = useQuery({
     queryKey: ['traded-players'],
@@ -192,6 +194,13 @@ function TradeTreeTab() {
 
   const allPlayers = playersData?.players ?? []
 
+  // Filter to at most 10 matching players as the user types
+  const filteredPlayers = useMemo(() => {
+    const q = playerInput.trim().toLowerCase()
+    if (!q) return []
+    return allPlayers.filter(p => p.toLowerCase().includes(q)).slice(0, 10)
+  }, [playerInput, allPlayers])
+
   const { data: treeData, isLoading } = useQuery({
     queryKey: ['trade-tree', searchQuery],
     queryFn: () =>
@@ -199,18 +208,35 @@ function TradeTreeTab() {
     enabled: !!searchQuery,
   })
 
-  const handleSearch = () => {
-    const q = playerInput.trim()
+  // Close dropdown when clicking outside both input and dropdown
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+        inputRef.current && !inputRef.current.contains(e.target)
+      ) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSearch = (query) => {
+    const q = (query ?? playerInput).trim()
     if (!q) return
     if (q !== searchQuery) {
       setSelectedTradeIdx(0)
       setExpandedPaths(new Set())
     }
     setSearchQuery(q)
+    setShowDropdown(false)
   }
 
-  const handleInputChange = (e) => {
-    setPlayerInput(e.target.value)
+  const handleSelectPlayer = (player) => {
+    setPlayerInput(player)
+    setShowDropdown(false)
+    handleSearch(player)
   }
 
   const handleTradeChange = (i) => {
@@ -236,34 +262,83 @@ function TradeTreeTab() {
 
   return (
     <div>
-      {/* Search input */}
+      {/* Search input with custom dropdown */}
       <div style={{ marginBottom: '20px' }}>
         <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '8px' }}>Search Player</p>
         <div style={{ display: 'flex', gap: '8px', maxWidth: '480px' }}>
-          <input
-            list="player-list"
-            value={playerInput}
-            onChange={handleInputChange}
-            onKeyDown={e => { if (e.key === 'Enter') handleSearch() }}
-            placeholder="Type a player name..."
-            className="search-input"
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-mid)',
-              borderRadius: '8px',
-              padding: '10px 14px',
-              flex: 1,
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              fontFamily: 'var(--font-body)',
-              outline: 'none',
-              transition: 'border-color 0.15s',
-            }}
-            onFocus={e => { e.target.style.borderColor = 'var(--brand-navy)' }}
-            onBlur={e => { e.target.style.borderColor = 'var(--border-mid)' }}
-          />
+          <div style={{ flex: 1, position: 'relative' }}>
+            <input
+              ref={inputRef}
+              value={playerInput}
+              onChange={e => { setPlayerInput(e.target.value); setShowDropdown(true) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleSearch()
+                if (e.key === 'Escape') setShowDropdown(false)
+              }}
+              onFocus={e => { e.target.style.borderColor = 'var(--brand-navy)'; if (playerInput.trim()) setShowDropdown(true) }}
+              placeholder="Type a player name..."
+              className="search-input"
+              style={{
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-mid)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                width: '100%',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                fontFamily: 'var(--font-body)',
+                outline: 'none',
+                transition: 'border-color 0.15s',
+                boxSizing: 'border-box',
+              }}
+              onBlur={e => { e.target.style.borderColor = 'var(--border-mid)' }}
+            />
+            {/* Custom dropdown */}
+            {showDropdown && filteredPlayers.length > 0 && (
+              <div
+                ref={dropdownRef}
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  left: 0,
+                  right: 0,
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-mid)',
+                  borderRadius: '8px',
+                  maxHeight: '280px',
+                  overflowY: 'auto',
+                  zIndex: 50,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}
+              >
+                {filteredPlayers.map((p, idx) => (
+                  <button
+                    key={p}
+                    onMouseDown={e => { e.preventDefault(); handleSelectPlayer(p) }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '9px 14px',
+                      textAlign: 'left',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: idx < filteredPlayers.length - 1 ? '1px solid var(--border)' : 'none',
+                      color: 'var(--text-primary)',
+                      fontSize: '13px',
+                      fontFamily: 'var(--font-body)',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-raised)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
-            onClick={handleSearch}
+            onClick={() => handleSearch()}
             style={{
               background: 'var(--brand-navy)',
               border: '1px solid var(--border-mid)',
@@ -281,9 +356,6 @@ function TradeTreeTab() {
             Search
           </button>
         </div>
-        <datalist id="player-list">
-          {allPlayers.map(p => <option key={p} value={p} />)}
-        </datalist>
       </div>
 
       {/* Empty state — shown when no search has been submitted */}

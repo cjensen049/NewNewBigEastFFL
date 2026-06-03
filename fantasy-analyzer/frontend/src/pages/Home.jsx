@@ -160,7 +160,7 @@ function StandingsPanel() {
             {currentSeason}
           </span>
         )}
-        <Link to="/league" style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', textDecoration: 'none' }}>
+        <Link to="/league?tab=inseason" style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', textDecoration: 'none' }}>
           Full standings →
         </Link>
       </div>
@@ -169,27 +169,23 @@ function StandingsPanel() {
         <p style={{ padding: '16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic' }}>No in-season data yet.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '340px' }}>
             <thead>
               <tr style={{ background: 'var(--bg-page)' }}>
                 <TH width="28px">#</TH>
                 <TH>Owner</TH>
                 <TH align="right">W-L</TH>
-                <TH align="right">Sim</TH>
-                <TH align="right">Pts</TH>
+                <TH align="right">Pts For</TH>
                 <TH align="center">Luck</TH>
                 <TH>{oppHeader}</TH>
-                <TH align="right">SoS</TH>
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => {
                 const wl = wlStyle(r.actual_wins, r.actual_losses)
-                const simWl = wlStyle(r.sim_wins, r.sim_losses)
                 const rk = rankStyle(i)
                 const pts = r.pts_for != null ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
                 const verdict = luckVerdict(r.luck_diff)
-                const sos = r.remaining_sos != null ? `${(r.remaining_sos * 100).toFixed(1)}%` : '—'
                 return (
                   <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '8px 10px' }}>
@@ -203,11 +199,6 @@ function StandingsPanel() {
                         {r.actual_wins}-{r.actual_losses}
                       </span>
                     </td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <span style={{ ...simWl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {r.sim_wins}-{r.sim_losses}
-                      </span>
-                    </td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{pts}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                       {verdict && (
@@ -219,7 +210,6 @@ function StandingsPanel() {
                     <td style={{ padding: '8px 10px', fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                       {r.next_opponent ?? <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>—</span>}
                     </td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: '12px', color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' }}>{sos}</td>
                   </tr>
                 )
               })}
