@@ -209,8 +209,8 @@ function CareerSummaryTab({ owner }) {
                   <tr key={s.season} className="season-table-row" style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '9px 12px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{s.season}</td>
                     <td style={{ padding: '9px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right' }}>{s.seed ?? '—'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                      <span style={pillStyle}>{s.record ?? '—'}</span>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <span style={{ ...pillStyle, whiteSpace: 'nowrap' }}>{s.record ?? '—'}</span>
                     </td>
                     <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: winPctColor(s.win_pct) }}>
                       {pct(s.win_pct)}
@@ -501,10 +501,6 @@ function WaiversTab({ owner }) {
         <div className="bg-gray-800 rounded border border-gray-700 px-4 py-3">
           <p className="text-xs text-gray-400">Waiver Claims</p>
           <p className="text-lg font-bold">{summary.waiver_claims ?? 0}</p>
-        </div>
-        <div className="bg-gray-800 rounded border border-gray-700 px-4 py-3">
-          <p className="text-xs text-gray-400">FA Adds</p>
-          <p className="text-lg font-bold">{summary.fa_adds ?? 0}</p>
         </div>
         <div className="bg-gray-800 rounded border border-gray-700 px-4 py-3">
           <p className="text-xs text-gray-400">FAAB Spent</p>

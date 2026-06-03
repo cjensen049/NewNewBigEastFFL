@@ -100,8 +100,8 @@ function StandingsTab() {
                       {s.owner}
                     </td>
                     <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>{s.seasons}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 8px', fontSize: '12px', fontWeight: 600 }}>{s.record}</span>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 8px', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{s.record}</span>
                     </td>
                     <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: winPctColor(s.win_pct) }}>{pct(s.win_pct)}</td>
                     <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>

@@ -53,7 +53,7 @@ export default function DataTable({ rows, columns, maxHeight = '420px' }) {
                 return (
                   <td
                     key={col.key}
-                    className={`px-3 py-2 ${col.align === 'right' ? 'text-right' : ''}`}
+                    className={`px-3 py-2 whitespace-nowrap ${col.align === 'right' ? 'text-right' : ''}`}
                   >
                     {display}
                   </td>

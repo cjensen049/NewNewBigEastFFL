@@ -688,7 +688,6 @@ function TendenciesTab() {
             { key: 'picks_in',      label: 'Picks In',    align: 'right' },
             { key: 'picks_out',     label: 'Picks Out',   align: 'right' },
             { key: 'waiver_claims', label: 'Waivers',     align: 'right' },
-            { key: 'fa_adds',       label: 'FA Adds',     align: 'right' },
             { key: 'faab_spent',    label: 'FAAB $',      align: 'right' },
           ]}
         />
