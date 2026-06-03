@@ -514,8 +514,8 @@ def get_owner_waiver_activity(con: sqlite3.Connection) -> list[dict]:
                     s["faab_spent"] += bid
             else:
                 s["waiver_failed"] += 1
-        else:  # free_agent
-            if status == "complete":
+        else:  # free_agent — only count as an add if players were actually added
+            if status == "complete" and adds:
                 s["fa_adds"] += 1
 
         if status == "complete":
@@ -572,14 +572,16 @@ def get_owner_waiver_by_season(con: sqlite3.Connection) -> list[dict]:
             continue
 
         s = _s(owner, season)
+        adds = json.loads(adds_raw) if adds_raw else {}
         drops = json.loads(drops_raw) if drops_raw else {}
 
         if txn_type == "waiver":
             s["waiver_claims"] += 1
             if bid:
                 s["faab_spent"] += bid
-        else:
-            s["fa_adds"] += 1
+        else:  # free_agent — only count as an add if players were actually added
+            if adds:
+                s["fa_adds"] += 1
 
         s["drops"] += len(drops)
 

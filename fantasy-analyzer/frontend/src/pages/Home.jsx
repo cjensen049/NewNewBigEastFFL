@@ -198,13 +198,13 @@ function StandingsPanel() {
                       </div>
                     </td>
                     <td style={{ padding: '8px 10px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600 }}>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {r.actual_wins}-{r.actual_losses}
                       </span>
                     </td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                      <span style={{ ...simWl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600 }}>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <span style={{ ...simWl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {r.sim_wins}-{r.sim_losses}
                       </span>
                     </td>

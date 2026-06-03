@@ -384,8 +384,8 @@ function DraftPicksTab({ owner }) {
         </p>
       )}
 
-      <div className="rounded border border-gray-700 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="rounded border border-gray-700 overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: '640px' }}>
           <thead>
             <tr className="bg-gray-800 text-gray-400 text-left text-xs uppercase tracking-wide">
               <th className="px-3 py-2">Player</th>

@@ -180,6 +180,7 @@ function buildGraph(playerName, tradeNode, expandedPaths, onToggle) {
 
 function TradeTreeTab() {
   const [playerInput, setPlayerInput] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')  // what was actually submitted
   const [selectedTradeIdx, setSelectedTradeIdx] = useState(0)
   // Paths of nodes the user has expanded beyond the default depth
   const [expandedPaths, setExpandedPaths] = useState(new Set())
@@ -190,26 +191,26 @@ function TradeTreeTab() {
   })
 
   const allPlayers = playersData?.players ?? []
-  // Only treat the input as a selected player when it exactly matches a known name
-  const selectedPlayer = allPlayers.includes(playerInput) ? playerInput : ''
 
   const { data: treeData, isLoading } = useQuery({
-    queryKey: ['trade-tree', selectedPlayer],
+    queryKey: ['trade-tree', searchQuery],
     queryFn: () =>
-      fetch(`/api/transactions/trade-tree/${encodeURIComponent(selectedPlayer)}`).then(r => r.json()),
-    enabled: !!selectedPlayer,
+      fetch(`/api/transactions/trade-tree/${encodeURIComponent(searchQuery)}`).then(r => r.json()),
+    enabled: !!searchQuery,
   })
 
-  const handleInputChange = (e) => {
-    const val = e.target.value
-    const prevSelected = allPlayers.includes(playerInput) ? playerInput : ''
-    const newSelected = allPlayers.includes(val) ? val : ''
-    setPlayerInput(val)
-    // Reset trade/expansion state when the selected player actually changes
-    if (newSelected !== prevSelected) {
+  const handleSearch = () => {
+    const q = playerInput.trim()
+    if (!q) return
+    if (q !== searchQuery) {
       setSelectedTradeIdx(0)
       setExpandedPaths(new Set())
     }
+    setSearchQuery(q)
+  }
+
+  const handleInputChange = (e) => {
+    setPlayerInput(e.target.value)
   }
 
   const handleTradeChange = (i) => {
@@ -238,35 +239,55 @@ function TradeTreeTab() {
       {/* Search input */}
       <div style={{ marginBottom: '20px' }}>
         <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '8px' }}>Search Player</p>
-        <input
-          list="player-list"
-          value={playerInput}
-          onChange={handleInputChange}
-          placeholder="Type a player name..."
-          className="search-input"
-          style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-mid)',
-            borderRadius: '8px',
-            padding: '10px 14px',
-            maxWidth: '400px',
-            width: '100%',
-            color: 'var(--text-primary)',
-            fontSize: '13px',
-            fontFamily: 'var(--font-body)',
-            outline: 'none',
-            transition: 'border-color 0.15s',
-          }}
-          onFocus={e => { e.target.style.borderColor = 'var(--brand-navy)' }}
-          onBlur={e => { e.target.style.borderColor = 'var(--border-mid)' }}
-        />
+        <div style={{ display: 'flex', gap: '8px', maxWidth: '480px' }}>
+          <input
+            list="player-list"
+            value={playerInput}
+            onChange={handleInputChange}
+            onKeyDown={e => { if (e.key === 'Enter') handleSearch() }}
+            placeholder="Type a player name..."
+            className="search-input"
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-mid)',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              flex: 1,
+              color: 'var(--text-primary)',
+              fontSize: '13px',
+              fontFamily: 'var(--font-body)',
+              outline: 'none',
+              transition: 'border-color 0.15s',
+            }}
+            onFocus={e => { e.target.style.borderColor = 'var(--brand-navy)' }}
+            onBlur={e => { e.target.style.borderColor = 'var(--border-mid)' }}
+          />
+          <button
+            onClick={handleSearch}
+            style={{
+              background: 'var(--brand-navy)',
+              border: '1px solid var(--border-mid)',
+              borderRadius: '8px',
+              padding: '10px 18px',
+              color: 'var(--text-primary)',
+              fontSize: '13px',
+              fontWeight: 600,
+              fontFamily: 'var(--font-body)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            Search
+          </button>
+        </div>
         <datalist id="player-list">
           {allPlayers.map(p => <option key={p} value={p} />)}
         </datalist>
       </div>
 
-      {/* Empty state — shown when no player typed */}
-      {!playerInput && !treeData && (
+      {/* Empty state — shown when no search has been submitted */}
+      {!searchQuery && !treeData && (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔍</div>
           <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>

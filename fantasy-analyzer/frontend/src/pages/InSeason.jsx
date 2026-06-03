@@ -142,13 +142,13 @@ function LuckTab() {
                   <tbody className="divide-y divide-gray-700/50">
                     {seasonRows.map((r, i) => (
                       <tr key={i} className={luckRowClass(r.luck_diff)}>
-                        <td className="px-3 py-2 font-medium">{r.owner}</td>
-                        <td className="px-3 py-2">{r.actual_record}</td>
-                        <td className="px-3 py-2">{r.actual_pct_fmt}</td>
-                        <td className="px-3 py-2">{r.sim_record}</td>
-                        <td className="px-3 py-2">{r.sim_pct_fmt}</td>
-                        <td className="px-3 py-2">{r.diff_fmt}</td>
-                        <td className="px-3 py-2">{r.verdict}</td>
+                        <td className="px-3 py-2 font-medium whitespace-nowrap">{r.owner}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.actual_record}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.actual_pct_fmt}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.sim_record}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.sim_pct_fmt}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.diff_fmt}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.verdict}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -195,13 +195,13 @@ function LuckTab() {
                   <tbody className="divide-y divide-gray-700/50">
                     {allTimeRows.map((r, i) => (
                       <tr key={i} className={luckRowClass(r.total_luck)}>
-                        <td className="px-3 py-2 font-medium">{r.owner}</td>
-                        <td className="px-3 py-2">{r.actual_record}</td>
-                        <td className="px-3 py-2">{r.actual_pct_fmt}</td>
-                        <td className="px-3 py-2">{r.sim_record}</td>
-                        <td className="px-3 py-2">{r.sim_pct_fmt}</td>
-                        <td className="px-3 py-2">{r.diff_fmt}</td>
-                        <td className="px-3 py-2">{r.verdict}</td>
+                        <td className="px-3 py-2 font-medium whitespace-nowrap">{r.owner}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.actual_record}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.actual_pct_fmt}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.sim_record}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.sim_pct_fmt}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.diff_fmt}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{r.verdict}</td>
                       </tr>
                     ))}
                   </tbody>
