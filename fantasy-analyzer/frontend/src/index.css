@@ -167,22 +167,65 @@ body {
   }
 }
 
-/* ─── League sidebar ─────────────────────────────────────────────────────────── */
+/* ─── Global sidebar navigation ─────────────────────────────────────────────── */
 
-.league-sidebar-item {
-  width: 100%;
-  padding: 12px 16px;
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
   font-size: 13px;
   font-weight: 500;
-  text-align: left;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  background: transparent;
+  color: var(--text-muted);
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
   cursor: pointer;
-  border: none;
-  transition: color 0.15s, background 0.15s;
+  width: 100%;
+  text-align: left;
+}
+.sidebar-nav-item:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+.sidebar-nav-item.active {
+  border-left-color: var(--brand-red);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.sidebar-sub-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px 8px 44px;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  color: var(--text-faint);
+  transition: color 0.15s;
   white-space: nowrap;
 }
-.league-sidebar-item:hover {
-  color: var(--text-primary) !important;
-  background: var(--bg-raised) !important;
+.sidebar-sub-item:hover {
+  color: var(--text-muted);
+}
+.sidebar-sub-item.active {
+  border-left-color: var(--brand-red);
+  color: var(--text-primary);
+}
+
+/* ─── Content area offset for fixed sidebar ──────────────────────────────────── */
+
+@media (min-width: 768px) {
+  .content-with-sidebar {
+    margin-left: 220px;
+  }
 }
 
 /* ─── Mobile pill scroller (League main nav + Owner tab bar) ─────────────────── */

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import NavBar from './components/NavBar'
+import Sidebar from './components/Sidebar'
 import Home from './pages/Home'
 import League from './pages/League'
 import Owner from './pages/Owner'
@@ -9,8 +9,9 @@ import Calendar from './pages/Calendar'
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen">
-        <NavBar />
+      <Sidebar />
+      {/* All page content is offset right on desktop to clear the fixed sidebar */}
+      <div className="content-with-sidebar">
         <main>
           <Routes>
             <Route path="/"             element={<Home />} />
