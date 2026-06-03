@@ -27,18 +27,35 @@ import numpy as np
 # Phase configuration
 # ---------------------------------------------------------------------------
 
+# Weights when roster quality data IS available (FantasyPros projections scraped)
 PHASES: dict[str, dict] = {
     "early": {
         "label": "Early Season",
-        "weights": {"scoring": 0.25, "record": 0.20, "sos": 0.55},
+        "weights": {"scoring": 0.15, "record": 0.10, "sos": 0.25, "roster": 0.50},
     },
     "mid": {
         "label": "Mid Season",
-        "weights": {"scoring": 0.45, "record": 0.40, "sos": 0.15},
+        "weights": {"scoring": 0.35, "record": 0.30, "sos": 0.10, "roster": 0.25},
     },
     "late": {
         "label": "Late Season",
-        "weights": {"scoring": 0.55, "record": 0.40, "sos": 0.05},
+        "weights": {"scoring": 0.45, "record": 0.35, "sos": 0.05, "roster": 0.15},
+    },
+}
+
+# Fallback weights when no roster quality data is available
+PHASES_NO_ROSTER: dict[str, dict] = {
+    "early": {
+        "label": "Early Season",
+        "weights": {"scoring": 0.25, "record": 0.20, "sos": 0.55, "roster": 0.0},
+    },
+    "mid": {
+        "label": "Mid Season",
+        "weights": {"scoring": 0.45, "record": 0.40, "sos": 0.15, "roster": 0.0},
+    },
+    "late": {
+        "label": "Late Season",
+        "weights": {"scoring": 0.55, "record": 0.40, "sos": 0.05, "roster": 0.0},
     },
 }
 
@@ -294,15 +311,21 @@ def compute_power_rankings(
             "season": season,
             "current_week": 0,
             "phase": phase_key,
-            "phase_label": PHASES[phase_key]["label"],
-            "weights": PHASES[phase_key]["weights"],
+            "phase_label": PHASES_NO_ROSTER[phase_key]["label"],
+            "weights": PHASES_NO_ROSTER[phase_key]["weights"],
             "rows": [],
         }
 
     # For trend: use max(current_week - 1, 1) so week 1 shows neutral trends
     prev_week = max(current_week - 1, 1)
     phase_key = _phase(current_week)
-    weights   = PHASES[phase_key]["weights"]
+
+    # Choose phase table based on whether roster quality data exists
+    from fantasy_analyzer.analysis.roster_quality import compute_roster_quality
+    roster_quality_raw = compute_roster_quality(con, league_id, season)
+    has_roster_data = bool(roster_quality_raw)
+    phase_table = PHASES if has_roster_data else PHASES_NO_ROSTER
+    weights = phase_table[phase_key]["weights"]
 
     # ── Owner list ────────────────────────────────────────────────────────────
     user_rows = con.execute(
@@ -343,6 +366,12 @@ def compute_power_rankings(
     sos_norm = _normalize(sos_inv) if sos_inv else {}
     sos_norm_full = {uid: sos_norm.get(uid, 50.0) for uid in uids}
 
+    # ── Roster quality component ──────────────────────────────────────────────
+    # Normalize raw projected pts; fall back to 50.0 per team if no data
+    rq_values = {uid: v for uid, v in roster_quality_raw.items() if v is not None}
+    rq_norm_map = _normalize(rq_values) if rq_values else {}
+    rq_norm = {uid: rq_norm_map.get(uid, 50.0) for uid in uids}
+
     # ── Composite power score (current and previous week for trend) ───────────
     def _composite(sc_norm: dict, rc_norm: dict) -> dict[str, float]:
         return {
@@ -350,6 +379,7 @@ def compute_power_rankings(
                 weights["scoring"] * sc_norm.get(uid, 50.0)
                 + weights["record"]  * rc_norm.get(uid, 50.0)
                 + weights["sos"]     * sos_norm_full.get(uid, 50.0)
+                + weights["roster"]  * rq_norm.get(uid, 50.0)
             )
             for uid in uids
         }
@@ -421,13 +451,15 @@ def compute_power_rankings(
             "scoring_score": round(scoring_norm_curr.get(uid, 0.0), 1),
             "record_score":  round(record_norm_curr.get(uid, 0.0), 1),
             "sos_score":     round(sos_norm_full.get(uid, 0.0), 1),
+            "roster_score":  round(rq_norm.get(uid, 0.0), 1) if has_roster_data else None,
         })
 
     return {
-        "season":      season,
-        "current_week": current_week,
-        "phase":       phase_key,
-        "phase_label": PHASES[phase_key]["label"],
-        "weights":     weights,
-        "rows":        rows,
+        "season":           season,
+        "current_week":     current_week,
+        "phase":            phase_key,
+        "phase_label":      phase_table[phase_key]["label"],
+        "weights":          weights,
+        "has_roster_data":  has_roster_data,
+        "rows":             rows,
     }

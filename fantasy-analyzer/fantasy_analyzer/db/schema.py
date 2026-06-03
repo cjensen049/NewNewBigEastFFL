@@ -128,6 +128,25 @@ CREATE TABLE IF NOT EXISTS players (
     team        TEXT
 );
 
+CREATE TABLE IF NOT EXISTS player_projections (
+    season          INTEGER NOT NULL,
+    week            INTEGER NOT NULL,
+    player_id       TEXT    NOT NULL,
+    position        TEXT    NOT NULL,
+    projected_pts   REAL    NOT NULL,
+    scraped_at      TEXT    NOT NULL,
+    PRIMARY KEY (season, week, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS current_rosters (
+    league_id   TEXT    NOT NULL,
+    roster_id   INTEGER NOT NULL,
+    player_id   TEXT    NOT NULL,
+    status      TEXT    NOT NULL DEFAULT 'active',
+    updated_at  TEXT    NOT NULL,
+    PRIMARY KEY (league_id, roster_id, player_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_matchups_league_week ON matchups(league_id, week);
 CREATE INDEX IF NOT EXISTS idx_matchups_user ON matchups(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_league ON transactions(league_id);
@@ -201,3 +220,27 @@ async def apply_migrations(db_path: str) -> None:
             await db.commit()
         except Exception:
             pass  # column already exists
+
+        # New tables for FantasyPros projections and current rosters
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS player_projections (
+                season          INTEGER NOT NULL,
+                week            INTEGER NOT NULL,
+                player_id       TEXT    NOT NULL,
+                position        TEXT    NOT NULL,
+                projected_pts   REAL    NOT NULL,
+                scraped_at      TEXT    NOT NULL,
+                PRIMARY KEY (season, week, player_id)
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS current_rosters (
+                league_id   TEXT    NOT NULL,
+                roster_id   INTEGER NOT NULL,
+                player_id   TEXT    NOT NULL,
+                status      TEXT    NOT NULL DEFAULT 'active',
+                updated_at  TEXT    NOT NULL,
+                PRIMARY KEY (league_id, roster_id, player_id)
+            )
+        """)
+        await db.commit()

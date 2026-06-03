@@ -7,6 +7,7 @@ import asyncio
 import logging
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -34,6 +35,14 @@ def main() -> None:
     ingest_p = sub.add_parser("ingest", help="Pull data from Sleeper and store locally")
     ingest_p.add_argument("--league-id", default=None, help="Ingest a single league ID only")
     ingest_p.add_argument("--skip-players", action="store_true", help="Skip refreshing the player cache")
+
+    # scrape-projections
+    scrape_p = sub.add_parser(
+        "scrape-projections",
+        help="Scrape FantasyPros weekly projections and refresh Sleeper rosters",
+    )
+    scrape_p.add_argument("--season", type=int, default=None, help="Season year (default: auto-detect)")
+    scrape_p.add_argument("--week",   type=int, default=None, help="NFL week to scrape (default: auto-detect)")
 
     # report
     report_p = sub.add_parser("report", help="Show analysis reports")
@@ -67,12 +76,63 @@ def main() -> None:
             )
         )
 
+    elif args.command == "scrape-projections":
+        _run_scrape_projections(args, db_path)
+
     elif args.command == "report":
         con = sqlite3.connect(db_path)
         try:
             _run_report(args, con)
         finally:
             con.close()
+
+
+def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
+    """Refresh current rosters from Sleeper and scrape FantasyPros projections."""
+    from fantasy_analyzer.scraping.fantasypros import run_projections_scrape, update_current_rosters
+
+    con = sqlite3.connect(db_path)
+    try:
+        # Auto-detect season: prefer in_season, fall back to most recent
+        season = args.season
+        if not season:
+            row = con.execute(
+                "SELECT season FROM leagues WHERE status IN ('in_season','drafting') ORDER BY season DESC LIMIT 1"
+            ).fetchone()
+            if row:
+                season = row[0]
+            else:
+                row = con.execute("SELECT MAX(season) FROM leagues").fetchone()
+                season = row[0] if row and row[0] else datetime.now(timezone.utc).year
+
+        # Auto-detect week: next week after the last completed week
+        week = args.week
+        if not week:
+            row = con.execute(
+                "SELECT MAX(week) FROM matchups WHERE season=? AND points IS NOT NULL AND points > 0",
+                (season,),
+            ).fetchone()
+            week = (row[0] or 0) + 1
+
+        # Get league_id for this season
+        row = con.execute(
+            "SELECT league_id FROM leagues WHERE season = ? ORDER BY rowid DESC LIMIT 1",
+            (season,),
+        ).fetchone()
+        if not row:
+            print(f"No league found for season {season}", file=sys.stderr)
+            sys.exit(1)
+        league_id = row[0]
+
+        print(f"Season {season} — refreshing rosters and scraping week {week} projections")
+
+        roster_count = update_current_rosters(con, league_id)
+        print(f"  Rosters: {roster_count} player-roster entries updated")
+
+        proj_count = run_projections_scrape(con, season, week)
+        print(f"  Projections: {proj_count} players stored for week {week}")
+    finally:
+        con.close()
 
 
 def _run_report(args: argparse.Namespace, con: sqlite3.Connection) -> None:
