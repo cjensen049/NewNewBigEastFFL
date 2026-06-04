@@ -6,15 +6,15 @@
 
 :root {
   --bg-page:      #0b1220;
-  --bg-surface:   #0f1b2e;
+  --bg-surface:   #111d2e;
   --bg-raised:    #142035;
-  --border:       #1e2d47;
+  --border:       #1e3048;
   --border-mid:   #2a3f5f;
   --brand-navy:   #1a3a6b;
   --brand-red:    #cc1f2e;
-  --text-primary: #e6edf3;
-  --text-muted:   #7a93b4;
-  --text-faint:   #4a6380;
+  --text-primary: #f0f4f8;
+  --text-muted:   #9ab0c8;
+  --text-faint:   #607d96;
   --green:        #3fb950;
   --gold:         #e3b341;
   --font-display: 'Bebas Neue', sans-serif;
@@ -25,6 +25,7 @@ body {
   background: var(--bg-page);
   color: var(--text-primary);
   font-family: var(--font-body);
+  font-size: 15px;
 }
 
 /* ─── Nav links ──────────────────────────────────────────────────────────────── */
@@ -174,7 +175,7 @@ body {
   align-items: center;
   gap: 10px;
   padding: 10px 20px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   text-decoration: none;
   border-left: 3px solid transparent;
@@ -204,7 +205,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 20px 8px 44px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   text-decoration: none;
   border-left: 3px solid transparent;
@@ -302,5 +303,38 @@ body {
 @media (max-width: 640px) {
   .schedule-divisions-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Hero title responsive size ─────────────────────────────────────────────── */
+
+.hero-title {
+  font-size: clamp(32px, 9vw, 52px);
+  letter-spacing: clamp(1px, 0.5vw, 3px);
+  line-height: 1;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: clamp(26px, 8vw, 36px);
+  }
+}
+
+/* ─── Hero logo responsive size ──────────────────────────────────────────────── */
+
+.hero-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(204,31,46,0.35));
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .hero-logo {
+    width: 52px;
+    height: 52px;
   }
 }

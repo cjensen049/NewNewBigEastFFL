@@ -86,15 +86,15 @@ function EventCard({ event }) {
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-0.5">
-          <span className={`font-semibold text-sm ${isActive ? 'text-white' : 'text-gray-200'}`}>
+          <span className="font-semibold text-sm" style={{ color: isActive ? '#ffffff' : 'var(--text-primary)' }}>
             {event.title}
           </span>
           <StatusBadge type={event.type} status={event.status} />
         </div>
-        <div className="text-xs text-gray-400">
+        <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {event.subtitle}
           {event.date_start_fmt && (
-            <span className="ml-2 text-gray-500">
+            <span className="ml-2" style={{ color: 'var(--text-faint)' }}>
               · {event.date_start_fmt}
               {event.date_end_fmt && event.date_end_fmt !== event.date_start_fmt
                 ? ` – ${event.date_end_fmt}`

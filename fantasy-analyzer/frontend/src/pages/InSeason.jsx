@@ -142,7 +142,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Playoff Picture</span>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Playoff Picture</span>
         {isSorted && (
           <button onClick={reset} style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}>
             Reset ×
@@ -238,7 +238,7 @@ function RaceToBottom({ rows }) {
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginTop: '20px' }}>
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Race to the Bottom</span>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Race to the Bottom</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>

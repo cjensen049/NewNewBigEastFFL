@@ -98,13 +98,13 @@ function StatCard({ label, value, subLabel }) {
       <p style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '6px' }}>{label}</p>
       <p style={{
         fontFamily: isTopScorer ? 'var(--font-body)' : 'var(--font-display)',
-        fontSize: isTopScorer ? '16px' : '28px',
+        fontSize: isTopScorer ? '16px' : '32px',
         lineHeight: 1,
         color: isTopScorer ? '#5b8dd9' : statColor(label, value),
       }}>
         {value ?? '—'}
       </p>
-      {subLabel && <p style={{ fontSize: '10px', color: 'var(--text-faint)', marginTop: '4px' }}>{subLabel}</p>}
+      {subLabel && <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>{subLabel}</p>}
     </div>
   )
 }
@@ -172,7 +172,7 @@ function CareerSummaryTab({ owner }) {
       {/* Season-by-season table */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Season by Season</span>
+          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Season by Season</span>
           <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
             {seasons.length} seasons
           </span>

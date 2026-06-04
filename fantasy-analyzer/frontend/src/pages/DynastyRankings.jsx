@@ -62,7 +62,7 @@ export default function DynastyRankings({ season }) {
     return (
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Dynasty Rankings</span>
+          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Dynasty Rankings</span>
         </div>
         <p style={{ padding: '24px 16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
           Dynasty rankings available after the first weekly data refresh.
@@ -86,7 +86,7 @@ export default function DynastyRankings({ season }) {
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       {/* Panel header */}
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
           Dynasty Rankings
         </span>
         {dataDate && (

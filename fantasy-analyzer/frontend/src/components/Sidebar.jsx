@@ -30,7 +30,7 @@ const LEAGUE_SUBS = [
 
 function Wordmark() {
   return (
-    <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', letterSpacing: '2px', lineHeight: 1 }}>
+    <span style={{ fontFamily: 'var(--font-display)', fontSize: '26px', letterSpacing: '2px', lineHeight: 1 }}>
       <span style={{ color: '#f0f0f0' }}>N</span>
       <span style={{ color: '#f0f0f0' }}>N</span>
       <span style={{ color: '#cc1f2e' }}>B</span>
@@ -48,12 +48,12 @@ function SidebarContent({ onNavClick }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
       {/* Logo area */}
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+      <div style={{ padding: '20px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <Link to="/" onClick={onNavClick} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
           <img
             src="/logo.png"
             alt="NNBE"
-            style={{ height: '32px', width: '32px', borderRadius: '4px', objectFit: 'contain' }}
+            style={{ height: '48px', width: '48px', borderRadius: '8px', objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(204,31,46,0.3))' }}
             onError={e => { e.target.style.display = 'none' }}
           />
           <Wordmark />
@@ -140,7 +140,7 @@ export default function Sidebar() {
           <img
             src="/logo.png"
             alt="NNBE"
-            style={{ height: '32px', width: '32px', borderRadius: '4px', objectFit: 'contain' }}
+            style={{ height: '36px', width: '36px', borderRadius: '6px', objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(204,31,46,0.25))' }}
             onError={e => { e.target.style.display = 'none' }}
           />
           <Wordmark />

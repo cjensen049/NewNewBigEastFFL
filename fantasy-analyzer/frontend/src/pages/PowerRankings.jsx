@@ -54,7 +54,7 @@ function PanelHeader({ currentWeek, phaseKey, phaseLabel, weights }) {
 
   return (
     <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
         Power Rankings
       </span>
 

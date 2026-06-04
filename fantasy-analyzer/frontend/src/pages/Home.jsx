@@ -8,7 +8,7 @@ const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px
 
 function SectionLabel({ children }) {
   return (
-    <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '12px' }}>
+    <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>
       {children}
     </p>
   )
@@ -34,14 +34,22 @@ function Hero() {
           <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--brand-red)' }}>2021</span>
         </div>
 
-        {/* Two-line title */}
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 9vw, 44px)', letterSpacing: 'clamp(1px, 0.5vw, 3px)', lineHeight: 1, margin: 0 }}>
-          <div>
-            <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>The NEW </span>
-            <span style={{ color: 'var(--text-primary)' }}>NEW BIG EAST</span>
-          </div>
-          <div style={{ color: 'var(--brand-red)' }}>FANTASY FOOTBALL</div>
-        </h1>
+        {/* Logo + two-line title */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
+          <img
+            src="/logo.png"
+            alt="NNBE"
+            className="hero-logo"
+            onError={e => { e.target.style.display = 'none' }}
+          />
+          <h1 className="hero-title" style={{ fontFamily: 'var(--font-display)', margin: 0 }}>
+            <div>
+              <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>The NEW </span>
+              <span style={{ color: 'var(--text-primary)' }}>NEW BIG EAST</span>
+            </div>
+            <div style={{ color: 'var(--brand-red)' }}>FANTASY FOOTBALL</div>
+          </h1>
+        </div>
       </div>
     </div>
   )
@@ -91,8 +99,8 @@ function ExploreSection() {
               {card.icon}
             </div>
 
-            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>{card.title}</p>
-            <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>{card.description}</p>
+            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>{card.title}</p>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>{card.description}</p>
 
             <span className="card-arrow">↗</span>
           </Link>
@@ -154,7 +162,7 @@ function StandingsPanel() {
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       {/* Panel header */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Current Standings</span>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Current Standings</span>
         {currentSeason && (
           <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
             {currentSeason}
@@ -243,7 +251,7 @@ function CalendarPanel() {
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       {/* Panel header */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Season Calendar</span>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Season Calendar</span>
         <span style={{ background: 'rgba(35,134,54,0.15)', color: 'var(--green)', border: '1px solid rgba(63,185,80,0.25)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
           {currentSeason}
         </span>
@@ -276,7 +284,7 @@ function CalendarPanel() {
 
               {/* Icon + name */}
               <span style={{ fontSize: '14px', flexShrink: 0 }}>{TYPE_ICON[e.type] ?? '📅'}</span>
-              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0 }}>{e.title}</span>
+              <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0 }}>{e.title}</span>
 
               {/* Date */}
               {dateStr && <span style={{ fontSize: '11px', color: 'var(--text-faint)', flexShrink: 0 }}>{dateStr}</span>}
@@ -329,8 +337,8 @@ function ResourcesSection() {
           >
             <span style={{ position: 'absolute', top: '12px', right: '14px', fontSize: '13px', color: 'var(--text-faint)' }}>↗</span>
             <div style={{ fontSize: '20px', marginBottom: '8px' }}>{link.icon}</div>
-            <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>{link.title}</p>
-            <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{link.desc}</p>
+            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>{link.title}</p>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{link.desc}</p>
           </a>
         ))}
       </div>
