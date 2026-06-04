@@ -50,6 +50,13 @@ def main() -> None:
         help="Fetch DynastyProcess player + pick values and refresh Sleeper rosters",
     )
 
+    # scrape-dynasty-sources
+    dynasty_src_p = sub.add_parser(
+        "scrape-dynasty-sources",
+        help="Fetch KTC, FantasyCalc, and Dynasty Daddy roster values concurrently",
+    )
+    dynasty_src_p.add_argument("--season", type=int, default=None, help="Season year (default: most recent)")
+
     # report
     report_p = sub.add_parser("report", help="Show analysis reports")
     report_sub = report_p.add_subparsers(dest="report_type", required=True)
@@ -87,6 +94,9 @@ def main() -> None:
 
     elif args.command == "scrape-dynasty":
         _run_scrape_dynasty(db_path, cfg)
+
+    elif args.command == "scrape-dynasty-sources":
+        _run_scrape_dynasty_sources(args, db_path, cfg)
 
     elif args.command == "report":
         con = sqlite3.connect(db_path)
@@ -163,6 +173,58 @@ def _run_scrape_dynasty(db_path: str, cfg: dict) -> None:
         print(f"  Dynasty values: {players_stored} players, {picks_stored} picks stored")
     finally:
         con.close()
+
+
+def _run_scrape_dynasty_sources(args: argparse.Namespace, db_path: str, cfg: dict) -> None:
+    """Fetch KTC, FantasyCalc, and Dynasty Daddy roster values concurrently."""
+    from fantasy_analyzer.rankings.dynasty_sources import fetch_all_sources
+
+    con = sqlite3.connect(db_path)
+    try:
+        season = getattr(args, "season", None)
+        if not season:
+            row = con.execute("SELECT MAX(season) FROM leagues").fetchone()
+            season = row[0] if row and row[0] else datetime.now(timezone.utc).year
+
+        row = con.execute(
+            "SELECT league_id FROM leagues WHERE season = ? ORDER BY rowid DESC LIMIT 1",
+            (season,),
+        ).fetchone()
+        if not row:
+            print(f"No league found for season {season}", file=sys.stderr)
+            sys.exit(1)
+        league_id = row[0]
+    finally:
+        con.close()
+
+    players_cache = cfg.get("settings", {}).get("player_cache_path", "data/players.json")
+    print(f"Fetching dynasty sources for season {season} (league {league_id})…")
+
+    results = asyncio.run(
+        fetch_all_sources(
+            league_id=league_id,
+            season=season,
+            db_path=db_path,
+            players_cache_path=players_cache,
+        )
+    )
+
+    if not results:
+        print("All sources failed — check errors.md for details", file=sys.stderr)
+        sys.exit(1)
+
+    for r in results:
+        print(f"\n  [{r['source']}] fetched at {r['fetched_at']}")
+        ranked = sorted(r["owner_ranks"].items(), key=lambda x: x[1])
+        con2 = sqlite3.connect(db_path)
+        try:
+            name_map = dict(con2.execute("SELECT user_id, canonical_name FROM owners").fetchall())
+        finally:
+            con2.close()
+        for uid, rank in ranked:
+            name = name_map.get(uid, uid)
+            value = r["owner_values"].get(uid, 0)
+            print(f"    {rank:2}. {name:<12} {value:,.0f}")
 
 
 def _run_report(args: argparse.Namespace, con: sqlite3.Connection) -> None:
