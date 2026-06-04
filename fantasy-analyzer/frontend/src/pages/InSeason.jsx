@@ -150,7 +150,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
         )}
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', minWidth: '480px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '480px' }}>
           <thead>
             <tr>
               {th('owner',        'Owner')}
@@ -203,8 +203,8 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
                     <span style={{ ...simWl, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', fontWeight: 600 }}>{r.sim_wins}-{r.sim_losses}</span>
                   </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', color: diffColor }}>{diffStr}</td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: verdictColor(verdict), fontWeight: 500, fontSize: '11px' }}>{verdict ?? '—'}</td>
-                  <td style={{ padding: '8px 10px', fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: verdictColor(verdict), fontWeight: 500 }}>{verdict ?? '—'}</td>
+                  <td style={{ padding: '8px 10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     {r.next_opponent ?? <span style={{ color: 'var(--text-faint)' }}>—</span>}
                   </td>
                 </tr>
@@ -241,7 +241,7 @@ function RaceToBottom({ rows }) {
         <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Race to the Bottom</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
           <thead>
             <tr>
               {th('draft_pick',  '#')}

@@ -632,12 +632,12 @@ function WaiversTab() {
                   const rowStyle = WAV_POS_ROW[b.position] ?? {}
                   return (
                     <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', ...rowStyle }}>
-                      <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>{b.player}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-primary)', fontWeight: 500 }}>{b.player}</td>
                       <td style={{ padding: '8px 12px' }}><WavPosBadge pos={b.position} /></td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)' }}>{b.owner}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.season}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.week}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--green)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>${b.amount}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)' }}>{b.owner}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.season}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.week}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--green)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>${b.amount}</td>
                     </tr>
                   )
                 })}
@@ -703,11 +703,11 @@ function WaiversTab() {
                   const rowStyle = WAV_POS_ROW[p.position] ?? {}
                   return (
                     <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', ...rowStyle }}>
-                      <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>{p.player}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-primary)', fontWeight: 500 }}>{p.player}</td>
                       <td style={{ padding: '8px 12px' }}><WavPosBadge pos={p.position} /></td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.adds}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.drops}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.total_moves}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.adds}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.drops}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.total_moves}</td>
                     </tr>
                   )
                 })}

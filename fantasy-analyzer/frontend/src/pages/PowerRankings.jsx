@@ -140,7 +140,7 @@ export default function PowerRankings({ season }) {
       <PanelHeader currentWeek={currentWeek} phaseKey={phaseKey} phaseLabel={phaseLabel} weights={weights} />
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', minWidth: '480px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '480px' }}>
           <thead>
             <tr>
               <TH>#</TH>

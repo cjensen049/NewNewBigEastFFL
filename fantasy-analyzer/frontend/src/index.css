@@ -324,8 +324,8 @@ body {
 /* ─── Hero logo responsive size ──────────────────────────────────────────────── */
 
 .hero-logo {
-  width: 144px;
-  height: 144px;
+  width: 200px;
+  height: 200px;
   border-radius: 16px;
   object-fit: contain;
   filter: drop-shadow(0 0 16px rgba(204,31,46,0.4));
