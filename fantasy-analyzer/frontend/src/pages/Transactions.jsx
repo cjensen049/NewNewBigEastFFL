@@ -519,9 +519,12 @@ function TradeLogTab() {
     season: t.season,
     week: t.week,
     teams: t.owners.join(' & '),
-    players: t.players.map(p => `${p.name} (${p.from_owner} → ${p.to_owner})`).join(', ') || '—',
-    picks: t.picks.map(p => `${p.name} (${p.from_owner} → ${p.to_owner})`).join(', ') || '—',
+    _players: t.players,
+    _picks: t.picks,
   }))
+
+  const faint = { color: 'var(--text-faint)' }
+  const muted = { color: 'var(--text-muted)', fontSize: '13px' }
 
   return (
     <div>
@@ -559,11 +562,38 @@ function TradeLogTab() {
             rows={rows}
             maxHeight="540px"
             columns={[
-              { key: 'season',  label: 'Season' },
-              { key: 'week',    label: 'Week',    align: 'right' },
-              { key: 'teams',   label: 'Teams' },
-              { key: 'players', label: 'Players' },
-              { key: 'picks',   label: 'Picks' },
+              { key: 'season',   label: 'Season' },
+              { key: 'week',     label: 'Week',    align: 'right' },
+              { key: 'teams',    label: 'Teams' },
+              {
+                key: '_players',
+                label: 'Players',
+                sortable: false,
+                render: (val) => !val?.length
+                  ? <span style={faint}>—</span>
+                  : <div style={{ whiteSpace: 'normal', lineHeight: 1.8 }}>
+                      {val.map((p, i) => (
+                        <div key={i}>
+                          <span style={{ fontWeight: 500 }}>{p.name}</span>
+                          <span style={{ ...muted, marginLeft: '6px' }}>{p.from_owner} → {p.to_owner}</span>
+                        </div>
+                      ))}
+                    </div>
+              },
+              {
+                key: '_picks',
+                label: 'Picks',
+                sortable: false,
+                render: (val) => !val?.length
+                  ? <span style={faint}>—</span>
+                  : <div style={{ whiteSpace: 'normal', lineHeight: 1.8 }}>
+                      {val.map((p, i) => (
+                        <div key={i} style={muted}>
+                          {p.name} → {p.to_owner}
+                        </div>
+                      ))}
+                    </div>
+              },
             ]}
           />
         </>

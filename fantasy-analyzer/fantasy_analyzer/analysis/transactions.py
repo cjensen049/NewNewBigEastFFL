@@ -152,7 +152,7 @@ def get_trade_log(con: sqlite3.Connection) -> list[Trade]:
             orig_owner = roster_map.get((league_id, orig_rid), f"Roster {orig_rid}")
             from_owner = roster_map.get((league_id, from_rid), f"Roster {from_rid}")
             to_owner = roster_map.get((league_id, to_rid), f"Roster {to_rid}")
-            label = f"{pick_season} R{round_} ({orig_owner}'s pick)"
+            label = f"{pick_season} R{round_} ({orig_owner})"
             trade.assets.append(TradeAsset("pick", f"{pick_season}_{round_}_{orig_rid}", label, from_owner, to_owner))
 
         trades.append(trade)
