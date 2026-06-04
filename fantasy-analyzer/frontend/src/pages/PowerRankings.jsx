@@ -140,7 +140,7 @@ export default function PowerRankings({ season }) {
       <PanelHeader currentWeek={currentWeek} phaseKey={phaseKey} phaseLabel={phaseLabel} weights={weights} />
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '480px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', minWidth: '480px' }}>
           <thead>
             <tr>
               <TH>#</TH>
@@ -182,7 +182,7 @@ export default function PowerRankings({ season }) {
 
                   {/* Power score */}
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', letterSpacing: '0.5px', color: 'var(--text-primary)', lineHeight: 1 }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', letterSpacing: '0.5px', color: 'var(--text-primary)', lineHeight: 1 }}>
                       {r.power_score.toFixed(1)}
                     </span>
                   </td>
