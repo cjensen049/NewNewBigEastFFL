@@ -55,30 +55,30 @@ function Hero() {
   )
 }
 
-// ─── Explore cards ────────────────────────────────────────────────────────────
+// ─── Quick links ──────────────────────────────────────────────────────────────
 
-const NAV_CARDS = [
+const QUICK_LINKS = [
   {
-    to: '/league',
-    icon: '🏆',
-    title: 'League History',
-    description: 'All-time standings, records, head-to-head matchups, schedule luck, and full draft history.',
+    to: '/league?tab=rankings',
+    icon: '📈',
+    title: 'Power Rankings',
+    description: 'Weekly standings by scoring, record, and schedule strength — plus long-term dynasty rankings.',
     accentStyle: { background: 'var(--brand-navy)' },
     iconBg: 'rgba(26,58,107,0.3)',
   },
   {
-    to: '/owner',
-    icon: '👤',
-    title: 'Owner Dashboard',
-    description: 'Individual profiles — career summary, draft picks, trade activity, waiver trends, and rivalry matchups.',
+    to: '/league?tab=inseason',
+    icon: '🏆',
+    title: 'Playoff Picture',
+    description: 'Live playoff odds, clinching scenarios, race to the bottom, and schedule luck scores.',
     accentStyle: { background: 'var(--brand-red)' },
     iconBg: 'rgba(204,31,46,0.15)',
   },
   {
     to: '/transactions',
     icon: '🔄',
-    title: 'Transaction History',
-    description: 'Trade timelines, waiver wire activity, and transaction patterns across all seasons.',
+    title: 'Trade Log',
+    description: 'Full trade history across all seasons — players and picks exchanged, by owner and week.',
     accentStyle: { background: 'linear-gradient(to right, var(--brand-navy), var(--brand-red))' },
     iconBg: 'rgba(26,58,107,0.25)',
   },
@@ -87,9 +87,9 @@ const NAV_CARDS = [
 function ExploreSection() {
   return (
     <div style={{ padding: '28px 0 24px' }}>
-      <SectionLabel>Explore</SectionLabel>
+      <SectionLabel>Quick Links</SectionLabel>
       <div className="home-explore-grid">
-        {NAV_CARDS.map(card => (
+        {QUICK_LINKS.map(card => (
           <Link key={card.to} to={card.to} className="explore-card">
             {/* Top accent bar */}
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', borderRadius: '10px 10px 0 0', ...card.accentStyle }} />
