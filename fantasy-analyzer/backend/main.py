@@ -6,6 +6,8 @@ import os
 import sqlite3
 from pathlib import Path
 
+import yaml
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -23,8 +25,25 @@ app = FastAPI(title="NNBE Fantasy Football API", version="1.0.0")
 
 @app.on_event("startup")
 async def run_migrations() -> None:
-    """Apply any pending DB schema migrations on every server start."""
+    """Apply pending DB migrations and sync owner metadata from config on every start."""
     await apply_migrations(str(DB_PATH))
+
+    # Sync joined_season / departed_after from config so these fields are always
+    # populated without requiring a full ingest run after config changes.
+    cfg_path = BASE_DIR / "config.yaml"
+    if cfg_path.exists():
+        with open(cfg_path) as f:
+            cfg = yaml.safe_load(f)
+        con = sqlite3.connect(str(DB_PATH))
+        try:
+            for o in cfg.get("owners", []):
+                con.execute(
+                    "UPDATE owners SET joined_season = ?, departed_after = ? WHERE user_id = ?",
+                    (o.get("joined_season"), o.get("departed_after"), o["user_id"]),
+                )
+            con.commit()
+        finally:
+            con.close()
 
 # Allow the Vite dev server (port 5173) to call the API during development.
 # In production, React is served by FastAPI itself so CORS is not needed,

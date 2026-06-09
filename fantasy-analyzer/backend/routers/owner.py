@@ -173,7 +173,26 @@ def owner_profile(name: str, con: sqlite3.Connection = Depends(get_db)) -> dict:
                 worst_finish = finish
 
     if not season_rows:
-        return {"error": f"No data found for '{name}'"}
+        # Owner exists but has no completed season data yet (e.g. new owner pre-season)
+        all_trades = get_trade_log(con)
+        total_trades = sum(1 for t in all_trades if name in t.owners)
+        return {
+            "owner": name,
+            "joined_season": joined_season,
+            "departed_after": departed_after,
+            "career": {
+                "record": "—",
+                "win_pct": 0.0,
+                "avg_ppg": 0.0,
+                "playoff_appearances": 0,
+                "total_seasons": 0,
+                "championships": 0,
+                "total_trades": total_trades,
+                "top_scorer": "—",
+                "best_finish": "—",
+            },
+            "seasons": [],
+        }
 
     overall_win_pct = (total_wins + 0.5 * total_ties) / total_games if total_games else 0.0
 

@@ -156,15 +156,15 @@ export default function DynastyRankings({ season }) {
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '400px', tableLayout: 'fixed' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '400px' }}>
           <thead>
             <tr>
               <TH width="36px">#</TH>
-              <TH width="130px">Owner</TH>
+              <TH>Owner</TH>
               <TH align="right" title="Composite dynasty score (0–100)">Score</TH>
-              <TH title="Roster value from DynastyProcess SuperFlex values, normalised 0–100" width="120px">Roster</TH>
-              <TH title="Future draft pick capital: picks owned × tier value, normalised 0–100" width="120px">Capital</TH>
-              <TH title="Value-weighted avg age of top 15 players vs. dynasty prime (25). Younger = higher score, normalised 0–100" width="120px">Age</TH>
+              <TH title="Roster value from DynastyProcess SuperFlex values, normalised 0–100">Roster</TH>
+              <TH title="Future draft pick capital: picks owned × tier value, normalised 0–100">Capital</TH>
+              <TH title="Value-weighted avg age of top 15 players vs. dynasty prime (25). Younger = higher score, normalised 0–100">Age</TH>
             </tr>
           </thead>
           <tbody>
