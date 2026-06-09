@@ -61,6 +61,13 @@ def owner_profile(name: str, con: sqlite3.Connection = Depends(get_db)) -> dict:
     """
     seasons = get_available_seasons(con)
 
+    # Load owner's active range from DB
+    owner_meta = con.execute(
+        "SELECT joined_season, departed_after FROM owners WHERE canonical_name = ?", (name,)
+    ).fetchone()
+    joined_season = owner_meta[0] if owner_meta else None
+    departed_after = owner_meta[1] if owner_meta else None
+
     season_rows = []
     total_wins = total_losses = total_ties = total_games = 0
     total_pts = total_pts_against = 0.0
@@ -68,12 +75,22 @@ def owner_profile(name: str, con: sqlite3.Connection = Depends(get_db)) -> dict:
     best_finish = worst_finish = None
 
     for season in sorted(seasons):
+        # Skip seasons outside the owner's active window
+        if joined_season is not None and season < joined_season:
+            continue
+        if departed_after is not None and season > departed_after:
+            continue
+
         data = get_season_breakdown(con, season)
         if not data:
             continue
 
         rec = next((r for r in data["regular_season"] if r.canonical_name == name), None)
         if not rec:
+            continue
+
+        # Skip pre-season placeholder rows (no games played, no points scored)
+        if rec.wins == 0 and rec.losses == 0 and rec.points_for == 0:
             continue
 
         seed = next(
@@ -157,6 +174,8 @@ def owner_profile(name: str, con: sqlite3.Connection = Depends(get_db)) -> dict:
 
     return {
         "owner": name,
+        "joined_season": joined_season,
+        "departed_after": departed_after,
         "career": career,
         "seasons": season_rows,
     }

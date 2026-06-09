@@ -551,7 +551,8 @@ export default function Owner() {
   if (isLoading) return <LoadingSpinner />
 
   const seasons = profileData?.seasons ?? []
-  const memberSince = seasons.length > 0 ? Math.min(...seasons.map(s => s.season)) : null
+  const memberSince = profileData?.joined_season ?? (seasons.length > 0 ? Math.min(...seasons.map(s => s.season)) : null)
+  const departedAfter = profileData?.departed_after ?? null
 
   return (
     <div>
@@ -594,6 +595,11 @@ export default function Owner() {
               <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginTop: '4px' }}>
                 {memberSince ? `Member since ${memberSince}` : ''}
                 {memberSince && seasons.length ? ` · ${seasons.length} season${seasons.length !== 1 ? 's' : ''}` : ''}
+                {departedAfter ? (
+                  <span style={{ marginLeft: '8px', background: 'rgba(204,31,46,0.12)', color: 'var(--brand-red)', border: '1px solid rgba(204,31,46,0.25)', borderRadius: '4px', padding: '1px 7px', fontSize: '11px', fontWeight: 600 }}>
+                    Departed after {departedAfter}
+                  </span>
+                ) : null}
               </p>
             </div>
           </div>

@@ -11,7 +11,9 @@ PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS owners (
     user_id         TEXT PRIMARY KEY,
     canonical_name  TEXT NOT NULL,
-    sleeper_username TEXT
+    sleeper_username TEXT,
+    joined_season   INTEGER,
+    departed_after  INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS leagues (
@@ -280,3 +282,15 @@ async def apply_migrations(db_path: str) -> None:
             )
         """)
         await db.commit()
+
+        try:
+            await db.execute("ALTER TABLE owners ADD COLUMN joined_season INTEGER")
+            await db.commit()
+        except Exception:
+            pass  # column already exists
+
+        try:
+            await db.execute("ALTER TABLE owners ADD COLUMN departed_after INTEGER")
+            await db.commit()
+        except Exception:
+            pass  # column already exists

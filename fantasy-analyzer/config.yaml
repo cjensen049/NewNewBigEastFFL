@@ -35,6 +35,7 @@ owners:
     canonical_name: "John"
     sleeper_username: "JWalsh883"
     active_through: 2026
+    joined_season: 2026
   - user_id: "685556523568541696"
     canonical_name: "Rick"
     sleeper_username: "YOURGODKING"
@@ -71,6 +72,7 @@ owners:
     canonical_name: "Ian"
     sleeper_username: "itblumenfeld"
     active_through: 2025
+    departed_after: 2025
 
 settings:
   db_path: "data/league.db"

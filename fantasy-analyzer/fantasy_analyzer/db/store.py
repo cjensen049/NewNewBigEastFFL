@@ -30,17 +30,21 @@ async def upsert_owners(db: aiosqlite.Connection, owners_cfg: list[dict]) -> Non
     """Write canonical owner records from config."""
     await db.executemany(
         """
-        INSERT INTO owners (user_id, canonical_name, sleeper_username)
-        VALUES (:user_id, :canonical_name, :sleeper_username)
+        INSERT INTO owners (user_id, canonical_name, sleeper_username, joined_season, departed_after)
+        VALUES (:user_id, :canonical_name, :sleeper_username, :joined_season, :departed_after)
         ON CONFLICT(user_id) DO UPDATE SET
             canonical_name   = excluded.canonical_name,
-            sleeper_username = excluded.sleeper_username
+            sleeper_username = excluded.sleeper_username,
+            joined_season    = excluded.joined_season,
+            departed_after   = excluded.departed_after
         """,
         [
             {
                 "user_id": o["user_id"],
                 "canonical_name": o["canonical_name"],
                 "sleeper_username": o.get("sleeper_username"),
+                "joined_season": o.get("joined_season"),
+                "departed_after": o.get("departed_after"),
             }
             for o in owners_cfg
         ],
