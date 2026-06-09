@@ -65,7 +65,7 @@ export default function DynastyRankings({ season }) {
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Dynasty Rankings</span>
         </div>
         <p style={{ padding: '24px 16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
-          Dynasty rankings available after the first weekly data refresh.
+          Dynasty rankings refreshed 4× per year: post rookie draft, Week 1, post trade deadline, and post championship.
         </p>
       </div>
     )
@@ -100,7 +100,7 @@ export default function DynastyRankings({ season }) {
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', minWidth: '560px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '560px' }}>
           <thead>
             <tr>
               <TH width="36px">#</TH>
