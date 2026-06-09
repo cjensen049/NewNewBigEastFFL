@@ -12,8 +12,10 @@
  * Props:
  *   season  {number} — active season year
  */
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
+import PowerRankingsExplainer from '../components/PowerRankingsExplainer'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -97,6 +99,34 @@ function Trend({ value, isFirstWeek }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+// ─── How it works toggle ──────────────────────────────────────────────────────
+
+function HowItWorks() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: 'var(--text-faint)', fontSize: '12px', fontWeight: 500,
+          padding: '4px 0', marginBottom: open ? '14px' : 0,
+          transition: 'color 0.15s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.color = 'var(--text-muted)'}
+        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}
+      >
+        <span style={{ fontSize: '10px', display: 'inline-block', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+        How rankings are calculated
+      </button>
+      {open && <PowerRankingsExplainer />}
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function PowerRankings({ season }) {
   const { data, isLoading } = useQuery({
     queryKey: ['power-rankings', season],
@@ -114,12 +144,15 @@ export default function PowerRankings({ season }) {
 
   if (rows.length === 0) {
     return (
-      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
-        <PanelHeader currentWeek={0} phaseKey="early" phaseLabel="Early Season" weights={{ scoring: 0.25, record: 0.20, sos: 0.55 }} />
-        <p style={{ padding: '24px 16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
-          Power rankings available once the season begins.
-        </p>
-      </div>
+      <>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
+          <PanelHeader currentWeek={0} phaseKey="early" phaseLabel="Early Season" weights={{ scoring: 0.25, record: 0.20, sos: 0.55 }} />
+          <p style={{ padding: '24px 16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
+            Power rankings available once the season begins.
+          </p>
+        </div>
+        <HowItWorks />
+      </>
     )
   }
 
@@ -225,5 +258,7 @@ export default function PowerRankings({ season }) {
         </p>
       </div>
     </div>
+
+    <HowItWorks />
   )
 }
