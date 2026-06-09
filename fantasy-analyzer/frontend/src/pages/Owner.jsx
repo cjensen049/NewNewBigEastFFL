@@ -545,6 +545,12 @@ export default function Owner() {
     enabled: !!(selectedOwner ?? ownersData?.owners?.[0]),
   })
 
+  const { data: avatarsData } = useQuery({
+    queryKey: ['owner-avatars'],
+    queryFn: () => fetch('/api/owners/avatars').then(r => r.json()),
+    staleTime: Infinity,
+  })
+
   const owners = ownersData?.owners ?? []
   const activeOwner = selectedOwner ?? owners[0]
 
@@ -574,18 +580,30 @@ export default function Owner() {
 
           {/* Identity row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-            {/* Avatar circle */}
-            <div style={{
-              width: '48px', height: '48px', borderRadius: '50%',
-              border: '2px solid var(--border-mid)',
-              background: 'linear-gradient(135deg, var(--brand-navy), var(--brand-red))',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: '#fff', lineHeight: 1 }}>
-                {initials(activeOwner)}
-              </span>
-            </div>
+            {/* Avatar — Sleeper profile pic if available, initials fallback */}
+            {avatarsData?.avatars?.[activeOwner] ? (
+              <img
+                src={avatarsData.avatars[activeOwner]}
+                alt={activeOwner}
+                style={{
+                  width: '48px', height: '48px', borderRadius: '50%',
+                  border: '2px solid var(--border-mid)',
+                  objectFit: 'cover', flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '50%',
+                border: '2px solid var(--border-mid)',
+                background: 'linear-gradient(135deg, var(--brand-navy), var(--brand-red))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: '#fff', lineHeight: 1 }}>
+                  {initials(activeOwner)}
+                </span>
+              </div>
+            )}
 
             {/* Name + info */}
             <div>
