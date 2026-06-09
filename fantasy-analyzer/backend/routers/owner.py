@@ -52,6 +52,37 @@ def list_owners(con: sqlite3.Connection = Depends(get_db)) -> dict:
     return {"owners": [r[0] for r in rows]}
 
 
+@router.get("/avatars")
+def owner_avatars(con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """
+    Return Sleeper avatar URLs for all owners.
+    Results are cached in memory after the first call.
+    Avatar URL format: https://sleepercdn.com/avatars/thumbs/{avatar_id}
+    """
+    global _avatar_cache
+    if _avatar_cache:
+        return {"avatars": _avatar_cache}
+
+    owners = con.execute("SELECT user_id, canonical_name FROM owners").fetchall()
+    result: dict[str, str] = {}
+    for user_id, name in owners:
+        try:
+            resp = httpx.get(
+                f"https://api.sleeper.app/v1/user/{user_id}",
+                timeout=5,
+                verify=False,
+            )
+            resp.raise_for_status()
+            avatar = resp.json().get("avatar")
+            if avatar:
+                result[name] = f"https://sleepercdn.com/avatars/thumbs/{avatar}"
+        except Exception:
+            pass  # skip if Sleeper is unreachable
+
+    _avatar_cache = result
+    return {"avatars": result}
+
+
 @router.get("/{name}")
 def owner_profile(name: str, con: sqlite3.Connection = Depends(get_db)) -> dict:
     """
@@ -234,37 +265,6 @@ def owner_h2h(name: str, con: sqlite3.Connection = Depends(get_db)) -> dict:
 
     h2h_rows.sort(key=lambda r: -r["win_pct"])
     return {"owner": name, "h2h": h2h_rows}
-
-
-@router.get("/avatars")
-def owner_avatars(con: sqlite3.Connection = Depends(get_db)) -> dict:
-    """
-    Return Sleeper avatar URLs for all owners.
-    Results are cached in memory after the first call.
-    Avatar URL format: https://sleepercdn.com/avatars/thumbs/{avatar_id}
-    """
-    global _avatar_cache
-    if _avatar_cache:
-        return {"avatars": _avatar_cache}
-
-    owners = con.execute("SELECT user_id, canonical_name FROM owners").fetchall()
-    result: dict[str, str] = {}
-    for user_id, name in owners:
-        try:
-            resp = httpx.get(
-                f"https://api.sleeper.app/v1/user/{user_id}",
-                timeout=5,
-                verify=False,
-            )
-            resp.raise_for_status()
-            avatar = resp.json().get("avatar")
-            if avatar:
-                result[name] = f"https://sleepercdn.com/avatars/thumbs/{avatar}"
-        except Exception:
-            pass  # skip if Sleeper is unreachable
-
-    _avatar_cache = result
-    return {"avatars": result}
 
 
 @router.get("/{name}/top-players")
