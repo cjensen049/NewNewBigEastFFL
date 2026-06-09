@@ -144,6 +144,8 @@ function HowItWorks() {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function PowerRankings({ season }) {
+  const [expandedRank, setExpandedRank] = useState(null)
+
   const { data, isLoading } = useQuery({
     queryKey: ['power-rankings', season],
     queryFn: () => fetch(`/api/in-season/power-rankings/${season}`).then(r => r.json()),
@@ -172,8 +174,6 @@ export default function PowerRankings({ season }) {
   const phaseLabel    = display?.phase_label ?? 'Mid Season'
   const weights       = display?.weights ?? { scoring: 0.45, record: 0.40, sos: 0.15 }
   const displaySeason = isFallback ? season - 1 : season
-
-  const [expandedRank, setExpandedRank] = useState(null)
 
   if (rows.length === 0) {
     return (
