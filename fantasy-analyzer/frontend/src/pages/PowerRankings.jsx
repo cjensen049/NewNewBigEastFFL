@@ -51,7 +51,7 @@ function pct(w) { return Math.round(w * 100) + '%' }
 
 // ─── Panel header ─────────────────────────────────────────────────────────────
 
-function PanelHeader({ currentWeek, phaseKey, phaseLabel, weights }) {
+function PanelHeader({ currentWeek, phaseKey, phaseLabel, weights, isFallback, displaySeason }) {
   const pb = PHASE_BADGE[phaseKey] ?? PHASE_BADGE.mid
 
   return (
@@ -60,15 +60,23 @@ function PanelHeader({ currentWeek, phaseKey, phaseLabel, weights }) {
         Power Rankings
       </span>
 
-      {currentWeek > 0 && (
-        <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
-          WK {currentWeek}
+      {isFallback ? (
+        <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.3)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+          FINAL {displaySeason}
         </span>
+      ) : (
+        currentWeek > 0 && (
+          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+            WK {currentWeek}
+          </span>
+        )
       )}
 
-      <span style={{ background: pb.bg, color: pb.color, border: `1px solid ${pb.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px' }}>
-        {phaseLabel.toUpperCase()}
-      </span>
+      {!isFallback && (
+        <span style={{ background: pb.bg, color: pb.color, border: `1px solid ${pb.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px' }}>
+          {phaseLabel.toUpperCase()}
+        </span>
+      )}
 
       <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)' }}>
         Scoring {pct(weights.scoring)} · Record {pct(weights.record)} · SoS {pct(weights.sos)}
@@ -134,13 +142,28 @@ export default function PowerRankings({ season }) {
     enabled: !!season,
   })
 
-  if (isLoading) return <div style={{ padding: '20px 0' }}><LoadingSpinner /></div>
+  const currentRows = data?.rows ?? []
+  const noCurrentData = !isLoading && currentRows.length === 0
 
-  const rows        = data?.rows ?? []
-  const currentWeek = data?.current_week ?? 0
-  const phaseKey    = data?.phase ?? 'mid'
-  const phaseLabel  = data?.phase_label ?? 'Mid Season'
-  const weights     = data?.weights ?? { scoring: 0.45, record: 0.40, sos: 0.15 }
+  // When the new season hasn't started, fall back to the prior season's final rankings
+  const { data: prevData, isLoading: prevLoading } = useQuery({
+    queryKey: ['power-rankings', season - 1],
+    queryFn: () => fetch(`/api/in-season/power-rankings/${season - 1}`).then(r => r.json()),
+    enabled: noCurrentData && !!season,
+  })
+
+  if (isLoading || (noCurrentData && prevLoading)) {
+    return <div style={{ padding: '20px 0' }}><LoadingSpinner /></div>
+  }
+
+  const isFallback    = noCurrentData && (prevData?.rows ?? []).length > 0
+  const display       = isFallback ? prevData : data
+  const rows          = display?.rows ?? []
+  const currentWeek   = display?.current_week ?? 0
+  const phaseKey      = display?.phase ?? 'mid'
+  const phaseLabel    = display?.phase_label ?? 'Mid Season'
+  const weights       = display?.weights ?? { scoring: 0.45, record: 0.40, sos: 0.15 }
+  const displaySeason = isFallback ? season - 1 : season
 
   if (rows.length === 0) {
     return (
@@ -171,7 +194,12 @@ export default function PowerRankings({ season }) {
   return (
   <>
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
-      <PanelHeader currentWeek={currentWeek} phaseKey={phaseKey} phaseLabel={phaseLabel} weights={weights} />
+      <PanelHeader currentWeek={currentWeek} phaseKey={phaseKey} phaseLabel={phaseLabel} weights={weights} isFallback={isFallback} displaySeason={displaySeason} />
+      {isFallback && (
+        <div style={{ padding: '7px 14px', background: 'rgba(227,179,65,0.06)', borderBottom: '1px solid rgba(227,179,65,0.15)', fontSize: '11px', color: 'var(--text-faint)' }}>
+          Showing final {displaySeason} rankings — {season} rankings will appear once the season begins.
+        </div>
+      )}
 
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '480px' }}>
@@ -255,7 +283,9 @@ export default function PowerRankings({ season }) {
       {/* Footer note */}
       <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
         <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: 0 }}>
-          Playoff% via 10,000 Monte Carlo simulations · NNBE rules: top 4 by record, next 2 by points
+          {isFallback
+            ? `Final ${displaySeason} regular-season standings · Playoff% reflects end-of-season simulation`
+            : 'Playoff% via 10,000 Monte Carlo simulations · NNBE rules: top 4 by record, next 2 by points'}
         </p>
       </div>
     </div>
