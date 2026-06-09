@@ -235,10 +235,10 @@ export default function PowerRankings({ season }) {
               const isExpanded = expandedRank === r.rank
 
               const scoreItems = [
-                { key: 'scoring', label: 'Scoring',         value: r.scoring_score ?? 0 },
-                { key: 'record',  label: 'All-play Record', value: r.record_score  ?? 0 },
-                { key: 'sos',     label: 'Schedule',        value: r.sos_score     ?? 0 },
-                ...(r.roster_score != null ? [{ key: 'roster', label: 'Roster Quality', value: r.roster_score }] : []),
+                { key: 'scoring', label: 'Scoring',         value: r.scoring_score ?? 0, active: true },
+                { key: 'record',  label: 'All-play Record', value: r.record_score  ?? 0, active: true },
+                { key: 'sos',     label: 'Schedule',        value: r.sos_score     ?? 0, active: true },
+                { key: 'roster',  label: 'Roster Quality',  value: r.roster_score  ?? 0, active: r.roster_score != null },
               ]
 
               return (
@@ -312,31 +312,38 @@ export default function PowerRankings({ season }) {
                   {/* Expanded breakdown row */}
                   {isExpanded && (
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td colSpan={8} style={{ padding: '0 14px 12px 14px', background: 'var(--bg-page)' }}>
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                          gap: '8px 20px',
-                          paddingTop: '10px',
-                        }}>
-                          {scoreItems.map(item => (
-                            <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: '108px', flexShrink: 0 }}>
-                                {item.label}
-                              </span>
-                              <div style={{ flex: 1, height: '7px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden', minWidth: '60px' }}>
-                                <div style={{
-                                  width: `${item.value}%`,
-                                  height: '100%',
-                                  background: SCORE_COLORS[item.key],
-                                  borderRadius: '4px',
-                                }} />
+                      <td colSpan={8} style={{ padding: '10px 16px 14px', background: 'var(--bg-page)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+
+                          {/* Stacked component bars */}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '9px' }}>
+                            {scoreItems.map(item => (
+                              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: item.active ? SCORE_COLORS[item.key] : 'var(--text-faint)', width: '112px', flexShrink: 0 }}>
+                                  {item.label}
+                                </span>
+                                <div style={{ flex: 1, height: '7px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
+                                  {item.active && (
+                                    <div style={{ width: `${item.value}%`, height: '100%', background: SCORE_COLORS[item.key], borderRadius: '4px' }} />
+                                  )}
+                                </div>
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: item.active ? SCORE_COLORS[item.key] : 'var(--text-faint)', width: '32px', textAlign: 'right', flexShrink: 0 }}>
+                                  {item.active ? Math.round(item.value) : 'N/A'}
+                                </span>
                               </div>
-                              <span style={{ fontSize: '11px', fontWeight: 600, color: SCORE_COLORS[item.key], width: '26px', textAlign: 'right', flexShrink: 0 }}>
-                                {Math.round(item.value)}
-                              </span>
+                            ))}
+                          </div>
+
+                          {/* Composite power score */}
+                          <div style={{ flexShrink: 0, textAlign: 'center', paddingLeft: '20px', borderLeft: '1px solid var(--border)' }}>
+                            <div style={{ fontFamily: 'var(--font-display)', fontSize: '36px', color: 'var(--text-primary)', lineHeight: 1 }}>
+                              {(r.power_score ?? 0).toFixed(1)}
                             </div>
-                          ))}
+                            <div style={{ fontSize: '9px', letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)', marginTop: '5px' }}>
+                              Power Score
+                            </div>
+                          </div>
+
                         </div>
                       </td>
                     </tr>
