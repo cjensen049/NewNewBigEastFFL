@@ -487,6 +487,20 @@ function TradeTreeTab() {
 // Trade Log tab
 // ---------------------------------------------------------------------------
 
+// Groups players and picks by direction (from_owner → to_owner) for a single trade.
+// Returns an array of { from, to, players: string[], picks: string[] }.
+function groupTradeDirections(players, picks) {
+  const map = new Map()
+  const key = (p) => `${p.from_owner}|||${p.to_owner}`
+  const ensure = (p) => {
+    if (!map.has(key(p))) map.set(key(p), { from: p.from_owner, to: p.to_owner, players: [], picks: [] })
+    return map.get(key(p))
+  }
+  players.forEach(p => ensure(p).players.push(p.name))
+  picks.forEach(p => ensure(p).picks.push(p.name))
+  return [...map.values()]
+}
+
 function TradeLogTab() {
   const { data: ownersData } = useQuery({
     queryKey: ['owners-list'],
@@ -501,33 +515,60 @@ function TradeLogTab() {
   const owners = ownersData?.owners ?? []
   const seasons = seasonsData?.seasons ?? []
 
-  const [ownerFilter, setOwnerFilter] = useState('')
+  const [ownerFilter, setOwnerFilter]   = useState('')
   const [seasonFilter, setSeasonFilter] = useState('')
+  const [sortKey, setSortKey]           = useState('season')
+  const [sortDir, setSortDir]           = useState('desc')
 
   const params = new URLSearchParams()
-  if (ownerFilter) params.set('owner', ownerFilter)
+  if (ownerFilter)  params.set('owner',  ownerFilter)
   if (seasonFilter) params.set('season', seasonFilter)
 
   const { data, isLoading } = useQuery({
     queryKey: ['trade-log', ownerFilter, seasonFilter],
-    queryFn: () =>
-      fetch(`/api/transactions/trades?${params}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/transactions/trades?${params}`).then(r => r.json()),
   })
 
   const trades = data?.trades ?? []
-  const rows = trades.map(t => ({
-    season: t.season,
-    week: t.week,
-    teams: t.owners.join(' & '),
-    _players: t.players,
-    _picks: t.picks,
-  }))
 
-  const faint = { color: 'var(--text-faint)' }
-  const muted = { color: 'var(--text-muted)', fontSize: '13px' }
+  const sorted = [...trades].sort((a, b) => {
+    const cmp = sortKey === 'week'
+      ? (a.season - b.season || a.week - b.week)
+      : (a.season - b.season || a.week - b.week)
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  const TH = ({ children, colKey, align = 'left' }) => {
+    const active = sortKey === colKey
+    return (
+      <th
+        onClick={colKey ? () => handleSort(colKey) : undefined}
+        style={{
+          padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px',
+          textTransform: 'uppercase', background: 'var(--bg-page)', whiteSpace: 'nowrap',
+          borderBottom: '1px solid var(--border)', textAlign: align,
+          cursor: colKey ? 'pointer' : 'default', userSelect: 'none',
+          color: active ? 'var(--text-primary)' : 'var(--text-faint)',
+        }}
+      >
+        {children}
+        {colKey && (
+          <span style={{ marginLeft: '4px', opacity: active ? 1 : 0.4, fontSize: '9px' }}>
+            {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+          </span>
+        )}
+      </th>
+    )
+  }
 
   return (
     <div>
+      {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-5">
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-400">Season:</label>
@@ -553,49 +594,61 @@ function TradeLogTab() {
         </div>
       </div>
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : (
+      {isLoading ? <LoadingSpinner /> : (
         <>
-          <p className="text-sm text-gray-500 mb-3">{rows.length} trades</p>
-          <DataTable
-            rows={rows}
-            maxHeight="540px"
-            columns={[
-              { key: 'season',   label: 'Season' },
-              { key: 'week',     label: 'Week',    align: 'right' },
-              { key: 'teams',    label: 'Teams' },
-              {
-                key: '_players',
-                label: 'Players',
-                sortable: false,
-                render: (val) => !val?.length
-                  ? <span style={faint}>—</span>
-                  : <div style={{ whiteSpace: 'normal', lineHeight: 1.8 }}>
-                      {val.map((p, i) => (
-                        <div key={i}>
-                          <span style={{ fontWeight: 500 }}>{p.name}</span>
-                          <span style={{ ...muted, marginLeft: '6px' }}>{p.from_owner} → {p.to_owner}</span>
-                        </div>
-                      ))}
-                    </div>
-              },
-              {
-                key: '_picks',
-                label: 'Picks',
-                sortable: false,
-                render: (val) => !val?.length
-                  ? <span style={faint}>—</span>
-                  : <div style={{ whiteSpace: 'normal', lineHeight: 1.8 }}>
-                      {val.map((p, i) => (
-                        <div key={i} style={muted}>
-                          {p.name} → {p.to_owner}
-                        </div>
-                      ))}
-                    </div>
-              },
-            ]}
-          />
+          <p className="text-sm text-gray-500 mb-3">{sorted.length} trades</p>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+            <div style={{ overflowY: 'auto', maxHeight: '600px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
+                <thead>
+                  <tr>
+                    <TH colKey="season">Season</TH>
+                    <TH colKey="week" align="right">Wk</TH>
+                    <TH>Trade</TH>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((t, i) => {
+                    const dirs = groupTradeDirections(t.players, t.picks)
+                    return (
+                      <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', verticalAlign: 'top' }}>
+                        <td style={{ padding: '10px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t.season}</td>
+                        <td style={{ padding: '10px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{t.week}</td>
+                        <td style={{ padding: '8px 12px' }}>
+                          {dirs.map((dir, di) => (
+                            <div key={di} style={{
+                              paddingTop: di > 0 ? '8px' : 0,
+                              marginTop: di > 0 ? '8px' : 0,
+                              borderTop: di > 0 ? '1px solid var(--border)' : 'none',
+                            }}>
+                              {/* Direction header: From → To */}
+                              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                                <span style={{ color: '#5b8dd9' }}>{dir.from}</span>
+                                <span style={{ color: 'var(--text-faint)', margin: '0 6px' }}>→</span>
+                                <span style={{ color: 'var(--gold)' }}>{dir.to}</span>
+                              </div>
+                              {/* Players */}
+                              {dir.players.map((name, pi) => (
+                                <div key={pi} style={{ paddingLeft: '10px', fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.7 }}>
+                                  {name}
+                                </div>
+                              ))}
+                              {/* Picks — slightly muted, with pick icon */}
+                              {dir.picks.map((name, pi) => (
+                                <div key={pi} style={{ paddingLeft: '10px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                                  🏈 {name}
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </>
       )}
     </div>
