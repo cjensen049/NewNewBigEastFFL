@@ -115,7 +115,7 @@ export default function DynastyRankings({ season }) {
 
   if (rows.length === 0) {
     return (
-      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', maxWidth: '700px' }}>
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Dynasty Rankings</span>
         </div>
@@ -139,7 +139,7 @@ export default function DynastyRankings({ season }) {
   )
 
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', maxWidth: '700px' }}>
       {/* Panel header */}
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -156,11 +156,11 @@ export default function DynastyRankings({ season }) {
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '400px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '400px', tableLayout: 'fixed' }}>
           <thead>
             <tr>
               <TH width="36px">#</TH>
-              <TH>Owner</TH>
+              <TH width="130px">Owner</TH>
               <TH align="right" title="Composite dynasty score (0–100)">Score</TH>
               <TH title="Roster value from DynastyProcess SuperFlex values, normalised 0–100" width="120px">Roster</TH>
               <TH title="Future draft pick capital: picks owned × tier value, normalised 0–100" width="120px">Capital</TH>
