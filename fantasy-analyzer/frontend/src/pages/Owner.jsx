@@ -173,7 +173,7 @@ function CareerSummaryTab({ owner }) {
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Season by Season</span>
-          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
             {seasons.length} seasons
           </span>
         </div>
@@ -185,7 +185,7 @@ function CareerSummaryTab({ owner }) {
                 {['Season', 'Seed', 'W-L', 'Win%', 'Pts For', 'Pts Vs', 'PPG', 'Finish'].map((col, i) => (
                   <th key={col} style={{
                     padding: '8px 12px',
-                    fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase',
+                    fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase',
                     color: 'var(--text-faint)', textAlign: i === 0 ? 'left' : 'right',
                     whiteSpace: 'nowrap',
                   }}>

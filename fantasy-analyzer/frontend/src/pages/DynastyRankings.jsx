@@ -70,7 +70,7 @@ const FORMULA_CARDS = [
 function FormulaFooter() {
   return (
     <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
-      <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: '0 0 8px' }}>
+      <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: '0 0 8px' }}>
         How it's calculated
       </p>
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -84,7 +84,7 @@ function FormulaFooter() {
           }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '5px' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: c.color }}>{c.label}</span>
-              <span style={{ fontSize: '10px', fontWeight: 600, color: c.color, opacity: 0.8 }}>{c.weight}</span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: c.color, opacity: 0.8 }}>{c.weight}</span>
             </div>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
               {c.desc}
@@ -92,7 +92,7 @@ function FormulaFooter() {
           </div>
         ))}
       </div>
-      <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: '8px 0 0' }}>
+      <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '8px 0 0' }}>
         All three scores normalised 0–100 within NNBE, then combined. Values via DynastyProcess · refreshed 4× per year.
       </p>
     </div>
@@ -129,7 +129,7 @@ export default function DynastyRankings({ season }) {
 
   const TH = ({ children, align = 'left', title, width }) => (
     <th title={title} style={{
-      padding: '8px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px',
+      padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px',
       textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)',
       borderBottom: '1px solid var(--border)', textAlign: align, whiteSpace: 'nowrap',
       ...(width ? { width } : {}),
@@ -146,7 +146,7 @@ export default function DynastyRankings({ season }) {
           Dynasty Rankings
         </span>
         {dataDate && (
-          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
             {dataDate}
           </span>
         )}
@@ -174,7 +174,7 @@ export default function DynastyRankings({ season }) {
                 <tr key={r.rank} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
                   {/* Rank */}
                   <td style={{ padding: '8px 10px' }}>
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, background: rs.bg, color: rs.text }}>
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, background: rs.bg, color: rs.text }}>
                       {r.rank}
                     </div>
                   </td>

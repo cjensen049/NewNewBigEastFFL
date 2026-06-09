@@ -60,7 +60,7 @@ const PHASES = [
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px',
+      fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px',
       textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '10px',
     }}>
       {children}
@@ -167,7 +167,7 @@ function ComponentCards() {
                 border: `1px solid ${col.border}`,
                 borderRadius: '4px',
                 padding: '2px 7px',
-                fontSize: '10px',
+                fontSize: '11px',
                 fontWeight: 600,
                 letterSpacing: '0.3px',
               }}>
@@ -195,7 +195,7 @@ function PhaseTable() {
     <th style={{
       padding: '8px 12px',
       textAlign: 'left',
-      fontSize: '10px',
+      fontSize: '11px',
       fontWeight: 600,
       letterSpacing: '1px',
       textTransform: 'uppercase',
@@ -225,7 +225,7 @@ function PhaseTable() {
                 <tr key={phase.label} style={{ borderBottom: i < PHASES.length - 1 ? '1px solid var(--border)' : 'none' }}>
                   <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{phase.label}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-faint)', marginTop: '2px' }}>{phase.weeks}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>{phase.weeks}</div>
                   </td>
                   {cols.map(c => (
                     <td key={c.id} style={{ padding: '10px 12px', minWidth: '120px', verticalAlign: 'middle' }}>
@@ -238,7 +238,7 @@ function PhaseTable() {
           </table>
         </div>
         <div style={{ padding: '7px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-page)' }}>
-          <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: 0 }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
             When FantasyPros projections are unavailable, Roster weight redistributes proportionally to Schedule Strength.
           </p>
         </div>

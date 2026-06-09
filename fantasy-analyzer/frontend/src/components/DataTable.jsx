@@ -39,7 +39,7 @@ export default function DataTable({ rows, columns, maxHeight = '420px', defaultS
                   onClick={canSort ? () => handleSort(col.key) : undefined}
                   style={{
                     padding: '8px 12px',
-                    fontSize: '10px',
+                    fontSize: '11px',
                     fontWeight: 600,
                     letterSpacing: '1px',
                     textTransform: 'uppercase',

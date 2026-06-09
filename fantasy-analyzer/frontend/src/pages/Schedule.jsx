@@ -98,7 +98,7 @@ function DivisionPreview({ teams, prevSeason, nextSeason }) {
   return (
     <div style={{ marginBottom: '28px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginBottom: '12px' }}>
-        <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: 0 }}>
+        <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: 0 }}>
           {nextSeason} Division Preview
         </p>
         <span style={{ fontSize: '11px', color: 'var(--text-faint)', fontStyle: 'italic' }}>
@@ -112,8 +112,8 @@ function DivisionPreview({ teams, prevSeason, nextSeason }) {
           return (
             <div key={di} style={{ background: 'var(--bg-surface)', border: `1px solid ${d.border}`, borderRadius: '10px', overflow: 'hidden' }}>
               <div style={{ padding: '8px 12px', background: d.hdr, borderBottom: `1px solid ${d.border}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: d.text }}>{d.label}</span>
-                <span style={{ fontSize: '10px', color: d.text, opacity: 0.65 }}>{d.range}</span>
+                <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: d.text }}>{d.label}</span>
+                <span style={{ fontSize: '11px', color: d.text, opacity: 0.65 }}>{d.range}</span>
               </div>
               {div.map((team, ti) => (
                 <div key={ti} style={{
@@ -121,7 +121,7 @@ function DivisionPreview({ teams, prevSeason, nextSeason }) {
                   padding: '7px 12px',
                   borderBottom: ti < div.length - 1 ? '1px solid var(--border)' : 'none',
                 }}>
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: d.text, width: '22px', flexShrink: 0 }}>{team.finish}.</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: d.text, width: '22px', flexShrink: 0 }}>{team.finish}.</span>
                   <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{team.owner}</span>
                 </div>
               ))}
@@ -147,7 +147,7 @@ const SEP_LEFT = new Set([3, 11])
 function ScheduleGrid({ teams, oppByTeam, nextSeason }) {
   const thBase = {
     padding: '5px 4px',
-    fontSize: '10px',
+    fontSize: '11px',
     fontWeight: 700,
     textAlign: 'center',
     borderBottom: '1px solid var(--border)',
@@ -156,7 +156,7 @@ function ScheduleGrid({ teams, oppByTeam, nextSeason }) {
 
   return (
     <div style={{ marginBottom: '8px' }}>
-      <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '6px' }}>
+      <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '6px' }}>
         {nextSeason} Projected Schedule
       </p>
       <p style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '14px' }}>
@@ -192,7 +192,7 @@ function ScheduleGrid({ teams, oppByTeam, nextSeason }) {
               </tr>
               {/* Week numbers */}
               <tr style={{ background: 'var(--bg-page)' }}>
-                <th style={{ padding: '6px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
+                <th style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
                   Team
                 </th>
                 {Array.from({ length: 14 }, (_, wi) => (
@@ -224,7 +224,7 @@ function ScheduleGrid({ teams, oppByTeam, nextSeason }) {
                   >
                     {/* Team label */}
                     <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 700, color: dc.text, marginRight: '6px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: dc.text, marginRight: '6px' }}>
                         {ordinal(team.finish)}
                       </span>
                       <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>

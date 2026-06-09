@@ -79,7 +79,7 @@ function StandingsTab() {
             <thead>
               <tr style={{ background: 'var(--bg-page)' }}>
                 {['#', 'Owner', 'Seasons', 'W-L', 'Win%', 'Total Pts', 'PPG', 'Playoffs', 'Titles'].map((col, i) => (
-                  <th key={col} style={{ padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i <= 1 ? 'left' : 'right', whiteSpace: 'nowrap' }}>
+                  <th key={col} style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i <= 1 ? 'left' : 'right', whiteSpace: 'nowrap' }}>
                     {col}
                   </th>
                 ))}
@@ -92,7 +92,7 @@ function StandingsTab() {
                 return (
                   <tr key={s.owner} className="season-table-row" style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '9px 12px' }}>
-                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, ...rk }}>
+                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, ...rk }}>
                         {s.rank}
                       </div>
                     </td>

@@ -36,7 +36,7 @@ function WavPosBadge({ pos }) {
   if (!pos) return null
   const s = WAV_POS_BADGE[pos] ?? { background: '#374151', color: '#fff' }
   return (
-    <span style={{ ...s, borderRadius: '3px', padding: '1px 6px', fontSize: '10px', fontWeight: 700 }}>
+    <span style={{ ...s, borderRadius: '3px', padding: '1px 6px', fontSize: '11px', fontWeight: 700 }}>
       {pos}
     </span>
   )
@@ -264,7 +264,7 @@ function TradeTreeTab() {
     <div>
       {/* Search input with custom dropdown */}
       <div style={{ marginBottom: '20px' }}>
-        <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '8px' }}>Search Player</p>
+        <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '8px' }}>Search Player</p>
         <div style={{ display: 'flex', gap: '8px', maxWidth: '480px' }}>
           <div style={{ flex: 1, position: 'relative' }}>
             <input
@@ -549,7 +549,7 @@ function TradeLogTab() {
       <th
         onClick={colKey ? () => handleSort(colKey) : undefined}
         style={{
-          padding: '8px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px',
+          padding: '8px 12px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px',
           textTransform: 'uppercase', background: 'var(--bg-page)', whiteSpace: 'nowrap',
           borderBottom: '1px solid var(--border)', textAlign: align,
           cursor: colKey ? 'pointer' : 'default', userSelect: 'none',
@@ -704,7 +704,7 @@ function WaiversTab() {
               <thead>
                 <tr style={{ background: 'var(--bg-page)', position: 'sticky', top: 0, zIndex: 1 }}>
                   {['Player', 'Pos', 'Owner', 'Season', 'Wk', 'FAAB'].map((h, i) => (
-                    <th key={h} style={{ padding: '7px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i >= 3 ? 'right' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i >= 3 ? 'right' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -775,7 +775,7 @@ function WaiversTab() {
               <thead>
                 <tr style={{ background: 'var(--bg-page)', position: 'sticky', top: 0, zIndex: 1 }}>
                   {[['Player', 'left'], ['Pos', 'left'], ['Adds', 'right'], ['Drops', 'right'], ['Total', 'right']].map(([h, align]) => (
-                    <th key={h} style={{ padding: '7px 12px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: align, whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: align, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>

@@ -24,7 +24,7 @@ export function TabBar({ tabs, activeTab, onChange }) {
 
       {/* Mobile: dropdown */}
       <div className="flex flex-col md:hidden" style={{ marginBottom: '20px' }}>
-        <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '6px' }}>VIEW</p>
+        <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '6px' }}>VIEW</p>
         <select
           value={activeTab}
           onChange={e => onChange(e.target.value)}

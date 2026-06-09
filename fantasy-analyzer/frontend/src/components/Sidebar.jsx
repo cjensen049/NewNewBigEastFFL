@@ -96,7 +96,7 @@ function SidebarContent({ onNavClick }) {
 
       {/* Footer */}
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-        <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: 0 }}>2021 – present</p>
+        <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>2021 – present</p>
       </div>
 
     </div>

@@ -56,7 +56,7 @@ function SortTH({ colKey, activeKey, dir, onSort, children, align = 'left' }) {
   const active = activeKey === colKey
   return (
     <th onClick={() => onSort(colKey)} style={{
-      padding: '8px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px',
+      padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px',
       textTransform: 'uppercase', background: 'var(--bg-page)', whiteSpace: 'nowrap',
       borderBottom: '1px solid var(--border)', textAlign: align,
       cursor: 'pointer', userSelect: 'none',
@@ -160,7 +160,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
               {th('sim_wins',     'Sim',     'right')}
               {th('_winPctDiff',  'Diff',    'right')}
               {th('luck_diff',    'Verdict', 'right')}
-              <th style={{ padding: '8px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
+              <th style={{ padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
                 {oppHeader}
               </th>
             </tr>
@@ -171,7 +171,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
                 return (
                   <tr key={item.key}>
                     <td colSpan={8} style={{ padding: '6px 10px', background: item.zone.bg, borderTop: `2px solid ${item.zone.border}`, borderBottom: `1px solid ${item.zone.border}` }}>
-                      <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: item.zone.color }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: item.zone.color }}>
                         {item.zone.label}
                       </span>
                     </td>
@@ -281,7 +281,7 @@ function RaceToBottom({ rows }) {
         </table>
       </div>
       <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
-        <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: 0 }}>
+        <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
           Ranked by lowest optimal PF — weakest roster earns the 1st rookie draft pick
         </p>
       </div>
@@ -375,7 +375,7 @@ export default function InSeason({ embedded = false }) {
       {/* Season selector — only shown when multiple seasons are available */}
       {seasons.length > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-          <span style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)' }}>Season</span>
+          <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)' }}>Season</span>
           <select
             value={activeSeason ?? ''}
             onChange={e => setSelectedSeason(Number(e.target.value))}

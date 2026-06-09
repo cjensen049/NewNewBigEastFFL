@@ -69,19 +69,19 @@ function PanelHeader({ currentWeek, phaseKey, phaseLabel, weights, isFallback, d
       </span>
 
       {isFallback ? (
-        <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.3)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+        <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.3)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
           FINAL {displaySeason}
         </span>
       ) : (
         currentWeek > 0 && (
-          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600 }}>
+          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
             WK {currentWeek}
           </span>
         )
       )}
 
       {!isFallback && (
-        <span style={{ background: pb.bg, color: pb.color, border: `1px solid ${pb.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px' }}>
+        <span style={{ background: pb.bg, color: pb.color, border: `1px solid ${pb.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.5px' }}>
           {phaseLabel.toUpperCase()}
         </span>
       )}
@@ -133,7 +133,7 @@ function HowItWorks() {
         onMouseEnter={e => e.currentTarget.style.color = 'var(--text-muted)'}
         onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}
       >
-        <span style={{ fontSize: '10px', display: 'inline-block', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+        <span style={{ fontSize: '11px', display: 'inline-block', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
         How rankings are calculated
       </button>
       {open && <PowerRankingsExplainer />}
@@ -193,7 +193,7 @@ export default function PowerRankings({ season }) {
 
   const TH = ({ children, align = 'left', title }) => (
     <th title={title} style={{
-      padding: '8px 10px', fontSize: '10px', fontWeight: 600, letterSpacing: '1px',
+      padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px',
       textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)',
       borderBottom: '1px solid var(--border)', textAlign: align, whiteSpace: 'nowrap',
     }}>
@@ -250,7 +250,7 @@ export default function PowerRankings({ season }) {
                   >
                     {/* Rank */}
                     <td style={{ padding: '8px 10px', width: '36px' }}>
-                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, background: rs.bg, color: rs.text }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, background: rs.bg, color: rs.text }}>
                         {r.rank}
                       </div>
                     </td>
@@ -275,7 +275,7 @@ export default function PowerRankings({ season }) {
                     {/* Playoff % */}
                     <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {ps.label ? (
-                        <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                        <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px' }}>
                           {ps.label}
                         </span>
                       ) : (
@@ -356,7 +356,7 @@ export default function PowerRankings({ season }) {
 
       {/* Footer note */}
       <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
-        <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: 0 }}>
+        <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
           {isFallback
             ? `Final ${displaySeason} regular-season standings · Playoff% reflects end-of-season simulation`
             : 'Playoff% via 10,000 Monte Carlo simulations · NNBE rules: top 4 by record, next 2 by points'}
