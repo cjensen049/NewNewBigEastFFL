@@ -2,12 +2,13 @@
  * DynastyRankings.jsx — Long-term dynasty power rankings panel.
  *
  * Ranks all 12 owners by dynasty strength using three components:
- *   Roster Score   (55%) — DynastyProcess value_2qb for all players; taxi at 80%
- *   Capital Score  (30%) — Future draft picks owned × DynastyProcess pick values
+ *   Roster Score   (55%) — DynastyProcess SuperFlex values; taxi at 80%
+ *   Capital Score  (30%) — Future draft picks owned × pick tier values
  *   Age Score      (15%) — Value-weighted avg age; younger rosters score higher
  *
  * All component scores are normalised 0–100 within the league.
- * Data sourced from DynastyProcess GitHub CSVs (refreshed weekly).
+ * Refreshed 4× per year: post rookie draft, Week 1, post trade deadline,
+ * and post championship.
  *
  * Props:
  *   season  {number} — active season year
@@ -16,12 +17,6 @@ import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function wlStyle(wins, losses) {
-  if (wins > losses) return { background: 'rgba(63,185,80,0.12)',  color: 'var(--green)' }
-  if (losses > wins) return { background: 'rgba(204,31,46,0.1)',   color: 'var(--brand-red)' }
-  return                    { background: 'rgba(227,179,65,0.12)', color: 'var(--gold)' }
-}
 
 function rankStyle(rank) {
   if (rank === 1) return { bg: 'rgba(204,31,46,0.2)',  text: 'var(--brand-red)' }
@@ -44,6 +39,66 @@ function scoreBar(value) {
   )
 }
 
+// Three-card formula breakdown shown below the table
+const FORMULA_CARDS = [
+  {
+    label: 'Roster Score',
+    weight: '55%',
+    color: '#5b8dd9',
+    bg: 'rgba(26,58,107,0.15)',
+    border: 'rgba(91,141,217,0.2)',
+    desc: 'Every player on your roster valued using DynastyProcess SuperFlex (2QB) ratings. Taxi squad players counted at 80% of full value.',
+  },
+  {
+    label: 'Draft Capital',
+    weight: '30%',
+    color: 'var(--gold)',
+    bg: 'rgba(227,179,65,0.1)',
+    border: 'rgba(227,179,65,0.25)',
+    desc: 'Combined value of all future rookie draft picks you currently own, covering the next 3 draft classes. Picks valued by round and tier (early/mid/late).',
+  },
+  {
+    label: 'Age Score',
+    weight: '15%',
+    color: 'var(--green)',
+    bg: 'rgba(63,185,80,0.08)',
+    border: 'rgba(63,185,80,0.2)',
+    desc: 'Value-weighted average age of your top 15 players. Dynasty prime is age 25 — each year older reduces your score. Rewards building young.',
+  },
+]
+
+function FormulaFooter() {
+  return (
+    <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+      <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: '0 0 8px' }}>
+        How it's calculated
+      </p>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {FORMULA_CARDS.map(c => (
+          <div key={c.label} style={{
+            flex: '1 1 180px',
+            background: c.bg,
+            border: `1px solid ${c.border}`,
+            borderRadius: '8px',
+            padding: '10px 12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '5px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: c.color }}>{c.label}</span>
+              <span style={{ fontSize: '10px', fontWeight: 600, color: c.color, opacity: 0.8 }}>{c.weight}</span>
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+              {c.desc}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: '8px 0 0' }}>
+        All three scores normalised 0–100 within NNBE, then combined. Values via DynastyProcess · refreshed 4× per year.
+      </p>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function DynastyRankings({ season }) {
@@ -55,8 +110,8 @@ export default function DynastyRankings({ season }) {
 
   if (isLoading) return <div style={{ padding: '20px 0' }}><LoadingSpinner /></div>
 
-  const rows      = data?.rows ?? []
-  const dataDate  = data?.data_date ?? null
+  const rows     = data?.rows ?? []
+  const dataDate = data?.data_date ?? null
 
   if (rows.length === 0) {
     return (
@@ -67,6 +122,7 @@ export default function DynastyRankings({ season }) {
         <p style={{ padding: '24px 16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
           Dynasty rankings refreshed 4× per year: post rookie draft, Week 1, post trade deadline, and post championship.
         </p>
+        <FormulaFooter />
       </div>
     )
   }
@@ -100,27 +156,20 @@ export default function DynastyRankings({ season }) {
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '560px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '400px' }}>
           <thead>
             <tr>
               <TH width="36px">#</TH>
               <TH>Owner</TH>
               <TH align="right" title="Composite dynasty score (0–100)">Score</TH>
-              <TH title="Roster value from DynastyProcess SuperFlex values (0–100)" width="110px">Roster</TH>
-              <TH title="Future draft pick capital value (0–100)" width="110px">Capital</TH>
-              <TH title="Age curve: younger rosters score higher (0–100)" width="110px">Age</TH>
-              <TH align="right">W-L</TH>
-              <TH align="right">Pts For</TH>
+              <TH title="Roster value from DynastyProcess SuperFlex values, normalised 0–100" width="120px">Roster</TH>
+              <TH title="Future draft pick capital: picks owned × tier value, normalised 0–100" width="120px">Capital</TH>
+              <TH title="Value-weighted avg age of top 15 players vs. dynasty prime (25). Younger = higher score, normalised 0–100" width="120px">Age</TH>
             </tr>
           </thead>
           <tbody>
             {rows.map(r => {
-              const rs  = rankStyle(r.rank)
-              const wl  = wlStyle(r.actual_wins, r.actual_losses)
-              const pts = r.pts_for != null
-                ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-                : '—'
-
+              const rs = rankStyle(r.rank)
               return (
                 <tr key={r.rank} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
                   {/* Rank */}
@@ -150,18 +199,6 @@ export default function DynastyRankings({ season }) {
 
                   {/* Age bar */}
                   <td style={{ padding: '6px 10px' }}>{scoreBar(r.age_score)}</td>
-
-                  {/* W-L */}
-                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <span style={{ ...wl, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', fontWeight: 600 }}>
-                      {r.actual_wins}-{r.actual_losses}
-                    </span>
-                  </td>
-
-                  {/* Pts For */}
-                  <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                    {pts}
-                  </td>
                 </tr>
               )
             })}
@@ -169,12 +206,7 @@ export default function DynastyRankings({ season }) {
         </table>
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
-        <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: 0 }}>
-          Values via DynastyProcess (SuperFlex) · Taxi squad at 80% · Picks 3 years out
-        </p>
-      </div>
+      <FormulaFooter />
     </div>
   )
 }
