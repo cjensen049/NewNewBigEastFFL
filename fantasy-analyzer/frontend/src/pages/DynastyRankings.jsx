@@ -156,7 +156,7 @@ export default function DynastyRankings({ season }) {
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '400px', tableLayout: 'fixed' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '400px', tableLayout: 'fixed' }}>
           <thead>
             <tr>
               <TH width="36px">#</TH>

@@ -99,7 +99,7 @@ function ExploreSection() {
               {card.icon}
             </div>
 
-            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>{card.title}</p>
+            <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>{card.title}</p>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>{card.description}</p>
 
             <span className="card-arrow">↗</span>
@@ -201,13 +201,13 @@ function StandingsPanel() {
                         {i + 1}
                       </div>
                     </td>
-                    <td style={{ padding: '8px 10px', fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
+                    <td style={{ padding: '8px 10px', fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <span style={{ ...wl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {r.actual_wins}-{r.actual_losses}
                       </span>
                     </td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: '15px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{pts}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{pts}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                       {verdict && (
                         <span style={{ background: verdict.bg, color: verdict.color, borderRadius: '4px', padding: '2px 6px', fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -215,7 +215,7 @@ function StandingsPanel() {
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '8px 10px', fontSize: '15px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '8px 10px', fontSize: '16px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                       {r.next_opponent ?? <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>—</span>}
                     </td>
                   </tr>

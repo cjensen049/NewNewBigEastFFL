@@ -25,7 +25,7 @@ body {
   background: var(--bg-page);
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 16px;
 }
 
 /* ─── Nav links ──────────────────────────────────────────────────────────────── */
@@ -95,7 +95,7 @@ body {
 
 .owner-tab {
   padding: 10px 16px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-muted);
   border: none;
@@ -175,7 +175,7 @@ body {
   align-items: center;
   gap: 10px;
   padding: 10px 20px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   text-decoration: none;
   border-left: 3px solid transparent;
@@ -205,7 +205,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 20px 8px 44px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   text-decoration: none;
   border-left: 3px solid transparent;
@@ -324,8 +324,8 @@ body {
 /* ─── Hero logo responsive size ──────────────────────────────────────────────── */
 
 .hero-logo {
-  width: 200px;
-  height: 200px;
+  width: 260px;
+  height: 260px;
   border-radius: 16px;
   object-fit: contain;
   filter: drop-shadow(0 0 16px rgba(204,31,46,0.4));
@@ -334,7 +334,7 @@ body {
 
 @media (max-width: 768px) {
   .hero-logo {
-    width: 88px;
-    height: 88px;
+    width: 110px;
+    height: 110px;
   }
 }

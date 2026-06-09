@@ -27,7 +27,7 @@ export default function DataTable({ rows, columns, maxHeight = '420px', defaultS
 
   return (
     <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight, borderRadius: '8px', border: '1px solid var(--border)' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', textAlign: 'left' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', textAlign: 'left' }}>
         <thead className="sticky top-0">
           <tr>
             {columns.map(col => {

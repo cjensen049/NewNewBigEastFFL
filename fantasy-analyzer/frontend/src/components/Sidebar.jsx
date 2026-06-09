@@ -53,7 +53,7 @@ function SidebarContent({ onNavClick }) {
           <img
             src="/logo.png"
             alt="NNBE"
-            style={{ height: '48px', width: '48px', borderRadius: '8px', objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(204,31,46,0.3))' }}
+            style={{ height: '60px', width: '60px', borderRadius: '10px', objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(204,31,46,0.3))' }}
             onError={e => { e.target.style.display = 'none' }}
           />
           <Wordmark />
@@ -140,7 +140,7 @@ export default function Sidebar() {
           <img
             src="/logo.png"
             alt="NNBE"
-            style={{ height: '36px', width: '36px', borderRadius: '6px', objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(204,31,46,0.25))' }}
+            style={{ height: '44px', width: '44px', borderRadius: '8px', objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(204,31,46,0.25))' }}
             onError={e => { e.target.style.display = 'none' }}
           />
           <Wordmark />

@@ -150,7 +150,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
         )}
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', minWidth: '480px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '480px' }}>
           <thead>
             <tr>
               {th('owner',        'Owner')}
@@ -241,7 +241,7 @@ function RaceToBottom({ rows }) {
         <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Race to the Bottom</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px' }}>
           <thead>
             <tr>
               {th('draft_pick',  '#')}

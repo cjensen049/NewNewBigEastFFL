@@ -96,20 +96,20 @@ function StandingsTab() {
                         {s.rank}
                       </div>
                     </td>
-                    <td style={{ padding: '9px 12px', fontSize: '15px', fontWeight: 500, color: s.championships > 0 ? '#e3b341' : 'var(--text-primary)' }}>
+                    <td style={{ padding: '9px 12px', fontSize: '16px', fontWeight: 500, color: s.championships > 0 ? '#e3b341' : 'var(--text-primary)' }}>
                       {s.owner}
                     </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '15px', color: 'var(--text-muted)' }}>{s.seasons}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)' }}>{s.seasons}</td>
                     <td style={{ padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <span style={{ ...wl, borderRadius: '4px', padding: '2px 8px', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{s.record}</span>
                     </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '15px', fontWeight: 600, color: winPctColor(s.win_pct) }}>{pct(s.win_pct)}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '15px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', fontWeight: 600, color: winPctColor(s.win_pct) }}>{pct(s.win_pct)}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                       {s.total_pts != null ? Number(s.total_pts).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'}
                     </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '15px', color: 'var(--text-muted)' }}>{s.ppg}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '15px', color: 'var(--text-muted)' }}>{s.playoff_appearances}/{s.seasons}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '15px', fontWeight: 700, color: s.championships > 0 ? '#e3b341' : 'var(--text-faint)' }}>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)' }}>{s.ppg}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)' }}>{s.playoff_appearances}/{s.seasons}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', fontWeight: 700, color: s.championships > 0 ? '#e3b341' : 'var(--text-faint)' }}>
                       {s.championships > 0 ? '🏆'.repeat(Math.min(s.championships, 4)) : '—'}
                     </td>
                   </tr>

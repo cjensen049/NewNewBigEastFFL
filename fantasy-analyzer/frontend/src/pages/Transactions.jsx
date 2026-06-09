@@ -599,7 +599,7 @@ function TradeLogTab() {
           <p className="text-sm text-gray-500 mb-3">{sorted.length} trades</p>
           <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
             <div style={{ overflowY: 'auto', maxHeight: '600px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px' }}>
                 <thead>
                   <tr>
                     <TH colKey="season">Season</TH>
@@ -713,12 +713,12 @@ function WaiversTab() {
                   const rowStyle = WAV_POS_ROW[b.position] ?? {}
                   return (
                     <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', ...rowStyle }}>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-primary)', fontWeight: 500 }}>{b.player}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-primary)', fontWeight: 500 }}>{b.player}</td>
                       <td style={{ padding: '8px 12px' }}><WavPosBadge pos={b.position} /></td>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)' }}>{b.owner}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.season}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.week}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--green)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>${b.amount}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)' }}>{b.owner}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.season}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.week}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--green)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>${b.amount}</td>
                     </tr>
                   )
                 })}
@@ -784,11 +784,11 @@ function WaiversTab() {
                   const rowStyle = WAV_POS_ROW[p.position] ?? {}
                   return (
                     <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', ...rowStyle }}>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-primary)', fontWeight: 500 }}>{p.player}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-primary)', fontWeight: 500 }}>{p.player}</td>
                       <td style={{ padding: '8px 12px' }}><WavPosBadge pos={p.position} /></td>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.adds}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.drops}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.total_moves}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.adds}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.drops}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.total_moves}</td>
                     </tr>
                   )
                 })}
