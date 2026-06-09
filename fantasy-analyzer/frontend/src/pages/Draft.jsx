@@ -299,7 +299,7 @@ function DraftBoardTab() {
 // ─── Page root ───────────────────────────────────────────────────────────────
 
 export default function Draft({ embedded = false }) {
-  const [activeTab, setActiveTab] = useState('owner')
+  const [activeTab, setActiveTab] = useState('board')
 
   return (
     <div>
