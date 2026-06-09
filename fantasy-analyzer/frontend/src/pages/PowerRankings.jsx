@@ -169,6 +169,7 @@ export default function PowerRankings({ season }) {
   )
 
   return (
+  <>
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
       <PanelHeader currentWeek={currentWeek} phaseKey={phaseKey} phaseLabel={phaseLabel} weights={weights} />
 
@@ -260,5 +261,6 @@ export default function PowerRankings({ season }) {
     </div>
 
     <HowItWorks />
+  </>
   )
 }
