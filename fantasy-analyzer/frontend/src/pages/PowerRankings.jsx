@@ -110,7 +110,7 @@ function Trend({ value, isFirstWeek }) {
 // ─── How it works toggle ──────────────────────────────────────────────────────
 
 function HowItWorks() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   return (
     <div style={{ marginBottom: '20px' }}>
       <button
