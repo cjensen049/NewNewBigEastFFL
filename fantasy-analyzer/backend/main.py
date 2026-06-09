@@ -12,12 +12,19 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.routers import history, owner, h2h, transactions, in_season, draft, calendar
+from fantasy_analyzer.db.schema import apply_migrations
 
 # Resolve paths relative to the project root (fantasy-analyzer/)
 BASE_DIR = Path(__file__).parent.parent
 DB_PATH = BASE_DIR / "data" / "league.db"
 
 app = FastAPI(title="NNBE Fantasy Football API", version="1.0.0")
+
+
+@app.on_event("startup")
+async def run_migrations() -> None:
+    """Apply any pending DB schema migrations on every server start."""
+    await apply_migrations(str(DB_PATH))
 
 # Allow the Vite dev server (port 5173) to call the API during development.
 # In production, React is served by FastAPI itself so CORS is not needed,
