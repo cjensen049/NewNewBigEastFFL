@@ -61,6 +61,22 @@ A full-stack fantasy football league analytics web application. The backend is F
 | CI/CD | GitHub Actions (weekly data refresh) |
 | Container | Dockerfile (FastAPI serves API + built React static files) |
 
+### Git / Deployment Workflow
+
+**ALWAYS push to `staging` first. Never push directly to `master` unless the user explicitly says to deploy to production.**
+
+| Branch | Environment |
+|---|---|
+| `staging` | Railway staging (review before going live) |
+| `master` | Railway production — nnbefootball.com |
+
+Standard flow for any change:
+1. Make changes on `master` locally (or `staging`)
+2. Switch to `staging`: `git checkout staging`
+3. Merge master: `git merge master --no-edit`
+4. Push: `git push origin staging`
+5. Only merge `staging → master` and push master when the user explicitly says "push to production" or "deploy".
+
 ---
 
 ## Project Structure
