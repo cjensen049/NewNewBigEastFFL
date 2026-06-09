@@ -615,32 +615,30 @@ function TradeLogTab() {
                         <td style={{ padding: '10px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t.season}</td>
                         <td style={{ padding: '10px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>{t.week}</td>
                         <td style={{ padding: '8px 12px' }}>
-                          {dirs.map((dir, di) => (
-                            <div key={di} style={{
-                              paddingTop: di > 0 ? '8px' : 0,
-                              marginTop: di > 0 ? '8px' : 0,
-                              borderTop: di > 0 ? '1px solid var(--border)' : 'none',
-                            }}>
-                              {/* Direction header: From → To */}
-                              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
-                                <span style={{ color: '#5b8dd9' }}>{dir.from}</span>
-                                <span style={{ color: 'var(--text-faint)', margin: '0 6px' }}>→</span>
-                                <span style={{ color: 'var(--gold)' }}>{dir.to}</span>
+                          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(dirs.length, 2)}, 1fr)`, gap: '0 16px' }}>
+                            {dirs.map((dir, di) => (
+                              <div key={di} style={{ borderLeft: di > 0 ? '1px solid var(--border)' : 'none', paddingLeft: di > 0 ? '16px' : 0 }}>
+                                {/* Direction header: From → To */}
+                                <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                                  <span style={{ color: '#5b8dd9' }}>{dir.from}</span>
+                                  <span style={{ color: 'var(--text-faint)', margin: '0 5px' }}>→</span>
+                                  <span style={{ color: 'var(--gold)' }}>{dir.to}</span>
+                                </div>
+                                {/* Players */}
+                                {dir.players.map((name, pi) => (
+                                  <div key={pi} style={{ paddingLeft: '8px', fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.7 }}>
+                                    {name}
+                                  </div>
+                                ))}
+                                {/* Picks */}
+                                {dir.picks.map((name, pi) => (
+                                  <div key={pi} style={{ paddingLeft: '8px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                                    🏈 {name}
+                                  </div>
+                                ))}
                               </div>
-                              {/* Players */}
-                              {dir.players.map((name, pi) => (
-                                <div key={pi} style={{ paddingLeft: '10px', fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.7 }}>
-                                  {name}
-                                </div>
-                              ))}
-                              {/* Picks — slightly muted, with pick icon */}
-                              {dir.picks.map((name, pi) => (
-                                <div key={pi} style={{ paddingLeft: '10px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                                  🏈 {name}
-                                </div>
-                              ))}
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </td>
                       </tr>
                     )
