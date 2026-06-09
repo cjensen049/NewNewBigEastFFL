@@ -12,7 +12,7 @@
  * Props:
  *   season  {number} — active season year
  */
-import { useState, Fragment } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 import PowerRankingsExplainer from '../components/PowerRankingsExplainer'
@@ -225,8 +225,7 @@ export default function PowerRankings({ season }) {
               <TH></TH>
             </tr>
           </thead>
-          <tbody>
-            {rows.map((r) => {
+          {rows.map((r) => {
               const rs = rankStyle(r.rank)
               const wl = wlStyle(r.actual_wins, r.actual_losses)
               const ps = playoffStyle(r.playoff_pct)
@@ -236,14 +235,14 @@ export default function PowerRankings({ season }) {
               const isExpanded = expandedRank === r.rank
 
               const scoreItems = [
-                { key: 'scoring', label: 'Scoring',         value: r.scoring_score },
-                { key: 'record',  label: 'All-play Record', value: r.record_score  },
-                { key: 'sos',     label: 'Schedule',        value: r.sos_score     },
+                { key: 'scoring', label: 'Scoring',         value: r.scoring_score ?? 0 },
+                { key: 'record',  label: 'All-play Record', value: r.record_score  ?? 0 },
+                { key: 'sos',     label: 'Schedule',        value: r.sos_score     ?? 0 },
                 ...(r.roster_score != null ? [{ key: 'roster', label: 'Roster Quality', value: r.roster_score }] : []),
               ]
 
               return (
-                <Fragment key={r.rank}>
+                <tbody key={r.rank}>
                   <tr
                     className="standings-row"
                     onClick={() => setExpandedRank(isExpanded ? null : r.rank)}
@@ -269,7 +268,7 @@ export default function PowerRankings({ season }) {
                     {/* Power score */}
                     <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', letterSpacing: '0.5px', color: 'var(--text-primary)', lineHeight: 1 }}>
-                        {r.power_score.toFixed(1)}
+                        {(r.power_score ?? 0).toFixed(1)}
                       </span>
                     </td>
 
@@ -281,7 +280,7 @@ export default function PowerRankings({ season }) {
                         </span>
                       ) : (
                         <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
-                          {r.playoff_pct.toFixed(0)}%
+                          {(r.playoff_pct ?? 0).toFixed(0)}%
                         </span>
                       )}
                     </td>
@@ -327,14 +326,14 @@ export default function PowerRankings({ season }) {
                               </span>
                               <div style={{ flex: 1, height: '7px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden', minWidth: '60px' }}>
                                 <div style={{
-                                  width: `${item.value ?? 0}%`,
+                                  width: `${item.value}%`,
                                   height: '100%',
                                   background: SCORE_COLORS[item.key],
                                   borderRadius: '4px',
                                 }} />
                               </div>
                               <span style={{ fontSize: '11px', fontWeight: 600, color: SCORE_COLORS[item.key], width: '26px', textAlign: 'right', flexShrink: 0 }}>
-                                {Math.round(item.value ?? 0)}
+                                {Math.round(item.value)}
                               </span>
                             </div>
                           ))}
@@ -342,10 +341,9 @@ export default function PowerRankings({ season }) {
                       </td>
                     </tr>
                   )}
-                </Fragment>
+                </tbody>
               )
             })}
-          </tbody>
         </table>
       </div>
 
