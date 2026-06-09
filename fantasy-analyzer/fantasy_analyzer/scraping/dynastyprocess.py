@@ -163,8 +163,8 @@ def run_dynasty_scrape(con: sqlite3.Connection) -> tuple[int, int]:
         "  Player matches: %d stored, %d unmatched", len(player_inserts), unmatched
     )
 
-    # Store pick values
-    pick_inserts: list[tuple] = []
+    # Store pick values — average duplicates that share (season, round, tier)
+    pick_buckets: dict[tuple, list[float]] = {}
     for r in pick_rows:
         nm = (r.get("player") or "").strip()
         parsed = _parse_pick_name(nm)
@@ -177,7 +177,13 @@ def run_dynasty_scrape(con: sqlite3.Connection) -> tuple[int, int]:
             continue
         if val <= 0:
             continue
-        pick_inserts.append((season, rnd, tier, val, now))
+        key = (season, rnd, tier)
+        pick_buckets.setdefault(key, []).append(val)
+
+    pick_inserts = [
+        (season, rnd, tier, sum(vals) / len(vals), now)
+        for (season, rnd, tier), vals in pick_buckets.items()
+    ]
 
     log.info("  Pick values: %d stored", len(pick_inserts))
 
