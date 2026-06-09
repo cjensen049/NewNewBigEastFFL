@@ -19,16 +19,16 @@ jobs:
         working-directory: fantasy-analyzer
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5.6.0
         with:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: fantasy-analyzer/requirements.txt
 
       - name: Install dependencies
-        run: pip install -e .
+        run: pip install -r requirements.txt -e .
 
       - name: Refresh current rosters and dynasty values
         run: python -m fantasy_analyzer.cli scrape-dynasty
