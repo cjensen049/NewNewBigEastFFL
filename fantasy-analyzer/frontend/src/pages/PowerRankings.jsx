@@ -12,10 +12,18 @@
  * Props:
  *   season  {number} — active season year
  */
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 import PowerRankingsExplainer from '../components/PowerRankingsExplainer'
+
+// Component score colours — must match PowerRankingsExplainer
+const SCORE_COLORS = {
+  scoring: '#5b8dd9',
+  record:  '#3fb950',
+  sos:     '#e3b341',
+  roster:  '#e05a5a',
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -180,6 +188,7 @@ export default function PowerRankings({ season }) {
   }
 
   const isFirstWeek = currentWeek <= 1
+  const [expandedRank, setExpandedRank] = useState(null)
 
   const TH = ({ children, align = 'left', title }) => (
     <th title={title} style={{
@@ -212,6 +221,7 @@ export default function PowerRankings({ season }) {
               <TH align="right" title="Monte Carlo playoff probability (10,000 simulations)">Playoff%</TH>
               <TH align="right">W-L</TH>
               <TH align="right">Pts For</TH>
+              <TH></TH>
             </tr>
           </thead>
           <tbody>
@@ -222,58 +232,116 @@ export default function PowerRankings({ season }) {
               const pts = r.pts_for != null
                 ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                 : '—'
+              const isExpanded = expandedRank === r.rank
+
+              const scoreItems = [
+                { key: 'scoring', label: 'Scoring',         value: r.scoring_score },
+                { key: 'record',  label: 'All-play Record', value: r.record_score  },
+                { key: 'sos',     label: 'Schedule',        value: r.sos_score     },
+                ...(r.roster_score != null ? [{ key: 'roster', label: 'Roster Quality', value: r.roster_score }] : []),
+              ]
 
               return (
-                <tr key={r.rank} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
-                  {/* Rank */}
-                  <td style={{ padding: '8px 10px', width: '36px' }}>
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, background: rs.bg, color: rs.text }}>
-                      {r.rank}
-                    </div>
-                  </td>
+                <Fragment key={r.rank}>
+                  <tr
+                    className="standings-row"
+                    onClick={() => setExpandedRank(isExpanded ? null : r.rank)}
+                    style={{ borderBottom: isExpanded ? 'none' : '1px solid var(--border)', cursor: 'pointer' }}
+                  >
+                    {/* Rank */}
+                    <td style={{ padding: '8px 10px', width: '36px' }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, background: rs.bg, color: rs.text }}>
+                        {r.rank}
+                      </div>
+                    </td>
 
-                  {/* Trend */}
-                  <td style={{ padding: '8px 6px', width: '32px', textAlign: 'center' }}>
-                    <Trend value={r.trend} isFirstWeek={isFirstWeek} />
-                  </td>
+                    {/* Trend */}
+                    <td style={{ padding: '8px 6px', width: '32px', textAlign: 'center' }}>
+                      <Trend value={r.trend} isFirstWeek={isFirstWeek} />
+                    </td>
 
-                  {/* Owner */}
-                  <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                    {r.owner}
-                  </td>
+                    {/* Owner */}
+                    <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                      {r.owner}
+                    </td>
 
-                  {/* Power score */}
-                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', letterSpacing: '0.5px', color: 'var(--text-primary)', lineHeight: 1 }}>
-                      {r.power_score.toFixed(1)}
-                    </span>
-                  </td>
-
-                  {/* Playoff % */}
-                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {ps.label ? (
-                      <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px' }}>
-                        {ps.label}
+                    {/* Power score */}
+                    <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', letterSpacing: '0.5px', color: 'var(--text-primary)', lineHeight: 1 }}>
+                        {r.power_score.toFixed(1)}
                       </span>
-                    ) : (
-                      <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
-                        {r.playoff_pct.toFixed(0)}%
+                    </td>
+
+                    {/* Playoff % */}
+                    <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {ps.label ? (
+                        <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                          {ps.label}
+                        </span>
+                      ) : (
+                        <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+                          {r.playoff_pct.toFixed(0)}%
+                        </span>
+                      )}
+                    </td>
+
+                    {/* W-L */}
+                    <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', fontWeight: 600 }}>
+                        {r.actual_wins}-{r.actual_losses}
                       </span>
-                    )}
-                  </td>
+                    </td>
 
-                  {/* W-L */}
-                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <span style={{ ...wl, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', fontWeight: 600 }}>
-                      {r.actual_wins}-{r.actual_losses}
-                    </span>
-                  </td>
+                    {/* Pts For */}
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {pts}
+                    </td>
 
-                  {/* Pts For */}
-                  <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                    {pts}
-                  </td>
-                </tr>
+                    {/* Expand chevron */}
+                    <td style={{ padding: '8px 10px', width: '28px', textAlign: 'right' }}>
+                      <span style={{
+                        display: 'inline-block',
+                        fontSize: '9px',
+                        color: 'var(--text-faint)',
+                        transform: isExpanded ? 'rotate(90deg)' : 'none',
+                        transition: 'transform 0.15s',
+                      }}>▶</span>
+                    </td>
+                  </tr>
+
+                  {/* Expanded breakdown row */}
+                  {isExpanded && (
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td colSpan={8} style={{ padding: '0 14px 12px 14px', background: 'var(--bg-page)' }}>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                          gap: '8px 20px',
+                          paddingTop: '10px',
+                        }}>
+                          {scoreItems.map(item => (
+                            <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: '108px', flexShrink: 0 }}>
+                                {item.label}
+                              </span>
+                              <div style={{ flex: 1, height: '7px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden', minWidth: '60px' }}>
+                                <div style={{
+                                  width: `${item.value ?? 0}%`,
+                                  height: '100%',
+                                  background: SCORE_COLORS[item.key],
+                                  borderRadius: '4px',
+                                }} />
+                              </div>
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: SCORE_COLORS[item.key], width: '26px', textAlign: 'right', flexShrink: 0 }}>
+                                {Math.round(item.value ?? 0)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
           </tbody>

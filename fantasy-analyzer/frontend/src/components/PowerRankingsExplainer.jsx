@@ -55,20 +55,6 @@ const PHASES = [
   { label: 'Late',  weeks: 'Wks 11–14', scoring: 45, record: 35, sos:  5, roster: 15 },
 ]
 
-const EXAMPLE = {
-  name:       'Turo',
-  record:     '7–5',
-  ppg:        137.2,
-  powerRank:  2,
-  powerScore: 74.8,
-  components: [
-    { id: 'scoring', label: 'Scoring',         score: 78 },
-    { id: 'record',  label: 'All-play Record',  score: 85 },
-    { id: 'sos',     label: 'Schedule',         score: 52 },
-    { id: 'roster',  label: 'Roster Quality',   score: 71 },
-  ],
-}
-
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
 function SectionLabel({ children }) {
@@ -261,89 +247,6 @@ function PhaseTable() {
   )
 }
 
-// ─── Section 4: Example team card ────────────────────────────────────────────
-
-function ExampleCard() {
-  const { name, record, ppg, powerRank, components, powerScore } = EXAMPLE
-
-  return (
-    <div>
-      <SectionLabel>Example Breakdown</SectionLabel>
-      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-
-        {/* Team header */}
-        <div style={{
-          padding: '12px 14px',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-        }}>
-          <div style={{
-            width: '32px', height: '32px', borderRadius: '50%',
-            background: 'rgba(26,58,107,0.35)', color: '#5b8dd9',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '11px', fontWeight: 700, flexShrink: 0,
-          }}>
-            #{powerRank}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{name}</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>
-              {record} · {ppg} PPG
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '24px', color: 'var(--text-primary)', lineHeight: 1 }}>
-              {powerScore}
-            </div>
-            <div style={{ fontSize: '9px', letterSpacing: '1px', color: 'var(--text-faint)', marginTop: '3px', textTransform: 'uppercase' }}>
-              Power Score
-            </div>
-          </div>
-        </div>
-
-        {/* Component bars */}
-        <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '11px' }}>
-          {components.map(c => {
-            const col = COMP[c.id]
-            return (
-              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{
-                  fontSize: '11px', color: 'var(--text-muted)',
-                  width: '112px', flexShrink: 0,
-                }}>
-                  {c.label}
-                </span>
-                <div style={{ flex: 1, height: '8px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${c.score}%`, height: '100%',
-                    background: col.solid, borderRadius: '4px',
-                    transition: 'width 0.4s ease',
-                  }} />
-                </div>
-                <span style={{
-                  fontSize: '12px', fontWeight: 600, color: col.solid,
-                  width: '26px', textAlign: 'right', flexShrink: 0,
-                }}>
-                  {c.score}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-
-        <div style={{ padding: '7px 14px', borderTop: '1px solid var(--border)', background: 'var(--bg-page)' }}>
-          <p style={{ fontSize: '10px', color: 'var(--text-faint)', margin: 0 }}>
-            All component scores normalized 0–100 within the league each week.
-          </p>
-        </div>
-
-      </div>
-    </div>
-  )
-}
-
 // ─── Root export ──────────────────────────────────────────────────────────────
 
 export default function PowerRankingsExplainer() {
@@ -352,7 +255,6 @@ export default function PowerRankingsExplainer() {
       <FormulaRow />
       <ComponentCards />
       <PhaseTable />
-      <ExampleCard />
     </div>
   )
 }
