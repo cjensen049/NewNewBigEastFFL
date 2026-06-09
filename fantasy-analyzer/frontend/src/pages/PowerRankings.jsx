@@ -173,6 +173,8 @@ export default function PowerRankings({ season }) {
   const weights       = display?.weights ?? { scoring: 0.45, record: 0.40, sos: 0.15 }
   const displaySeason = isFallback ? season - 1 : season
 
+  const [expandedRank, setExpandedRank] = useState(null)
+
   if (rows.length === 0) {
     return (
       <>
@@ -188,7 +190,6 @@ export default function PowerRankings({ season }) {
   }
 
   const isFirstWeek = currentWeek <= 1
-  const [expandedRank, setExpandedRank] = useState(null)
 
   const TH = ({ children, align = 'left', title }) => (
     <th title={title} style={{
