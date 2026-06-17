@@ -164,6 +164,18 @@ CREATE TABLE IF NOT EXISTS pick_dynasty_values (
     PRIMARY KEY (source, season, round, tier)
 );
 
+CREATE TABLE IF NOT EXISTS pick_ownership (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    source              TEXT    NOT NULL,
+    league_id           TEXT    NOT NULL,
+    season              INTEGER NOT NULL,
+    round               INTEGER NOT NULL,
+    user_id             TEXT    NOT NULL,
+    original_user_id    TEXT    NOT NULL,
+    scraped_at          TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pick_ownership_source ON pick_ownership(source, league_id);
 CREATE INDEX IF NOT EXISTS idx_matchups_league_week ON matchups(league_id, week);
 CREATE INDEX IF NOT EXISTS idx_matchups_user ON matchups(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_league ON transactions(league_id);
@@ -349,3 +361,23 @@ async def apply_migrations(db_path: str) -> None:
                 await db.commit()
             except Exception:
                 pass  # column already dropped
+
+        # Authoritative per-source pick ownership (e.g. KTC's Sleeper-synced
+        # league page), used in place of our own trade-history reconstruction
+        # when a source provides it directly.
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS pick_ownership (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                source              TEXT    NOT NULL,
+                league_id           TEXT    NOT NULL,
+                season              INTEGER NOT NULL,
+                round               INTEGER NOT NULL,
+                user_id             TEXT    NOT NULL,
+                original_user_id    TEXT    NOT NULL,
+                scraped_at          TEXT    NOT NULL
+            )
+        """)
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pick_ownership_source ON pick_ownership(source, league_id)"
+        )
+        await db.commit()

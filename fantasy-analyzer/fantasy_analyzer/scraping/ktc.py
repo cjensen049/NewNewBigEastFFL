@@ -11,6 +11,13 @@ a format fantasy_analyzer.scraping.pick_names already parses.
 KTC doesn't tag players with a sleeperId, so player rows are matched to our
 DB by fuzzy name (fantasy_analyzer.rankings.player_matching), same approach
 already used for Dynasty Daddy in rankings/dynasty_sources.py.
+
+The same page also embeds a `leagueTeams` array with each team's current
+draft-pick holdings (`teamId` is literally our Sleeper user_id, no matching
+needed). This is KTC's own Sleeper-synced ownership record, including
+trades, and is stored in `pick_ownership` for use by the draft-capital
+component of dynasty rankings in place of our own trade-history
+reconstruction.
 """
 
 from __future__ import annotations
@@ -101,6 +108,12 @@ def run_ktc_scrape(
     players_raw = _extract_js_array(html, "playersArray")
     log.info("  playersArray: %d entries", len(players_raw))
 
+    try:
+        league_teams = _extract_js_array(html, "leagueTeams")
+    except ValueError:
+        log.warning("  leagueTeams not found — skipping pick ownership sync")
+        league_teams = []
+
     name_index = build_name_index(players_cache_path)
     aliases = load_aliases(aliases_path)
 
@@ -160,6 +173,26 @@ def run_ktc_scrape(
     ]
     log.info("  Pick values: %d stored", len(pick_inserts))
 
+    # leagueTeams[].teamId is the same value as our own Sleeper user_id (confirmed
+    # 12-for-12 against league_owners), so this needs no fuzzy matching at all —
+    # it's KTC's authoritative, Sleeper-synced record of which owner currently
+    # holds each future pick, including trades our own reconstruction may miss.
+    name_to_user_id = {t.get("name"): t.get("teamId") for t in league_teams if t.get("teamId")}
+    ownership_inserts = []
+    for team in league_teams:
+        current_user_id = team.get("teamId")
+        if not current_user_id:
+            continue
+        for pick in team.get("draftPicks") or []:
+            try:
+                season = int(pick["year"])
+                rnd = int(pick["round"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            original_user_id = name_to_user_id.get(pick.get("franchiseName"), current_user_id)
+            ownership_inserts.append((season, rnd, current_user_id, original_user_id, now))
+    log.info("  Pick ownership: %d entries", len(ownership_inserts))
+
     # Write to DB atomically — scoped to this source so other sources'
     # rows (DynastyProcess, FantasyCalc) in the same tables are left untouched.
     con.execute("DELETE FROM player_dynasty_values WHERE source = ?", (_SOURCE,))
@@ -174,6 +207,13 @@ def run_ktc_scrape(
         """INSERT INTO pick_dynasty_values (source, season, round, tier, value, scraped_at)
            VALUES (?, ?, ?, ?, ?, ?)""",
         [(_SOURCE, *row) for row in pick_inserts],
+    )
+
+    con.execute("DELETE FROM pick_ownership WHERE source = ? AND league_id = ?", (_SOURCE, league_id))
+    con.executemany(
+        """INSERT INTO pick_ownership (source, league_id, season, round, user_id, original_user_id, scraped_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        [(_SOURCE, league_id, *row) for row in ownership_inserts],
     )
 
     con.commit()

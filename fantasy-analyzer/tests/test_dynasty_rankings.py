@@ -4,6 +4,8 @@ import sqlite3
 import pytest
 
 from fantasy_analyzer.analysis.dynasty_rankings import (
+    _draft_capital_values,
+    _pick_value,
     compute_dynasty_rankings,
     compute_dynasty_rankings_overall,
     get_available_dynasty_sources,
@@ -114,3 +116,68 @@ class TestOverallBlend:
 
         overall = compute_dynasty_rankings_overall(db, "L1", 2026)
         assert set(overall["rows"][0]["source_scores"].keys()) == {"dynastyprocess", "fantasycalc"}
+
+
+def _add_pick_value(con, source, season, rnd, tier, value):
+    con.execute(
+        "INSERT INTO pick_dynasty_values (source, season, round, tier, value, scraped_at) VALUES (?, ?, ?, ?, ?, '2026-01-01')",
+        (source, season, rnd, tier, value),
+    )
+    con.commit()
+
+
+class TestPickValueFallback:
+    def test_exact_season_averages_tiers(self, db):
+        _add_pick_value(db, "ktc", 2027, 1, "early", 6000)
+        _add_pick_value(db, "ktc", 2027, 1, "mid", 4000)
+        _add_pick_value(db, "ktc", 2027, 1, "late", 2000)
+        assert _pick_value(db, "ktc", 2027, 1) == pytest.approx(4000)
+
+    def test_falls_back_to_nearest_priced_season(self, db):
+        # KTC only prices 2027/2028 -- a tracked 2029 pick must not silently
+        # score zero, it should reuse the nearest season it has (2028).
+        _add_pick_value(db, "ktc", 2028, 1, "mid", 4500)
+        assert _pick_value(db, "ktc", 2029, 1) == pytest.approx(4500)
+
+    def test_no_data_for_round_returns_zero(self, db):
+        assert _pick_value(db, "ktc", 2027, 1) == 0.0
+
+
+class TestDraftCapital:
+    def test_prefers_authoritative_pick_ownership_over_reconstruction(self, db):
+        # Stale/incomplete transaction_draft_picks data would hand u2's pick to u1;
+        # an authoritative pick_ownership row from a source's own feed (e.g. KTC,
+        # synced from Sleeper) should win instead.
+        db.execute(
+            "INSERT INTO transactions (transaction_id, league_id, season, type, created_epoch) "
+            "VALUES ('t1', 'L1', 2026, 'trade', 1000)"
+        )
+        db.execute(
+            "INSERT INTO transaction_draft_picks (transaction_id, season, round, original_roster_id, from_roster_id, to_roster_id) "
+            "VALUES ('t1', 2027, 1, 2, 2, 1)"
+        )
+        db.execute(
+            "INSERT INTO pick_ownership (source, league_id, season, round, user_id, original_user_id, scraped_at) "
+            "VALUES ('ktc', 'L1', 2027, 1, 'u2', 'u2', '2026-01-01')"
+        )
+        _add_pick_value(db, "ktc", 2027, 1, "mid", 1000)
+        db.commit()
+
+        capital = _draft_capital_values(db, "L1", 2026, "ktc")
+        assert capital.get("u2") == pytest.approx(1000)
+        assert capital.get("u1") is None
+
+    def test_falls_back_to_reconstruction_when_no_ownership_feed(self, db):
+        db.execute(
+            "INSERT INTO transactions (transaction_id, league_id, season, type, created_epoch) "
+            "VALUES ('t1', 'L1', 2026, 'trade', 1000)"
+        )
+        db.execute(
+            "INSERT INTO transaction_draft_picks (transaction_id, season, round, original_roster_id, from_roster_id, to_roster_id) "
+            "VALUES ('t1', 2027, 1, 2, 2, 1)"
+        )
+        _add_pick_value(db, "dynastyprocess", 2027, 1, "mid", 1000)
+        db.commit()
+
+        capital = _draft_capital_values(db, "L1", 2026, "dynastyprocess")
+        assert capital.get("u1", 0) > 0  # u1 received u2's traded pick

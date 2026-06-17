@@ -7,8 +7,12 @@ Formula:
     + 0.15 × AgeCurve     (value-weighted avg age of top-15 players; young = bonus)
 
 Roster includes: active players + bench + taxi squad (taxi discounted to 80%).
-Draft capital: reconstructs current pick ownership from transaction history;
-  covers 3 future seasons (current+1 through current+3), 3 rounds each.
+Draft capital: uses a source's own pick-ownership feed when it has one (KTC,
+  synced from Sleeper), else reconstructs ownership from transaction history;
+  covers 3 future seasons (current+1 through current+3), 3 rounds each. Pick
+  value is averaged across tiers (no per-pick slot prediction pre-season) and
+  falls back to the nearest season a source actually prices when one of the
+  3 years isn't covered.
 Age curve: compares value-weighted average age to a dynasty-prime benchmark of 25.
   Each year above 25 costs ~5 points; normalized within league so it's relative.
 
@@ -27,9 +31,6 @@ _AGE_PRIME       = 25.0   # age considered peak for dynasty purposes
 _AGE_COST_PER_YR = 5.0    # score penalty per year above prime
 _FUTURE_YEARS    = 3      # how many future draft years to value (NNBE allows 3)
 _ROUNDS          = 3      # NNBE rookie draft rounds per year
-
-# Tier → pick slot ranges (12-team league)
-_TIER_SLOTS = {"early": (1, 4), "mid": (5, 8), "late": (9, 12)}
 
 
 def _normalize(values: dict[str, float]) -> dict[str, float]:
@@ -98,24 +99,72 @@ def _current_pick_owners(
     return current_owners
 
 
-def _pick_tier(orig_rid: int, all_roster_ids: list[int]) -> str:
-    """Estimate the draft pick tier for a given original_roster_id.
-
-    Uses the roster's relative position as a proxy for expected pick slot.
-    Since we don't know future standings, this is approximate.
-    Returns 'early', 'mid', or 'late'.
+def _pick_ownership_from_source(
+    con: sqlite3.Connection,
+    league_id: str,
+    source: str,
+) -> list[tuple[int, int, str]]:
+    """Return [(season, round, current_user_id), ...] from a source's own
+    authoritative ownership data (e.g. KTC's Sleeper-synced league page),
+    if it has provided one. Empty list if the source doesn't supply this.
     """
-    # Sort roster IDs consistently so the mapping is stable
-    sorted_ids = sorted(all_roster_ids)
-    n = len(sorted_ids)
-    try:
-        pos = sorted_ids.index(orig_rid) + 1  # 1-indexed
-    except ValueError:
-        return "mid"
-    pct = pos / n
-    if pct <= 0.33:  return "early"
-    if pct <= 0.67:  return "mid"
-    return "late"
+    return con.execute(
+        "SELECT season, round, user_id FROM pick_ownership WHERE source = ? AND league_id = ?",
+        (source, league_id),
+    ).fetchall()
+
+
+def _pick_ownership_reconstructed(
+    con: sqlite3.Connection,
+    league_id: str,
+    current_season: int,
+) -> list[tuple[int, int, str]]:
+    """Return [(season, round, current_user_id), ...] reconstructed from our
+    own transaction history. Fallback for sources with no ownership feed.
+    """
+    pick_owners = _current_pick_owners(con, league_id, current_season)
+    rid_to_uid = dict(
+        con.execute(
+            "SELECT roster_id, user_id FROM league_owners WHERE league_id = ?",
+            (league_id,),
+        ).fetchall()
+    )
+    result = []
+    for (_season, _rnd, _orig_rid), current_rid in pick_owners.items():
+        uid = rid_to_uid.get(current_rid)
+        if uid:
+            result.append((_season, _rnd, uid))
+    return result
+
+
+def _pick_value(con: sqlite3.Connection, source: str, season: int, rnd: int) -> float:
+    """Look up a future pick's dynasty value for a given season/round.
+
+    Tiers are averaged rather than guessed from standings — pre-season, there's
+    no real basis for predicting where a team will finish. When a source's pick
+    pricing doesn't cover a given season (e.g. KTC only prices ~2 draft classes
+    out, but we track 3), falls back to the nearest season it does price for
+    the same round rather than silently contributing zero.
+    """
+    rows = con.execute(
+        "SELECT value FROM pick_dynasty_values WHERE source = ? AND season = ? AND round = ?",
+        (source, season, rnd),
+    ).fetchall()
+    if not rows:
+        candidates = [
+            r[0] for r in con.execute(
+                "SELECT DISTINCT season FROM pick_dynasty_values WHERE source = ? AND round = ?",
+                (source, rnd),
+            ).fetchall()
+        ]
+        if not candidates:
+            return 0.0
+        nearest_season = min(candidates, key=lambda s: abs(s - season))
+        rows = con.execute(
+            "SELECT value FROM pick_dynasty_values WHERE source = ? AND season = ? AND round = ?",
+            (source, nearest_season, rnd),
+        ).fetchall()
+    return sum(r[0] for r in rows) / len(rows) if rows else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -161,54 +210,25 @@ def _draft_capital_values(
     current_season: int,
     source: str,
 ) -> dict[str, float]:
-    """Return {user_id: raw_draft_capital_value}."""
+    """Return {user_id: raw_draft_capital_value}.
+
+    Prefers a source's own authoritative pick-ownership feed (currently only
+    KTC provides one, synced from Sleeper) over our own transaction-history
+    reconstruction, since the latter has known gaps for some future-pick trades.
+    """
     # Check pick value data exists for this source
     if not con.execute(
         "SELECT 1 FROM pick_dynasty_values WHERE source = ? LIMIT 1", (source,)
     ).fetchone():
         return {}
 
-    pick_owners = _current_pick_owners(con, league_id, current_season)
+    pick_rows = _pick_ownership_from_source(con, league_id, source)
+    if not pick_rows:
+        pick_rows = _pick_ownership_reconstructed(con, league_id, current_season)
 
-    roster_ids = [
-        r[0] for r in con.execute(
-            "SELECT roster_id FROM league_owners WHERE league_id = ?", (league_id,)
-        ).fetchall()
-    ]
-
-    # roster_id → user_id
-    rid_to_uid = dict(
-        con.execute(
-            "SELECT roster_id, user_id FROM league_owners WHERE league_id = ?",
-            (league_id,),
-        ).fetchall()
-    )
-
-    # Aggregate pick values per current owner
     capital: dict[str, float] = defaultdict(float)
-
-    for (season, rnd, orig_rid), current_rid in pick_owners.items():
-        uid = rid_to_uid.get(current_rid)
-        if not uid:
-            continue
-
-        # Estimate tier from original owner (approx — future standings unknown)
-        tier = _pick_tier(orig_rid, roster_ids)
-
-        row = con.execute(
-            "SELECT value FROM pick_dynasty_values WHERE source=? AND season=? AND round=? AND tier=?",
-            (source, season, rnd, tier),
-        ).fetchone()
-
-        # Fallback: try mid tier if specific tier not found
-        if not row:
-            row = con.execute(
-                "SELECT value FROM pick_dynasty_values WHERE source=? AND season=? AND round=? AND tier='mid'",
-                (source, season, rnd),
-            ).fetchone()
-
-        if row:
-            capital[uid] += row[0]
+    for season, rnd, uid in pick_rows:
+        capital[uid] += _pick_value(con, source, season, rnd)
 
     return dict(capital)
 
