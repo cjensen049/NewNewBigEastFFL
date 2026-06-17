@@ -12,6 +12,7 @@ from pathlib import Path
 
 import yaml
 
+from fantasy_analyzer.db.schema import apply_migrations
 from fantasy_analyzer.ingest import run_ingest
 
 
@@ -91,6 +92,13 @@ def main() -> None:
         logging.getLogger("httpx").setLevel(logging.WARNING)
 
     db_path = cfg.get("settings", {}).get("db_path", "data/league.db")
+
+    # Scraper/report commands connect to db_path directly with sqlite3, bypassing
+    # the migrations `ingest`/FastAPI startup normally run — apply them here too,
+    # otherwise a freshly-checked-out league.db (committed pre-migration) errors
+    # with "no such column" the first time a scraper that expects a new column runs.
+    if args.command != "ingest":
+        asyncio.run(apply_migrations(db_path))
 
     if args.command == "ingest":
         asyncio.run(
