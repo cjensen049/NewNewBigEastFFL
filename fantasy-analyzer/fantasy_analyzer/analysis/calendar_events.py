@@ -16,6 +16,16 @@ NFL_WEEK1: dict[int, date] = {
     2026: date(2026, 9, 3),  # approximate
 }
 
+# NFL Draft start dates (Thursday of round 1) each year.
+NFL_DRAFT: dict[int, date] = {
+    2021: date(2021, 4, 29),
+    2022: date(2022, 4, 28),
+    2023: date(2023, 4, 27),
+    2024: date(2024, 4, 25),
+    2025: date(2025, 4, 24),
+    2026: date(2026, 4, 23),  # approximate
+}
+
 # Approximate months when rookie/startup drafts are held each year.
 DRAFT_MONTHS: dict[int, str] = {
     2021: "Aug 2021",   # startup draft before first season
@@ -74,6 +84,19 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
         league_active = status == "in_season"
         league_complete = status == "complete"
 
+        # ── League dues (due before the NFL Draft) ──────────────────────────────
+        dues_date = NFL_DRAFT.get(season)
+        events.append({
+            "season": season,
+            "sort_key": 0,
+            "type": "dues",
+            "status": _deadline_status(dues_date, status),
+            "title": f"{season} League Dues",
+            "subtitle": "Due before the NFL Draft",
+            "date_start": dues_date.isoformat() if dues_date else None,
+            "date_end": dues_date.isoformat() if dues_date else None,
+        })
+
         # ── Draft ────────────────────────────────────────────────────────────
         draft = drafts_by_season.get(season, {})
         draft_type = draft.get("type", "linear")
@@ -81,26 +104,13 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
         draft_label = "Startup Draft" if draft_type == "snake" else "Rookie Draft"
         events.append({
             "season": season,
-            "sort_key": 0,
+            "sort_key": 1,
             "type": "draft",
             "status": draft_status,
             "title": f"{season} {draft_label}",
             "subtitle": DRAFT_MONTHS.get(season, f"Offseason {season}"),
             "date_start": None,
             "date_end": None,
-        })
-
-        # ── League dues (due by Sept 1) ───────────────────────────────────────
-        dues_date = date(season, 9, 1)
-        events.append({
-            "season": season,
-            "sort_key": 1,
-            "type": "dues",
-            "status": _deadline_status(dues_date, status),
-            "title": f"{season} League Dues",
-            "subtitle": "Due by September 1",
-            "date_start": dues_date.isoformat(),
-            "date_end": dues_date.isoformat(),
         })
 
         # ── Roster / taxi deadline (Week 1 kickoff) ───────────────────────────
