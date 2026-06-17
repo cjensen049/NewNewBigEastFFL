@@ -125,8 +125,9 @@ def _pick_tier(orig_rid: int, all_roster_ids: list[int]) -> str:
 def _roster_values(
     con: sqlite3.Connection,
     league_id: str,
+    source: str,
 ) -> dict[str, float]:
-    """Return {user_id: raw_roster_value} using DynastyProcess value_2qb."""
+    """Return {user_id: raw_roster_value} using the given valuation source."""
     owner_rows = con.execute(
         "SELECT lo.user_id, lo.roster_id FROM league_owners lo WHERE lo.league_id = ?",
         (league_id,),
@@ -140,8 +141,9 @@ def _roster_values(
             """SELECT pdv.value, cr.status
                FROM current_rosters cr
                JOIN player_dynasty_values pdv ON cr.player_id = pdv.player_id
-               WHERE cr.league_id = ? AND cr.roster_id = ? AND pdv.value > 0""",
-            (league_id, roster_id),
+               WHERE cr.league_id = ? AND cr.roster_id = ? AND pdv.value > 0
+                 AND pdv.source = ?""",
+            (league_id, roster_id, source),
         ).fetchall()
 
         total = sum(
@@ -157,10 +159,13 @@ def _draft_capital_values(
     con: sqlite3.Connection,
     league_id: str,
     current_season: int,
+    source: str,
 ) -> dict[str, float]:
     """Return {user_id: raw_draft_capital_value}."""
-    # Check pick value data exists
-    if not con.execute("SELECT 1 FROM pick_dynasty_values LIMIT 1").fetchone():
+    # Check pick value data exists for this source
+    if not con.execute(
+        "SELECT 1 FROM pick_dynasty_values WHERE source = ? LIMIT 1", (source,)
+    ).fetchone():
         return {}
 
     pick_owners = _current_pick_owners(con, league_id, current_season)
@@ -191,15 +196,15 @@ def _draft_capital_values(
         tier = _pick_tier(orig_rid, roster_ids)
 
         row = con.execute(
-            "SELECT value FROM pick_dynasty_values WHERE season=? AND round=? AND tier=?",
-            (season, rnd, tier),
+            "SELECT value FROM pick_dynasty_values WHERE source=? AND season=? AND round=? AND tier=?",
+            (source, season, rnd, tier),
         ).fetchone()
 
         # Fallback: try mid tier if specific tier not found
         if not row:
             row = con.execute(
-                "SELECT value FROM pick_dynasty_values WHERE season=? AND round=? AND tier='mid'",
-                (season, rnd),
+                "SELECT value FROM pick_dynasty_values WHERE source=? AND season=? AND round=? AND tier='mid'",
+                (source, season, rnd),
             ).fetchone()
 
         if row:
@@ -211,6 +216,7 @@ def _draft_capital_values(
 def _age_curve_values(
     con: sqlite3.Connection,
     league_id: str,
+    source: str,
 ) -> dict[str, float]:
     """Return {user_id: age_score} where younger rosters score higher.
 
@@ -230,10 +236,10 @@ def _age_curve_values(
                FROM current_rosters cr
                JOIN player_dynasty_values pdv ON cr.player_id = pdv.player_id
                WHERE cr.league_id = ? AND cr.roster_id = ?
-                 AND pdv.value > 0 AND pdv.age > 0
+                 AND pdv.value > 0 AND pdv.age > 0 AND pdv.source = ?
                ORDER BY pdv.value DESC
                LIMIT ?""",
-            (league_id, roster_id, _AGE_TOP_N),
+            (league_id, roster_id, source, _AGE_TOP_N),
         ).fetchall()
 
         if not rows:
@@ -254,23 +260,37 @@ def _age_curve_values(
 # Main entry point
 # ---------------------------------------------------------------------------
 
+def get_available_dynasty_sources(con: sqlite3.Connection) -> list[str]:
+    """Return the distinct valuation sources that currently have data."""
+    return [
+        r[0] for r in con.execute(
+            "SELECT DISTINCT source FROM player_dynasty_values ORDER BY source"
+        ).fetchall()
+    ]
+
+
 def compute_dynasty_rankings(
     con: sqlite3.Connection,
     league_id: str,
     season: int,
+    source: str = "dynastyprocess",
 ) -> dict:
-    """Compute dynasty power rankings for a league.
+    """Compute dynasty power rankings for a league using one valuation source.
 
     Returns: {season, data_date, rows} where rows are sorted by composite desc.
-    Returns {} when no dynasty value data exists.
+    Returns {} when no dynasty value data exists for this source.
     """
-    # Check whether dynasty data exists
-    count = con.execute("SELECT COUNT(*) FROM player_dynasty_values").fetchone()[0]
+    # Check whether dynasty data exists for this source
+    count = con.execute(
+        "SELECT COUNT(*) FROM player_dynasty_values WHERE source = ?", (source,)
+    ).fetchone()[0]
     if count == 0:
         return {"season": season, "data_date": None, "rows": []}
 
     data_date = (
-        con.execute("SELECT MAX(scraped_at) FROM player_dynasty_values").fetchone()[0]
+        con.execute(
+            "SELECT MAX(scraped_at) FROM player_dynasty_values WHERE source = ?", (source,)
+        ).fetchone()[0]
         or ""
     )[:10]  # ISO date prefix
 
@@ -289,9 +309,9 @@ def compute_dynasty_rankings(
         return {"season": season, "data_date": data_date, "rows": []}
 
     # Components
-    rv_raw  = _roster_values(con, league_id)
-    dc_raw  = _draft_capital_values(con, league_id, season)
-    age_raw = _age_curve_values(con, league_id)
+    rv_raw  = _roster_values(con, league_id, source)
+    dc_raw  = _draft_capital_values(con, league_id, season, source)
+    age_raw = _age_curve_values(con, league_id, source)
 
     rv_norm  = _normalize({uid: rv_raw.get(uid, 0.0) for uid in uids})
     dc_norm  = _normalize({uid: dc_raw.get(uid, 0.0) for uid in uids})
@@ -342,6 +362,59 @@ def compute_dynasty_rankings(
             "actual_wins":   wins_by_uid.get(uid, 0),
             "actual_losses": losses_by_uid.get(uid, 0),
             "pts_for":       pts_by_uid.get(uid, 0.0),
+        })
+
+    return {"season": season, "data_date": data_date, "rows": rows}
+
+
+def compute_dynasty_rankings_overall(
+    con: sqlite3.Connection,
+    league_id: str,
+    season: int,
+) -> dict:
+    """Blend dynasty rankings across every available valuation source.
+
+    Computes the full roster+capital+age composite per source, then averages
+    each owner's composite across sources. Returns {} (empty rows) when no
+    source has any data.
+    """
+    per_source: dict[str, dict] = {}
+    for source in get_available_dynasty_sources(con):
+        result = compute_dynasty_rankings(con, league_id, season, source)
+        if result["rows"]:
+            per_source[source] = result
+
+    if not per_source:
+        return {"season": season, "data_date": None, "rows": []}
+
+    data_dates = [r["data_date"] for r in per_source.values() if r["data_date"]]
+    data_date = max(data_dates) if data_dates else ""
+
+    owner_source_composite: dict[str, dict[str, float]] = defaultdict(dict)
+    owner_context: dict[str, dict] = {}
+    for source, result in per_source.items():
+        for row in result["rows"]:
+            owner_source_composite[row["owner"]][source] = row["composite"]
+            owner_context[row["owner"]] = {
+                "actual_wins":   row["actual_wins"],
+                "actual_losses": row["actual_losses"],
+                "pts_for":       row["pts_for"],
+            }
+
+    avg_composite = {
+        owner: sum(by_source.values()) / len(by_source)
+        for owner, by_source in owner_source_composite.items()
+    }
+    sorted_owners = sorted(avg_composite, key=lambda o: -avg_composite[o])
+
+    rows = []
+    for rank, owner in enumerate(sorted_owners, 1):
+        rows.append({
+            "rank":           rank,
+            "owner":          owner,
+            "composite":      round(avg_composite[owner], 1),
+            "source_scores":  owner_source_composite[owner],
+            **owner_context[owner],
         })
 
     return {"season": season, "data_date": data_date, "rows": rows}

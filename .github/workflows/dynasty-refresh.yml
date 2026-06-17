@@ -30,8 +30,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -e .
 
-      - name: Refresh current rosters and dynasty values
+      - name: Refresh current rosters and DynastyProcess values
         run: python -m fantasy_analyzer.cli scrape-dynasty
+
+      - name: Refresh FantasyCalc values
+        run: python -m fantasy_analyzer.cli scrape-fantasycalc
 
       - name: Commit updated DB
         run: |

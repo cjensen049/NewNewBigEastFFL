@@ -16,11 +16,12 @@ from __future__ import annotations
 import csv
 import io
 import logging
-import re
 import sqlite3
 from datetime import datetime, timezone
 
 import httpx
+
+from fantasy_analyzer.scraping.pick_names import parse_pick_name
 
 log = logging.getLogger(__name__)
 
@@ -44,50 +45,11 @@ def _fetch_csv(url: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Pick name parsing
-# ---------------------------------------------------------------------------
-
-# Maps pick number within a round to a tier label
-def _pick_tier(pick_num: int) -> str:
-    if pick_num <= 4:   return "early"
-    if pick_num <= 8:   return "mid"
-    return "late"
-
-
-def _parse_pick_name(name: str) -> tuple[int, int, str] | None:
-    """Parse a DynastyProcess pick name into (season, round, tier).
-
-    Handles two formats:
-      "2027 Pick 1.01"   → (2027, 1, 'early')
-      "2027 Early 1st"   → (2027, 1, 'early')
-    """
-    name = name.strip()
-
-    # Format 1: "2027 Pick R.SS"  (R=round, SS=slot 01-12)
-    m = re.match(r"(\d{4})\s+Pick\s+(\d+)\.(\d+)", name, re.IGNORECASE)
-    if m:
-        season   = int(m.group(1))
-        rnd      = int(m.group(2))
-        slot     = int(m.group(3))
-        return season, rnd, _pick_tier(slot)
-
-    # Format 2: "2027 Early 1st" / "2027 Mid 2nd" / "2027 Late 3rd"
-    m = re.match(
-        r"(\d{4})\s+(Early|Mid|Late)\s+(\d+)(?:st|nd|rd|th)?",
-        name, re.IGNORECASE,
-    )
-    if m:
-        season = int(m.group(1))
-        tier   = m.group(2).lower()
-        rnd    = int(m.group(3))
-        return season, rnd, tier
-
-    return None
-
-
-# ---------------------------------------------------------------------------
 # Main fetch + store
 # ---------------------------------------------------------------------------
+
+_SOURCE = "dynastyprocess"
+
 
 def run_dynasty_scrape(con: sqlite3.Connection) -> tuple[int, int]:
     """Fetch DynastyProcess CSVs, match to Sleeper IDs, store in DB.
@@ -167,7 +129,7 @@ def run_dynasty_scrape(con: sqlite3.Connection) -> tuple[int, int]:
     pick_buckets: dict[tuple, list[float]] = {}
     for r in pick_rows:
         nm = (r.get("player") or "").strip()
-        parsed = _parse_pick_name(nm)
+        parsed = parse_pick_name(nm)
         if not parsed:
             continue
         season, rnd, tier = parsed
@@ -187,19 +149,20 @@ def run_dynasty_scrape(con: sqlite3.Connection) -> tuple[int, int]:
 
     log.info("  Pick values: %d stored", len(pick_inserts))
 
-    # Write to DB atomically
-    con.execute("DELETE FROM player_dynasty_values")
+    # Write to DB atomically — scoped to this source so other sources'
+    # rows (e.g. FantasyCalc) in the same tables are left untouched.
+    con.execute("DELETE FROM player_dynasty_values WHERE source = ?", (_SOURCE,))
     con.executemany(
-        """INSERT INTO player_dynasty_values (player_id, value, age, scraped_at)
-           VALUES (?, ?, ?, ?)""",
-        player_inserts,
+        """INSERT INTO player_dynasty_values (source, player_id, value, age, scraped_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        [(_SOURCE, *row) for row in player_inserts],
     )
 
-    con.execute("DELETE FROM pick_dynasty_values")
+    con.execute("DELETE FROM pick_dynasty_values WHERE source = ?", (_SOURCE,))
     con.executemany(
-        """INSERT INTO pick_dynasty_values (season, round, tier, value, scraped_at)
-           VALUES (?, ?, ?, ?, ?)""",
-        pick_inserts,
+        """INSERT INTO pick_dynasty_values (source, season, round, tier, value, scraped_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        [(_SOURCE, *row) for row in pick_inserts],
     )
 
     con.commit()

@@ -146,20 +146,22 @@ CREATE TABLE IF NOT EXISTS current_rosters (
 );
 
 CREATE TABLE IF NOT EXISTS player_dynasty_values (
+    source      TEXT    NOT NULL DEFAULT 'dynastyprocess',
     player_id   TEXT    NOT NULL,
     value       REAL    NOT NULL,
     age         REAL,
     scraped_at  TEXT    NOT NULL,
-    PRIMARY KEY (player_id)
+    PRIMARY KEY (source, player_id)
 );
 
 CREATE TABLE IF NOT EXISTS pick_dynasty_values (
+    source      TEXT    NOT NULL DEFAULT 'dynastyprocess',
     season      INTEGER NOT NULL,
     round       INTEGER NOT NULL,
     tier        TEXT    NOT NULL DEFAULT 'mid',
     value       REAL    NOT NULL,
     scraped_at  TEXT    NOT NULL,
-    PRIMARY KEY (season, round, tier)
+    PRIMARY KEY (source, season, round, tier)
 );
 
 CREATE INDEX IF NOT EXISTS idx_matchups_league_week ON matchups(league_id, week);
@@ -260,21 +262,23 @@ async def apply_migrations(db_path: str) -> None:
         """)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS player_dynasty_values (
+                source      TEXT    NOT NULL DEFAULT 'dynastyprocess',
                 player_id   TEXT    NOT NULL,
                 value       REAL    NOT NULL,
                 age         REAL,
                 scraped_at  TEXT    NOT NULL,
-                PRIMARY KEY (player_id)
+                PRIMARY KEY (source, player_id)
             )
         """)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS pick_dynasty_values (
+                source      TEXT    NOT NULL DEFAULT 'dynastyprocess',
                 season      INTEGER NOT NULL,
                 round       INTEGER NOT NULL,
                 tier        TEXT    NOT NULL DEFAULT 'mid',
                 value       REAL    NOT NULL,
                 scraped_at  TEXT    NOT NULL,
-                PRIMARY KEY (season, round, tier)
+                PRIMARY KEY (source, season, round, tier)
             )
         """)
         await db.commit()
@@ -284,6 +288,52 @@ async def apply_migrations(db_path: str) -> None:
             await db.commit()
         except Exception:
             pass  # column already exists
+
+        # Widen player_dynasty_values/pick_dynasty_values to support multiple
+        # valuation sources (DynastyProcess, FantasyCalc, ...). Older DBs have
+        # these tables keyed without a source column; recreate them in place,
+        # tagging existing rows as 'dynastyprocess' (the only source that ever
+        # wrote to them before this migration existed).
+        cols = [r[1] for r in await (await db.execute("PRAGMA table_info(player_dynasty_values)")).fetchall()]
+        if "source" not in cols:
+            await db.execute("""
+                CREATE TABLE player_dynasty_values_new (
+                    source      TEXT    NOT NULL DEFAULT 'dynastyprocess',
+                    player_id   TEXT    NOT NULL,
+                    value       REAL    NOT NULL,
+                    age         REAL,
+                    scraped_at  TEXT    NOT NULL,
+                    PRIMARY KEY (source, player_id)
+                )
+            """)
+            await db.execute("""
+                INSERT INTO player_dynasty_values_new (source, player_id, value, age, scraped_at)
+                SELECT 'dynastyprocess', player_id, value, age, scraped_at FROM player_dynasty_values
+            """)
+            await db.execute("DROP TABLE player_dynasty_values")
+            await db.execute("ALTER TABLE player_dynasty_values_new RENAME TO player_dynasty_values")
+            await db.commit()
+
+        cols = [r[1] for r in await (await db.execute("PRAGMA table_info(pick_dynasty_values)")).fetchall()]
+        if "source" not in cols:
+            await db.execute("""
+                CREATE TABLE pick_dynasty_values_new (
+                    source      TEXT    NOT NULL DEFAULT 'dynastyprocess',
+                    season      INTEGER NOT NULL,
+                    round       INTEGER NOT NULL,
+                    tier        TEXT    NOT NULL DEFAULT 'mid',
+                    value       REAL    NOT NULL,
+                    scraped_at  TEXT    NOT NULL,
+                    PRIMARY KEY (source, season, round, tier)
+                )
+            """)
+            await db.execute("""
+                INSERT INTO pick_dynasty_values_new (source, season, round, tier, value, scraped_at)
+                SELECT 'dynastyprocess', season, round, tier, value, scraped_at FROM pick_dynasty_values
+            """)
+            await db.execute("DROP TABLE pick_dynasty_values")
+            await db.execute("ALTER TABLE pick_dynasty_values_new RENAME TO pick_dynasty_values")
+            await db.commit()
 
         try:
             await db.execute("ALTER TABLE owners ADD COLUMN departed_after INTEGER")

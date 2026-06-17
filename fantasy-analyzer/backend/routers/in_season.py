@@ -19,7 +19,11 @@ from fantasy_analyzer.analysis.history import (
     get_standings_snapshot,
 )
 from fantasy_analyzer.analysis.power_rankings import compute_power_rankings
-from fantasy_analyzer.analysis.dynasty_rankings import compute_dynasty_rankings
+from fantasy_analyzer.analysis.dynasty_rankings import (
+    compute_dynasty_rankings,
+    compute_dynasty_rankings_overall,
+    get_available_dynasty_sources,
+)
 
 router = APIRouter()
 
@@ -133,14 +137,28 @@ def luck_by_season(season: int, con: sqlite3.Connection = Depends(get_db)) -> di
 
 
 @router.get("/dynasty-rankings/{season}")
-def dynasty_rankings(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
-    """Dynasty power rankings: roster value + draft capital + age curve."""
+def dynasty_rankings(
+    season: int, source: str = "overall", con: sqlite3.Connection = Depends(get_db)
+) -> dict:
+    """Dynasty power rankings: roster value + draft capital + age curve.
+
+    `source` is one of the available valuation sources (e.g. "dynastyprocess",
+    "fantasycalc") or "overall" to blend the composite across all of them.
+    """
+    available_sources = get_available_dynasty_sources(con)
+
     row = con.execute(
         "SELECT league_id FROM leagues WHERE season = ?", (season,)
     ).fetchone()
     if not row:
-        return {"season": season, "data_date": None, "rows": []}
-    return compute_dynasty_rankings(con, row[0], season)
+        return {"season": season, "data_date": None, "source": source, "available_sources": available_sources, "rows": []}
+
+    if source == "overall":
+        result = compute_dynasty_rankings_overall(con, row[0], season)
+    else:
+        result = compute_dynasty_rankings(con, row[0], season, source)
+
+    return {**result, "source": source, "available_sources": available_sources}
 
 
 @router.get("/power-rankings/{season}")

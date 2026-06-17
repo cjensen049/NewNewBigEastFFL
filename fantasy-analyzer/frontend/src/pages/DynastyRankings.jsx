@@ -2,21 +2,35 @@
  * DynastyRankings.jsx — Long-term dynasty power rankings panel.
  *
  * Ranks all 12 owners by dynasty strength using three components:
- *   Roster Score   (55%) — DynastyProcess SuperFlex values; taxi at 80%
+ *   Roster Score   (55%) — player values from the selected source; taxi at 80%
  *   Capital Score  (30%) — Future draft picks owned × pick tier values
  *   Age Score      (15%) — Value-weighted avg age; younger rosters score higher
  *
  * All component scores are normalised 0–100 within the league.
+ * A source toggle lets you view the ranking using a single valuation site
+ * (DynastyProcess, FantasyCalc, ...) or "Overall", which averages each
+ * owner's composite score across every source that has data.
  * Refreshed 4× per year: post rookie draft, Week 1, post trade deadline,
  * and post championship.
  *
  * Props:
  *   season  {number} — active season year
  */
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const SOURCE_LABELS = {
+  overall: 'Overall',
+  dynastyprocess: 'DynastyProcess',
+  fantasycalc: 'FantasyCalc',
+}
+
+function sourceLabel(source) {
+  return SOURCE_LABELS[source] ?? source
+}
 
 function rankStyle(rank) {
   if (rank === 1) return { bg: 'rgba(204,31,46,0.2)',  text: 'var(--brand-red)' }
@@ -26,16 +40,40 @@ function rankStyle(rank) {
 }
 
 function scoreBar(value) {
-  const color = value >= 70 ? 'var(--green)' : value >= 40 ? 'var(--gold)' : 'var(--brand-red)'
+  const v = value ?? 0
+  const color = v >= 70 ? 'var(--green)' : v >= 40 ? 'var(--gold)' : 'var(--brand-red)'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
       <div style={{ flex: 1, height: '4px', background: 'var(--border)', borderRadius: '2px', minWidth: '40px' }}>
-        <div style={{ width: `${value}%`, height: '100%', background: color, borderRadius: '2px', transition: 'width 0.3s' }} />
+        <div style={{ width: `${v}%`, height: '100%', background: color, borderRadius: '2px', transition: 'width 0.3s' }} />
       </div>
       <span style={{ fontSize: '11px', fontVariantNumeric: 'tabular-nums', color, fontWeight: 600, minWidth: '28px', textAlign: 'right' }}>
-        {value.toFixed(0)}
+        {v.toFixed(0)}
       </span>
     </div>
+  )
+}
+
+// ─── Source toggle pills ────────────────────────────────────────────────────
+
+function SourcePill({ active, onClick, label }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '4px 12px',
+        borderRadius: '5px',
+        fontSize: '11px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        border: active ? '1px solid transparent' : '1px solid var(--border-mid)',
+        background: active ? 'var(--brand-navy)' : 'var(--border)',
+        color: active ? '#ffffff' : 'var(--text-muted)',
+        transition: 'background 0.15s, color 0.15s',
+      }}
+    >
+      {label}
+    </button>
   )
 }
 
@@ -47,7 +85,7 @@ const FORMULA_CARDS = [
     color: '#5b8dd9',
     bg: 'rgba(26,58,107,0.15)',
     border: 'rgba(91,141,217,0.2)',
-    desc: 'Every player on your roster valued using DynastyProcess SuperFlex (2QB) ratings. Taxi squad players counted at 80% of full value.',
+    desc: 'Every player on your roster valued using the selected source’s SuperFlex (2QB) ratings. Taxi squad players counted at 80% of full value.',
   },
   {
     label: 'Draft Capital',
@@ -67,7 +105,8 @@ const FORMULA_CARDS = [
   },
 ]
 
-function FormulaFooter() {
+function FormulaFooter({ source }) {
+  const isOverall = source === 'overall'
   return (
     <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
       <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: '0 0 8px' }}>
@@ -93,7 +132,10 @@ function FormulaFooter() {
         ))}
       </div>
       <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '8px 0 0' }}>
-        All three scores normalised 0–100 within NNBE, then combined. Values via DynastyProcess · refreshed 4× per year.
+        {isOverall
+          ? 'All three scores normalised 0–100 within NNBE, then combined per source. "Overall" averages each owner’s composite across every available source.'
+          : 'All three scores normalised 0–100 within NNBE, then combined.'}
+        {' '}Values via {isOverall ? 'all available sources' : sourceLabel(source)} · refreshed 4× per year.
       </p>
     </div>
   )
@@ -102,16 +144,30 @@ function FormulaFooter() {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function DynastyRankings({ season }) {
+  const [source, setSource] = useState('overall')
+
   const { data, isLoading } = useQuery({
-    queryKey: ['dynasty-rankings', season],
-    queryFn: () => fetch(`/api/in-season/dynasty-rankings/${season}`).then(r => r.json()),
+    queryKey: ['dynasty-rankings', season, source],
+    queryFn: () => fetch(`/api/in-season/dynasty-rankings/${season}?source=${source}`).then(r => r.json()),
     enabled: !!season,
   })
 
   if (isLoading) return <div style={{ padding: '20px 0' }}><LoadingSpinner /></div>
 
-  const rows     = data?.rows ?? []
-  const dataDate = data?.data_date ?? null
+  const rows             = data?.rows ?? []
+  const dataDate         = data?.data_date ?? null
+  const availableSources = data?.available_sources ?? []
+  const isOverall         = source === 'overall'
+
+  const pills = ['overall', ...availableSources]
+
+  const SourceToggle = availableSources.length > 0 && (
+    <div style={{ display: 'flex', gap: '6px', padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+      {pills.map(s => (
+        <SourcePill key={s} active={source === s} onClick={() => setSource(s)} label={sourceLabel(s)} />
+      ))}
+    </div>
+  )
 
   if (rows.length === 0) {
     return (
@@ -119,10 +175,11 @@ export default function DynastyRankings({ season }) {
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Dynasty Rankings</span>
         </div>
+        {SourceToggle}
         <p style={{ padding: '24px 16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
           Dynasty rankings refreshed 4× per year: post rookie draft, Week 1, post trade deadline, and post championship.
         </p>
-        <FormulaFooter />
+        <FormulaFooter source={source} />
       </div>
     )
   }
@@ -151,9 +208,11 @@ export default function DynastyRankings({ season }) {
           </span>
         )}
         <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)' }}>
-          Roster 55% · Capital 30% · Age 15%
+          {isOverall ? 'Average composite across sources' : 'Roster 55% · Capital 30% · Age 15%'}
         </span>
       </div>
+
+      {SourceToggle}
 
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '400px' }}>
@@ -162,9 +221,17 @@ export default function DynastyRankings({ season }) {
               <TH width="36px">#</TH>
               <TH>Owner</TH>
               <TH align="right" title="Composite dynasty score (0–100)">Score</TH>
-              <TH title="Roster value from DynastyProcess SuperFlex values, normalised 0–100">Roster</TH>
-              <TH title="Future draft pick capital: picks owned × tier value, normalised 0–100">Capital</TH>
-              <TH title="Value-weighted avg age of top 15 players vs. dynasty prime (25). Younger = higher score, normalised 0–100">Age</TH>
+              {isOverall ? (
+                availableSources.map(s => (
+                  <TH key={s} title={`${sourceLabel(s)} composite score, normalised 0–100`}>{sourceLabel(s)}</TH>
+                ))
+              ) : (
+                <>
+                  <TH title="Roster value from the selected source's SuperFlex values, normalised 0–100">Roster</TH>
+                  <TH title="Future draft pick capital: picks owned × tier value, normalised 0–100">Capital</TH>
+                  <TH title="Value-weighted avg age of top 15 players vs. dynasty prime (25). Younger = higher score, normalised 0–100">Age</TH>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -191,14 +258,17 @@ export default function DynastyRankings({ season }) {
                     </span>
                   </td>
 
-                  {/* Roster bar */}
-                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.roster_score)}</td>
-
-                  {/* Capital bar */}
-                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.capital_score)}</td>
-
-                  {/* Age bar */}
-                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.age_score)}</td>
+                  {isOverall ? (
+                    availableSources.map(s => (
+                      <td key={s} style={{ padding: '6px 10px' }}>{scoreBar(r.source_scores?.[s])}</td>
+                    ))
+                  ) : (
+                    <>
+                      <td style={{ padding: '6px 10px' }}>{scoreBar(r.roster_score)}</td>
+                      <td style={{ padding: '6px 10px' }}>{scoreBar(r.capital_score)}</td>
+                      <td style={{ padding: '6px 10px' }}>{scoreBar(r.age_score)}</td>
+                    </>
+                  )}
                 </tr>
               )
             })}
@@ -206,7 +276,7 @@ export default function DynastyRankings({ season }) {
         </table>
       </div>
 
-      <FormulaFooter />
+      <FormulaFooter source={source} />
     </div>
   )
 }

@@ -50,6 +50,12 @@ def main() -> None:
         help="Fetch DynastyProcess player + pick values and refresh Sleeper rosters",
     )
 
+    # scrape-fantasycalc
+    sub.add_parser(
+        "scrape-fantasycalc",
+        help="Fetch FantasyCalc player + pick values and refresh Sleeper rosters",
+    )
+
     # scrape-dynasty-sources
     dynasty_src_p = sub.add_parser(
         "scrape-dynasty-sources",
@@ -94,6 +100,9 @@ def main() -> None:
 
     elif args.command == "scrape-dynasty":
         _run_scrape_dynasty(db_path, cfg)
+
+    elif args.command == "scrape-fantasycalc":
+        _run_scrape_fantasycalc(db_path)
 
     elif args.command == "scrape-dynasty-sources":
         _run_scrape_dynasty_sources(args, db_path, cfg)
@@ -171,6 +180,27 @@ def _run_scrape_dynasty(db_path: str, cfg: dict) -> None:
 
         players_stored, picks_stored = run_dynasty_scrape(con)
         print(f"  Dynasty values: {players_stored} players, {picks_stored} picks stored")
+    finally:
+        con.close()
+
+
+def _run_scrape_fantasycalc(db_path: str) -> None:
+    """Fetch FantasyCalc values and refresh Sleeper rosters."""
+    from fantasy_analyzer.scraping.fantasycalc import run_fantasycalc_scrape
+    from fantasy_analyzer.scraping.fantasypros import update_current_rosters
+
+    con = sqlite3.connect(db_path)
+    try:
+        # Get the active/most recent league_id to refresh rosters
+        row = con.execute(
+            "SELECT league_id FROM leagues ORDER BY season DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            roster_count = update_current_rosters(con, row[0])
+            print(f"  Rosters: {roster_count} player-roster entries updated")
+
+        players_stored, picks_stored = run_fantasycalc_scrape(con)
+        print(f"  FantasyCalc values: {players_stored} players, {picks_stored} picks stored")
     finally:
         con.close()
 
