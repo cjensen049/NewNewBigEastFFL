@@ -59,10 +59,6 @@ CREATE TABLE IF NOT EXISTS season_records (
     fpts        REAL NOT NULL DEFAULT 0,
     fpts_against REAL NOT NULL DEFAULT 0,
     ppts        REAL NOT NULL DEFAULT 0,
-    made_playoffs INTEGER NOT NULL DEFAULT 0,
-    playoff_wins  INTEGER NOT NULL DEFAULT 0,
-    champion      INTEGER NOT NULL DEFAULT 0,
-    last_place    INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (league_id, user_id)
 );
 
@@ -294,3 +290,12 @@ async def apply_migrations(db_path: str) -> None:
             await db.commit()
         except Exception:
             pass  # column already exists
+
+        # Drop dead columns from season_records — never written by ingest, never queried;
+        # champion/made_playoffs/playoff_wins/last_place are computed from matchups at runtime.
+        for col in ("champion", "made_playoffs", "playoff_wins", "last_place"):
+            try:
+                await db.execute(f"ALTER TABLE season_records DROP COLUMN {col}")
+                await db.commit()
+            except Exception:
+                pass  # column already dropped

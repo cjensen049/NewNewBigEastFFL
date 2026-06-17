@@ -306,6 +306,40 @@ body {
   }
 }
 
+/* ─── Owner roster card grid ─────────────────────────────────────────────────── */
+
+.owner-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .owner-roster-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .owner-roster-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.owner-roster-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.owner-roster-card:hover {
+  border-color: var(--border-mid);
+  background: var(--bg-raised);
+  transform: translateY(-2px);
+}
+
 /* ─── Hero title responsive size ─────────────────────────────────────────────── */
 
 .hero-title {

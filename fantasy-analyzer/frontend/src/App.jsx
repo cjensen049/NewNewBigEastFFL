@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import Home from './pages/Home'
 import League from './pages/League'
 import Owner from './pages/Owner'
+import OwnerRoster from './pages/OwnerRoster'
 import Transactions from './pages/Transactions'
 import Calendar from './pages/Calendar'
 
@@ -16,7 +17,8 @@ export default function App() {
           <Routes>
             <Route path="/"             element={<Home />} />
             <Route path="/league"       element={<League />} />
-            <Route path="/owner"        element={<Owner />} />
+            <Route path="/owner"         element={<OwnerRoster />} />
+            <Route path="/owner/:name"   element={<Owner />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/calendar"     element={<Calendar />} />
             <Route path="/history"   element={<Navigate to="/league" replace />} />

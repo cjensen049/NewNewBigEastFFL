@@ -52,6 +52,91 @@ def list_owners(con: sqlite3.Connection = Depends(get_db)) -> dict:
     return {"owners": [r[0] for r in rows]}
 
 
+@router.get("/summary")
+def owners_summary(con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """
+    Career summary for every owner — used by the owner roster landing page.
+    Batches all owner profiles in one call; returns avatar URLs merged in.
+    Sorted: active owners first (by championships desc, win% desc), departed last.
+    """
+    owners_meta = con.execute(
+        "SELECT canonical_name, joined_season, departed_after FROM owners ORDER BY canonical_name"
+    ).fetchall()
+
+    avatars = owner_avatars(con)["avatars"]
+    seasons = get_available_seasons(con)
+
+    # Pre-compute season breakdowns once and reuse across all owners
+    season_data: dict[int, dict] = {}
+    for season in seasons:
+        data = get_season_breakdown(con, season)
+        if data:
+            season_data[season] = data
+
+    result = []
+    for name, joined_season, departed_after in owners_meta:
+        total_wins = total_losses = total_ties = total_games = 0
+        playoff_apps = championships = 0
+        best_finish = None
+        season_count = 0
+
+        for season, data in season_data.items():
+            if joined_season is not None and season < joined_season:
+                continue
+            if departed_after is not None and season > departed_after:
+                continue
+
+            rec = next((r for r in data["regular_season"] if r.canonical_name == name), None)
+            if not rec or (rec.wins == 0 and rec.losses == 0 and rec.points_for == 0):
+                continue
+
+            playoff_entry = next(
+                (r for r in data["playoff"].values() if r.canonical_name == name), None
+            )
+            finish = None
+            if playoff_entry and playoff_entry.made_playoffs and playoff_entry.finish is not None:
+                finish = playoff_entry.finish
+
+            total_wins += rec.wins
+            total_losses += rec.losses
+            total_ties += rec.ties
+            total_games += rec.games
+            season_count += 1
+
+            if playoff_entry:
+                if playoff_entry.made_playoffs:
+                    playoff_apps += 1
+                if playoff_entry.champion:
+                    championships += 1
+            if finish is not None and (best_finish is None or finish < best_finish):
+                best_finish = finish
+
+        record_str = f"{total_wins}-{total_losses}" if total_games else "—"
+        if total_ties and total_games:
+            record_str += f"-{total_ties}"
+        win_pct = (total_wins + 0.5 * total_ties) / total_games if total_games else 0.0
+
+        result.append({
+            "name": name,
+            "avatar_url": avatars.get(name),
+            "joined_season": joined_season,
+            "departed_after": departed_after,
+            "record": record_str,
+            "win_pct": round(win_pct, 4),
+            "championships": championships,
+            "playoff_appearances": playoff_apps,
+            "total_seasons": season_count,
+            "best_finish": FINISH_DISPLAY.get(best_finish, str(best_finish)) if best_finish else "—",
+        })
+
+    result.sort(key=lambda o: (
+        1 if o["departed_after"] is not None else 0,
+        -o["championships"],
+        -o["win_pct"],
+    ))
+    return {"owners": result}
+
+
 @router.get("/avatars")
 def owner_avatars(con: sqlite3.Connection = Depends(get_db)) -> dict:
     """

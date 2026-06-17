@@ -7,6 +7,7 @@
  * Tabs: Career Summary | Head-to-Head | Top Players | Draft Picks | Trades | Waivers
  */
 import { useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { TabPanel } from '../components/Tabs'
@@ -531,18 +532,22 @@ function initials(name) {
 }
 
 export default function Owner() {
+  const { name: urlName } = useParams()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('summary')
-  const [selectedOwner, setSelectedOwner] = useState(null)
 
   const { data: ownersData, isLoading } = useQuery({
     queryKey: ['owners-list'],
     queryFn: () => fetch('/api/owners/').then(r => r.json()),
   })
 
+  const owners = ownersData?.owners ?? []
+  const activeOwner = urlName ?? owners[0]
+
   const { data: profileData } = useQuery({
-    queryKey: ['owner-profile-meta', selectedOwner ?? ownersData?.owners?.[0]],
-    queryFn: () => fetch(`/api/owners/${encodeURIComponent(selectedOwner ?? ownersData?.owners?.[0])}`).then(r => r.json()),
-    enabled: !!(selectedOwner ?? ownersData?.owners?.[0]),
+    queryKey: ['owner-profile-meta', activeOwner],
+    queryFn: () => fetch(`/api/owners/${encodeURIComponent(activeOwner)}`).then(r => r.json()),
+    enabled: !!activeOwner,
   })
 
   const { data: avatarsData } = useQuery({
@@ -550,9 +555,6 @@ export default function Owner() {
     queryFn: () => fetch('/api/owners/avatars').then(r => r.json()),
     staleTime: Infinity,
   })
-
-  const owners = ownersData?.owners ?? []
-  const activeOwner = selectedOwner ?? owners[0]
 
   if (isLoading) return <LoadingSpinner />
 
@@ -571,7 +573,7 @@ export default function Owner() {
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Owner</span>
             <select
               value={activeOwner ?? ''}
-              onChange={e => { setSelectedOwner(e.target.value); setTab('summary') }}
+              onChange={e => { navigate(`/owner/${encodeURIComponent(e.target.value)}`); setTab('summary') }}
               style={{ background: 'var(--border)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', fontFamily: 'var(--font-body)' }}
             >
               {owners.map(o => <option key={o} value={o}>{o}</option>)}
