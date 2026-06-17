@@ -295,31 +295,57 @@ function TopPlayersTab({ owner }) {
 
   if (isLoading) return <LoadingSpinner />
 
+  const players = data?.players ?? []
+
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-4 mb-4">
         <h2 className="text-lg font-semibold">Top Scoring Players</h2>
-        <select
-          value={selectedSeason ?? ''}
-          onChange={e => setSelectedSeason(e.target.value ? Number(e.target.value) : null)}
-          className="ml-4 bg-gray-800 border border-gray-600 rounded px-3 py-1 text-sm text-gray-200 focus:outline-none focus:border-emerald-500"
-        >
-          <option value="">All Time</option>
-          {seasons.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <p className="text-xs text-gray-500">Regular season only · points scored while in the starting lineup</p>
+        <div className="flex items-center gap-2 ml-auto">
+          <label className="text-gray-400 text-sm">Season</label>
+          <select
+            value={selectedSeason ?? ''}
+            onChange={e => setSelectedSeason(e.target.value ? Number(e.target.value) : null)}
+            style={{ background: 'var(--border)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)', borderRadius: '6px', padding: '4px 10px', fontSize: '13px', fontFamily: 'var(--font-body)' }}
+          >
+            <option value="">All Time</option>
+            {seasons.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
       </div>
-      <p className="text-xs text-gray-500 mb-3">Regular season only · points scored while in the starting lineup</p>
-      <DataTable
-        rows={data?.players ?? []}
-        maxHeight="490px"
-        columns={[
-          { key: 'player',        label: 'Player' },
-          { key: 'position',      label: 'Pos' },
-          { key: 'total_pts',     label: 'Total Pts',   align: 'right' },
-          { key: 'weeks_started', label: 'Wks Started', align: 'right' },
-          { key: 'avg_pts',       label: 'Avg/Wk',      align: 'right' },
-        ]}
-      />
+
+      <div className="rounded border border-gray-700 overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: '500px' }}>
+          <thead>
+            <tr className="bg-gray-800 text-gray-400 text-left text-xs uppercase tracking-wide">
+              <th className="px-3 py-2">Player</th>
+              <th className="px-3 py-2 w-12">Pos</th>
+              <th className="px-3 py-2 w-28 text-right">Total Pts</th>
+              <th className="px-3 py-2 w-24 text-right">Wks Started</th>
+              <th className="px-3 py-2 w-24 text-right">Avg/Wk</th>
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p, i) => {
+              const { border, bg } = POS_STYLE[p.position] ?? { border: 'border-l-gray-600', bg: 'bg-gray-800/40' }
+              return (
+                <tr key={i} className={`border-l-4 ${border} ${bg} border-b border-gray-800/50`}>
+                  <td className="px-3 py-2 text-white font-medium">{p.player}</td>
+                  <td className="px-3 py-2"><OwnerPosBadge pos={p.position} /></td>
+                  <td className="px-3 py-2 text-right font-mono text-gray-300">
+                    {p.total_pts != null ? Number(p.total_pts).toFixed(1) : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right text-gray-400">{p.weeks_started ?? '—'}</td>
+                  <td className="px-3 py-2 text-right font-mono text-gray-300">
+                    {p.avg_pts != null ? Number(p.avg_pts).toFixed(1) : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
