@@ -174,6 +174,9 @@ export default function DynastyRankings({ season }) {
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', maxWidth: '700px' }}>
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Dynasty Rankings</span>
+          <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.25)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+            {sourceLabel(source)}
+          </span>
         </div>
         {SourceToggle}
         <p style={{ padding: '24px 16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
@@ -201,6 +204,9 @@ export default function DynastyRankings({ season }) {
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
           Dynasty Rankings
+        </span>
+        <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.25)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+          {sourceLabel(source)}
         </span>
         {dataDate && (
           <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
