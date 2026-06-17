@@ -35,15 +35,23 @@ function winPctColor(v) {
 
 function MiniStat({ label, value, valueColor }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-      <span style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+      <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)' }}>
         {label}
       </span>
-      <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', lineHeight: 1, color: valueColor ?? 'var(--text-primary)' }}>
+      <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', lineHeight: 1, color: valueColor ?? 'var(--text-primary)' }}>
         {value ?? '—'}
       </span>
     </div>
   )
+}
+
+function championLabel(owner) {
+  const years = owner.championship_seasons ?? []
+  if (years.length === 0) return null
+  const yearStr = years.join(', ')
+  if (years.length === 1) return `${years[0]} League Champion`
+  return `${years.length}× Champion (${yearStr})`
 }
 
 function OwnerCard({ owner }) {
@@ -69,7 +77,7 @@ function OwnerCard({ owner }) {
         }}>
           <span style={{ fontSize: '13px' }}>🏆</span>
           <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--gold)' }}>
-            {owner.championships === 1 ? 'League Champion' : `${owner.championships}× Champion`}
+            {championLabel(owner)}
           </span>
         </div>
       )}
@@ -96,7 +104,7 @@ function OwnerCard({ owner }) {
         )}
 
         <div style={{ minWidth: 0 }}>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: '28px', letterSpacing: '2px', lineHeight: 1, color: 'var(--text-primary)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: '32px', letterSpacing: '2px', lineHeight: 1, color: 'var(--text-primary)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {owner.name}
           </p>
           <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginTop: '5px', lineHeight: 1 }}>

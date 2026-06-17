@@ -79,6 +79,7 @@ def owners_summary(con: sqlite3.Connection = Depends(get_db)) -> dict:
         playoff_apps = championships = 0
         best_finish = None
         season_count = 0
+        championship_seasons: list[int] = []
 
         for season, data in season_data.items():
             if joined_season is not None and season < joined_season:
@@ -108,6 +109,7 @@ def owners_summary(con: sqlite3.Connection = Depends(get_db)) -> dict:
                     playoff_apps += 1
                 if playoff_entry.champion:
                     championships += 1
+                    championship_seasons.append(season)
             if finish is not None and (best_finish is None or finish < best_finish):
                 best_finish = finish
 
@@ -124,6 +126,7 @@ def owners_summary(con: sqlite3.Connection = Depends(get_db)) -> dict:
             "record": record_str,
             "win_pct": round(win_pct, 4),
             "championships": championships,
+            "championship_seasons": sorted(championship_seasons),
             "playoff_appearances": playoff_apps,
             "total_seasons": season_count,
             "best_finish": FINISH_DISPLAY.get(best_finish, str(best_finish)) if best_finish else "—",
