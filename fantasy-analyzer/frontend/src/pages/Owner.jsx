@@ -599,7 +599,7 @@ export default function Owner() {
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Owner</span>
             <select
               value={activeOwner ?? ''}
-              onChange={e => { navigate(`/owner/${encodeURIComponent(e.target.value)}`); setTab('summary') }}
+              onChange={e => navigate(`/owner/${encodeURIComponent(e.target.value)}`)}
               style={{ background: 'var(--border)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', fontFamily: 'var(--font-body)' }}
             >
               {owners.map(o => <option key={o} value={o}>{o}</option>)}
