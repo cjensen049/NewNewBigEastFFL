@@ -119,7 +119,7 @@ def main() -> None:
         _run_scrape_fantasycalc(db_path)
 
     elif args.command == "scrape-ktc":
-        _run_scrape_ktc(db_path)
+        _run_scrape_ktc(db_path, cfg)
 
     elif args.command == "scrape-dynasty-sources":
         _run_scrape_dynasty_sources(args, db_path, cfg)
@@ -222,10 +222,22 @@ def _run_scrape_fantasycalc(db_path: str) -> None:
         con.close()
 
 
-def _run_scrape_ktc(db_path: str) -> None:
+def _run_scrape_ktc(db_path: str, cfg: dict) -> None:
     """Fetch KeepTradeCut values (via our Sleeper-synced league page) and refresh rosters."""
+    from fantasy_analyzer.api.sleeper import SleeperClient
     from fantasy_analyzer.scraping.ktc import run_ktc_scrape
     from fantasy_analyzer.scraping.fantasypros import update_current_rosters
+
+    settings = cfg.get("settings", {})
+    players_cache = settings.get("player_cache_path", "data/players.json")
+    ttl_days = settings.get("player_cache_ttl_days", 7)
+    api_delay = settings.get("api_delay_seconds", 0.5)
+
+    # KTC has no sleeperId on its player rows, so matching relies on fuzzy name
+    # lookup against this cache. It's gitignored (10MB+), so a fresh checkout
+    # (e.g. CI) won't have it -- fetch it here rather than silently matching
+    # almost nothing via player_aliases.json alone.
+    asyncio.run(SleeperClient(delay=api_delay).get_players(Path(players_cache), ttl_days))
 
     con = sqlite3.connect(db_path)
     try:
@@ -241,7 +253,7 @@ def _run_scrape_ktc(db_path: str) -> None:
         roster_count = update_current_rosters(con, league_id)
         print(f"  Rosters: {roster_count} player-roster entries updated")
 
-        players_stored, picks_stored = run_ktc_scrape(con, league_id)
+        players_stored, picks_stored = run_ktc_scrape(con, league_id, players_cache_path=players_cache)
         print(f"  KTC values: {players_stored} players, {picks_stored} picks stored")
     finally:
         con.close()
