@@ -56,6 +56,12 @@ def main() -> None:
         help="Fetch FantasyCalc player + pick values and refresh Sleeper rosters",
     )
 
+    # scrape-ktc
+    sub.add_parser(
+        "scrape-ktc",
+        help="Fetch KeepTradeCut player + pick values and refresh Sleeper rosters",
+    )
+
     # scrape-dynasty-sources
     dynasty_src_p = sub.add_parser(
         "scrape-dynasty-sources",
@@ -103,6 +109,9 @@ def main() -> None:
 
     elif args.command == "scrape-fantasycalc":
         _run_scrape_fantasycalc(db_path)
+
+    elif args.command == "scrape-ktc":
+        _run_scrape_ktc(db_path)
 
     elif args.command == "scrape-dynasty-sources":
         _run_scrape_dynasty_sources(args, db_path, cfg)
@@ -201,6 +210,31 @@ def _run_scrape_fantasycalc(db_path: str) -> None:
 
         players_stored, picks_stored = run_fantasycalc_scrape(con)
         print(f"  FantasyCalc values: {players_stored} players, {picks_stored} picks stored")
+    finally:
+        con.close()
+
+
+def _run_scrape_ktc(db_path: str) -> None:
+    """Fetch KeepTradeCut values (via our Sleeper-synced league page) and refresh rosters."""
+    from fantasy_analyzer.scraping.ktc import run_ktc_scrape
+    from fantasy_analyzer.scraping.fantasypros import update_current_rosters
+
+    con = sqlite3.connect(db_path)
+    try:
+        # KTC's league sync URL takes our own Sleeper league_id directly
+        row = con.execute(
+            "SELECT league_id FROM leagues ORDER BY season DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            print("No league found", file=sys.stderr)
+            sys.exit(1)
+        league_id = row[0]
+
+        roster_count = update_current_rosters(con, league_id)
+        print(f"  Rosters: {roster_count} player-roster entries updated")
+
+        players_stored, picks_stored = run_ktc_scrape(con, league_id)
+        print(f"  KTC values: {players_stored} players, {picks_stored} picks stored")
     finally:
         con.close()
 

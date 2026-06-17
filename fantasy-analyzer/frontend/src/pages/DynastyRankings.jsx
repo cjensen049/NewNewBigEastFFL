@@ -26,6 +26,7 @@ const SOURCE_LABELS = {
   overall: 'Overall',
   dynastyprocess: 'DynastyProcess',
   fantasycalc: 'FantasyCalc',
+  ktc: 'KeepTradeCut',
 }
 
 function sourceLabel(source) {

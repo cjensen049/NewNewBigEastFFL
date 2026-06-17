@@ -36,6 +36,9 @@ jobs:
       - name: Refresh FantasyCalc values
         run: python -m fantasy_analyzer.cli scrape-fantasycalc
 
+      - name: Refresh KeepTradeCut values
+        run: python -m fantasy_analyzer.cli scrape-ktc
+
       - name: Commit updated DB
         run: |
           git config user.name "github-actions[bot]"
