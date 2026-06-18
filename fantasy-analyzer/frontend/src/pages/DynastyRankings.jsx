@@ -18,6 +18,9 @@
  * three categories (not the final composite) across every source that has
  * data, then re-applies the same 60/35/5 weights — so Overall shows the
  * same Roster/Capital/Age breakdown as any single source.
+ * Click any column header (Owner, Score, Roster, Capital, Age) to sort by it
+ * — useful for seeing who's #1 in a single category rather than the blended
+ * composite. The "#" rank badge always reflects the current sort order.
  * Refreshed 4× per year: post rookie draft, Week 1, post trade deadline,
  * and post championship.
  *
@@ -65,17 +68,17 @@ function scoreBar(value) {
   const color = v >= 1 ? 'var(--green)' : v <= -1 ? 'var(--brand-red)' : 'var(--gold)'
   const label = `${v >= 0 ? '+' : ''}${v.toFixed(2)}`
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <div style={{ position: 'relative', flex: 1, height: '14px', minWidth: '64px' }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, top: '5px', height: '4px', background: 'var(--border)', borderRadius: '2px' }} />
-        <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '1px', background: 'var(--border-mid)' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ position: 'relative', flex: 1, height: '22px', minWidth: '80px' }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: '7px', height: '8px', background: 'var(--border)', borderRadius: '4px' }} />
+        <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', background: 'var(--border-mid)' }} />
         <div style={{
-          position: 'absolute', top: '5px', height: '4px', borderRadius: '2px', background: color,
+          position: 'absolute', top: '7px', height: '8px', borderRadius: '4px', background: color,
           left: v >= 0 ? '50%' : `${50 - halfPct}%`,
           width: `${halfPct}%`,
         }} />
       </div>
-      <span style={{ fontSize: '11px', fontVariantNumeric: 'tabular-nums', color, fontWeight: 600, minWidth: '40px', textAlign: 'right' }}>
+      <span style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', color, fontWeight: 700, minWidth: '48px', textAlign: 'right' }}>
         {label}
       </span>
     </div>
@@ -86,7 +89,7 @@ function scoreBar(value) {
 
 function ReadingGuide() {
   return (
-    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-page)' }}>
+    <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', background: 'var(--bg-page)' }}>
       <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: '0 0 6px' }}>
         How to read this chart
       </p>
@@ -190,10 +193,45 @@ function FormulaFooter({ source }) {
   )
 }
 
+// ─── Sortable column header ─────────────────────────────────────────────────
+
+function SortableTH({ children, sortKeyName, activeSortKey, sortDir, onSort, align = 'left', title, width }) {
+  const active = sortKeyName === activeSortKey
+  return (
+    <th
+      title={title}
+      onClick={() => onSort(sortKeyName)}
+      style={{
+        padding: '10px 12px', fontSize: '12px', fontWeight: 600, letterSpacing: '1px',
+        textTransform: 'uppercase', color: active ? 'var(--text-primary)' : 'var(--text-faint)',
+        background: 'var(--bg-page)', borderBottom: '1px solid var(--border)',
+        textAlign: align, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none',
+        ...(width ? { width } : {}),
+      }}
+    >
+      {children}
+      <span style={{ display: 'inline-block', width: '12px', color: 'var(--text-faint)' }}>
+        {active ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''}
+      </span>
+    </th>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function DynastyRankings({ season }) {
   const [source, setSource] = useState('overall')
+  const [sortKey, setSortKey] = useState('composite')
+  const [sortDir, setSortDir] = useState('desc')
+
+  const handleSort = (key) => {
+    if (key === sortKey) {
+      setSortDir(d => (d === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortKey(key)
+      setSortDir('desc')
+    }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['dynasty-rankings', season, source],
@@ -207,6 +245,13 @@ export default function DynastyRankings({ season }) {
   const dataDate         = data?.data_date ?? null
   const availableSources = data?.available_sources ?? []
   const isOverall         = source === 'overall'
+
+  const sortedRows = [...rows].sort((a, b) => {
+    const cmp = sortKey === 'owner'
+      ? a.owner.localeCompare(b.owner)
+      : (a[sortKey] ?? 0) - (b[sortKey] ?? 0)
+    return sortDir === 'asc' ? cmp : -cmp
+  })
 
   const pills = ['overall', ...availableSources]
 
@@ -238,7 +283,7 @@ export default function DynastyRankings({ season }) {
 
   const TH = ({ children, align = 'left', title, width }) => (
     <th title={title} style={{
-      padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px',
+      padding: '10px 12px', fontSize: '12px', fontWeight: 600, letterSpacing: '1px',
       textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)',
       borderBottom: '1px solid var(--border)', textAlign: align, whiteSpace: 'nowrap',
       ...(width ? { width } : {}),
@@ -248,7 +293,7 @@ export default function DynastyRankings({ season }) {
   )
 
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', maxWidth: '700px' }}>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', maxWidth: '960px' }}>
       {/* Panel header */}
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -268,56 +313,56 @@ export default function DynastyRankings({ season }) {
       </div>
 
       {SourceToggle}
-      <ReadingGuide />
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '400px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '18px', minWidth: '600px' }}>
           <thead>
             <tr>
-              <TH width="36px">#</TH>
-              <TH>Owner</TH>
-              <TH align="right" title="Composite dynasty z-score — 0 is league average">Score</TH>
-              <TH title={isOverall
+              <TH width="40px">#</TH>
+              <SortableTH sortKeyName="owner" activeSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>Owner</SortableTH>
+              <SortableTH sortKeyName="composite" activeSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" title="Composite dynasty z-score — 0 is league average">Score</SortableTH>
+              <SortableTH sortKeyName="roster_score" activeSortKey={sortKey} sortDir={sortDir} onSort={handleSort} title={isOverall
                 ? "Roster value z-score, blended across every valuation site"
-                : "Roster value z-score: the source's own published team total when it has one, else summed player values"}>Roster</TH>
-              <TH title={isOverall
+                : "Roster value z-score: the source's own published team total when it has one, else summed player values"}>Roster</SortableTH>
+              <SortableTH sortKeyName="capital_score" activeSortKey={sortKey} sortDir={sortDir} onSort={handleSort} title={isOverall
                 ? "Future draft pick capital z-score, blended across every valuation site"
-                : "Future draft pick capital z-score: picks owned × the source's own pick values"}>Capital</TH>
-              <TH title={isOverall
+                : "Future draft pick capital z-score: picks owned × the source's own pick values"}>Capital</SortableTH>
+              <SortableTH sortKeyName="age_score" activeSortKey={sortKey} sortDir={sortDir} onSort={handleSort} title={isOverall
                 ? "Age z-score, blended across every valuation site"
-                : "Age z-score: plain average age across the full roster incl. taxi squad. Younger = higher score"}>Age</TH>
+                : "Age z-score: plain average age across the full roster incl. taxi squad. Younger = higher score"}>Age</SortableTH>
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => {
-              const rs = rankStyle(r.rank)
+            {sortedRows.map((r, i) => {
+              const displayRank = i + 1
+              const rs = rankStyle(displayRank)
               return (
-                <tr key={r.rank} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
-                  {/* Rank */}
-                  <td style={{ padding: '8px 10px' }}>
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, background: rs.bg, color: rs.text }}>
-                      {r.rank}
+                <tr key={r.owner} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
+                  {/* Rank (reflects current sort order, not always the composite rank) */}
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, background: rs.bg, color: rs.text }}>
+                      {displayRank}
                     </div>
                   </td>
 
                   {/* Owner */}
-                  <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                     {r.owner}
                   </td>
 
                   {/* Composite score */}
-                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <span style={{
-                      fontFamily: 'var(--font-display)', fontSize: '16px', letterSpacing: '0.5px', lineHeight: 1,
+                      fontFamily: 'var(--font-display)', fontSize: '20px', letterSpacing: '0.5px', lineHeight: 1,
                       color: r.composite >= 1 ? 'var(--green)' : r.composite <= -1 ? 'var(--brand-red)' : 'var(--text-primary)',
                     }}>
                       {r.composite >= 0 ? '+' : ''}{r.composite.toFixed(2)}
                     </span>
                   </td>
 
-                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.roster_score)}</td>
-                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.capital_score)}</td>
-                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.age_score)}</td>
+                  <td style={{ padding: '8px 12px' }}>{scoreBar(r.roster_score)}</td>
+                  <td style={{ padding: '8px 12px' }}>{scoreBar(r.capital_score)}</td>
+                  <td style={{ padding: '8px 12px' }}>{scoreBar(r.age_score)}</td>
                 </tr>
               )
             })}
@@ -326,6 +371,7 @@ export default function DynastyRankings({ season }) {
       </div>
 
       <FormulaFooter source={source} />
+      <ReadingGuide />
     </div>
   )
 }
