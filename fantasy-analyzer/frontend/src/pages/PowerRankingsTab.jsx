@@ -8,8 +8,12 @@
  * Props:
  *   season       {number} — active season year
  *   embedded     {boolean} — passed through; suppresses standalone page padding
+ *
+ * The Weekly/Dynasty toggle is stored in the `view` URL query param (alongside
+ * League.jsx's `tab` param) so refreshing the page stays on whichever one was
+ * active instead of reverting to Weekly.
  */
-import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import PowerRankings from './PowerRankings'
 import DynastyRankings from './DynastyRankings'
@@ -41,7 +45,13 @@ function ToggleButton({ active, onClick, label }) {
 }
 
 export default function PowerRankingsTab() {
-  const [view, setView] = useState('weekly')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view = searchParams.get('view') || 'weekly'
+  const setView = (id) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('view', id)
+    setSearchParams(next)
+  }
 
   const { data: seasonsData } = useQuery({
     queryKey: ['inseason-seasons'],
