@@ -49,20 +49,31 @@ function rankStyle(rank) {
 // Scores are untethered z-scores (typically roughly -2.5..+2.5, occasionally
 // further out for a real outlier). Clamp just for the bar's visual width —
 // the displayed number is always the raw, unclamped z-score.
+//
+// A z-score has no natural "fill from zero" reading the way a 0-100 score
+// does, so this renders as a diverging bar centered on a zero line: it grows
+// right for above-average, left for below-average, with 0 showing as just
+// the center tick and no fill at all.
 const _Z_BAR_RANGE = 2.5
 
 function scoreBar(value) {
   const v = value ?? 0
   const clamped = Math.max(-_Z_BAR_RANGE, Math.min(_Z_BAR_RANGE, v))
-  const pct = ((clamped + _Z_BAR_RANGE) / (2 * _Z_BAR_RANGE)) * 100
-  const color = v >= 1 ? 'var(--green)' : v >= -0.5 ? 'var(--gold)' : 'var(--brand-red)'
+  const halfPct = (Math.abs(clamped) / _Z_BAR_RANGE) * 50
+  const color = v >= 1 ? 'var(--green)' : v <= -1 ? 'var(--brand-red)' : 'var(--gold)'
   const label = `${v >= 0 ? '+' : ''}${v.toFixed(2)}`
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-      <div style={{ flex: 1, height: '4px', background: 'var(--border)', borderRadius: '2px', minWidth: '40px' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '2px', transition: 'width 0.3s' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ position: 'relative', flex: 1, height: '14px', minWidth: '64px' }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: '5px', height: '4px', background: 'var(--border)', borderRadius: '2px' }} />
+        <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '1px', background: 'var(--border-mid)' }} />
+        <div style={{
+          position: 'absolute', top: '5px', height: '4px', borderRadius: '2px', background: color,
+          left: v >= 0 ? '50%' : `${50 - halfPct}%`,
+          width: `${halfPct}%`,
+        }} />
       </div>
-      <span style={{ fontSize: '11px', fontVariantNumeric: 'tabular-nums', color, fontWeight: 600, minWidth: '38px', textAlign: 'right' }}>
+      <span style={{ fontSize: '11px', fontVariantNumeric: 'tabular-nums', color, fontWeight: 600, minWidth: '40px', textAlign: 'right' }}>
         {label}
       </span>
     </div>
@@ -274,7 +285,10 @@ export default function DynastyRankings({ season }) {
 
                   {/* Composite score */}
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', letterSpacing: '0.5px', color: 'var(--text-primary)', lineHeight: 1 }}>
+                    <span style={{
+                      fontFamily: 'var(--font-display)', fontSize: '16px', letterSpacing: '0.5px', lineHeight: 1,
+                      color: r.composite >= 1 ? 'var(--green)' : r.composite <= -1 ? 'var(--brand-red)' : 'var(--text-primary)',
+                    }}>
                       {r.composite >= 0 ? '+' : ''}{r.composite.toFixed(2)}
                     </span>
                   </td>
