@@ -213,6 +213,31 @@ class TestPickValueFallback:
 
 
 class TestDraftCapital:
+    def test_non_authoritative_source_borrows_ktc_ownership(self, db):
+        # dynastyprocess has no ownership feed of its own and would otherwise
+        # fall back to our (incomplete) transaction reconstruction, which
+        # would hand this pick to u1. KTC's authoritative feed says u2 -- and
+        # since ownership is a fact about the league, not the source, every
+        # source should agree with KTC here, each pricing with its own values.
+        db.execute(
+            "INSERT INTO transactions (transaction_id, league_id, season, type, created_epoch) "
+            "VALUES ('t1', 'L1', 2026, 'trade', 1000)"
+        )
+        db.execute(
+            "INSERT INTO transaction_draft_picks (transaction_id, season, round, original_roster_id, from_roster_id, to_roster_id) "
+            "VALUES ('t1', 2027, 1, 2, 2, 1)"
+        )
+        db.execute(
+            "INSERT INTO pick_ownership (source, league_id, season, round, user_id, original_user_id, scraped_at) "
+            "VALUES ('ktc', 'L1', 2027, 1, 'u2', 'u2', '2026-01-01')"
+        )
+        _add_pick_value(db, "dynastyprocess", 2027, 1, "mid", 2000)
+        db.commit()
+
+        capital = _draft_capital_values(db, "L1", 2026, "dynastyprocess")
+        assert capital.get("u2") == pytest.approx(2000)
+        assert capital.get("u1") is None
+
     def test_prefers_authoritative_pick_ownership_over_reconstruction(self, db):
         # Stale/incomplete transaction_draft_picks data would hand u2's pick to u1;
         # an authoritative pick_ownership row from a source's own feed (e.g. KTC,

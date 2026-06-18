@@ -47,6 +47,13 @@ _TAXI_DISCOUNT   = 0.80   # taxi players counted at 80% of value
 _FUTURE_YEARS    = 3      # how many future draft years to value (NNBE allows 3)
 _ROUNDS          = 3      # NNBE rookie draft rounds per year
 
+# Who currently owns a pick is a fact about the league's trade history, not
+# about a valuation source's methodology -- KTC's feed is Sleeper-synced and
+# authoritative, so every source borrows it when it lacks its own ownership
+# feed, rather than each falling back independently to our own (incomplete)
+# transaction-history reconstruction.
+_AUTHORITATIVE_OWNERSHIP_SOURCE = "ktc"
+
 
 def _zscore(values: dict[str, float]) -> dict[str, float]:
     """Untethered z-score: (x - mean) / population stdev.
@@ -248,9 +255,13 @@ def _draft_capital_values(
 ) -> dict[str, float]:
     """Return {user_id: raw_draft_capital_value}.
 
-    Prefers a source's own authoritative pick-ownership feed (currently only
-    KTC provides one, synced from Sleeper) over our own transaction-history
-    reconstruction, since the latter has known gaps for some future-pick trades.
+    Ownership lookup order: (1) the source's own authoritative pick-ownership
+    feed if it has one, (2) another source's authoritative feed (currently
+    only KTC, synced from Sleeper) since pick ownership is a fact about the
+    league, not the valuation source, (3) our own transaction-history
+    reconstruction, which has known gaps for some future-pick trades. Pricing
+    always uses the requested source's own pick values regardless of which
+    ownership feed was used.
     """
     # Check pick value data exists for this source
     if not con.execute(
@@ -259,6 +270,8 @@ def _draft_capital_values(
         return {}
 
     pick_rows = _pick_ownership_from_source(con, league_id, source)
+    if not pick_rows and source != _AUTHORITATIVE_OWNERSHIP_SOURCE:
+        pick_rows = _pick_ownership_from_source(con, league_id, _AUTHORITATIVE_OWNERSHIP_SOURCE)
     if not pick_rows:
         pick_rows = _pick_ownership_reconstructed(con, league_id, current_season)
 
