@@ -54,6 +54,10 @@ _ROUNDS          = 3      # NNBE rookie draft rounds per year
 # transaction-history reconstruction.
 _AUTHORITATIVE_OWNERSHIP_SOURCE = "ktc"
 
+_W_ROSTER  = 0.60
+_W_CAPITAL = 0.35
+_W_AGE     = 0.05
+
 
 def _zscore(values: dict[str, float]) -> dict[str, float]:
     """Untethered z-score: (x - mean) / population stdev.
@@ -389,9 +393,9 @@ def compute_dynasty_rankings(
     # Composite — weighted sum of untethered z-scores (can be negative)
     power: dict[str, float] = {
         uid: (
-            0.60 * rv_z.get(uid, 0.0)
-            + 0.35 * dc_z.get(uid, 0.0)
-            + 0.05 * age_z.get(uid, 0.0)
+            _W_ROSTER * rv_z.get(uid, 0.0)
+            + _W_CAPITAL * dc_z.get(uid, 0.0)
+            + _W_AGE * age_z.get(uid, 0.0)
         )
         for uid in uids
     }
@@ -443,13 +447,15 @@ def compute_dynasty_rankings_overall(
 ) -> dict:
     """Blend dynasty rankings across every available valuation source.
 
-    Computes the full roster+capital+age composite per source, then averages
-    each owner's composite across sources. Because each source's composite is
-    already built from that source's own z-scores, this average naturally
-    cancels out a site's overall tendency to rank a team higher/lower than
-    the others — each source's scale and bias is stripped out before the
-    cross-source average is taken. Returns {} (empty rows) when no source
-    has any data.
+    Averages each owner's Roster/Capital/Age z-score across every source
+    first, then rebuilds the composite from those blended components using
+    the same 60/35/5 weights as a single-source view. Because weighted
+    averaging is linear, this gives the exact same composite as averaging
+    each source's own composite would — but it also yields a real per-category
+    breakdown (Overall shows Roster/Capital/Age columns, same as any single
+    source) instead of an opaque list of per-site totals. Each source's own
+    scale/bias is stripped out before the cross-source average is taken in
+    either case. Returns {} (empty rows) when no source has any data.
     """
     per_source: dict[str, dict] = {}
     for source in get_available_dynasty_sources(con):
@@ -463,30 +469,43 @@ def compute_dynasty_rankings_overall(
     data_dates = [r["data_date"] for r in per_source.values() if r["data_date"]]
     data_date = max(data_dates) if data_dates else ""
 
-    owner_source_composite: dict[str, dict[str, float]] = defaultdict(dict)
+    owner_components: dict[str, dict[str, list[float]]] = defaultdict(
+        lambda: {"roster_score": [], "capital_score": [], "age_score": []}
+    )
     owner_context: dict[str, dict] = {}
-    for source, result in per_source.items():
+    for result in per_source.values():
         for row in result["rows"]:
-            owner_source_composite[row["owner"]][source] = row["composite"]
+            comps = owner_components[row["owner"]]
+            comps["roster_score"].append(row["roster_score"])
+            comps["capital_score"].append(row["capital_score"])
+            comps["age_score"].append(row["age_score"])
             owner_context[row["owner"]] = {
                 "actual_wins":   row["actual_wins"],
                 "actual_losses": row["actual_losses"],
                 "pts_for":       row["pts_for"],
             }
 
-    avg_composite = {
-        owner: sum(by_source.values()) / len(by_source)
-        for owner, by_source in owner_source_composite.items()
-    }
-    sorted_owners = sorted(avg_composite, key=lambda o: -avg_composite[o])
+    blended: dict[str, dict[str, float]] = {}
+    for owner, comps in owner_components.items():
+        roster  = sum(comps["roster_score"])  / len(comps["roster_score"])
+        capital = sum(comps["capital_score"]) / len(comps["capital_score"])
+        age     = sum(comps["age_score"])     / len(comps["age_score"])
+        composite = _W_ROSTER * roster + _W_CAPITAL * capital + _W_AGE * age
+        blended[owner] = {
+            "roster_score":  round(roster, 2),
+            "capital_score": round(capital, 2),
+            "age_score":     round(age, 2),
+            "composite":     round(composite, 2),
+        }
+
+    sorted_owners = sorted(blended, key=lambda o: -blended[o]["composite"])
 
     rows = []
     for rank, owner in enumerate(sorted_owners, 1):
         rows.append({
-            "rank":           rank,
-            "owner":          owner,
-            "composite":      round(avg_composite[owner], 2),
-            "source_scores":  owner_source_composite[owner],
+            "rank":   rank,
+            "owner":  owner,
+            **blended[owner],
             **owner_context[owner],
         })
 

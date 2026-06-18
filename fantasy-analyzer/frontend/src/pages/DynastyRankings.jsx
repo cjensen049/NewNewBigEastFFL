@@ -14,8 +14,10 @@
  * league's first-round picks) can show up far above everyone else instead of
  * being compressed toward a 0–100 cap.
  * A source toggle lets you view the ranking using a single valuation site
- * (DynastyProcess, FantasyCalc, ...) or "Overall", which averages each
- * owner's composite score across every source that has data.
+ * (DynastyProcess, FantasyCalc, ...) or "Overall", which blends each of the
+ * three categories (not the final composite) across every source that has
+ * data, then re-applies the same 60/35/5 weights — so Overall shows the
+ * same Roster/Capital/Age breakdown as any single source.
  * Refreshed 4× per year: post rookie draft, Week 1, post trade deadline,
  * and post championship.
  *
@@ -76,6 +78,27 @@ function scoreBar(value) {
       <span style={{ fontSize: '11px', fontVariantNumeric: 'tabular-nums', color, fontWeight: 600, minWidth: '40px', textAlign: 'right' }}>
         {label}
       </span>
+    </div>
+  )
+}
+
+// ─── "How to read this chart" disclaimer ───────────────────────────────────
+
+function ReadingGuide() {
+  return (
+    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-page)' }}>
+      <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: '0 0 6px' }}>
+        How to read this chart
+      </p>
+      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6 }}>
+        Every score is a <strong>z-score</strong>, not a 0–100 grade — it's how many standard
+        deviations above or below the league average a team is. <strong>0</strong> means dead
+        average. Bars grow right (green) for above-average, left (red) for below-average, out
+        from the center tick; gold means within one standard deviation of average, too close to
+        call an edge either way. The composite blends Roster (60%) + Capital (35%) + Age (5%);
+        the "Overall" view blends each of those three categories across every valuation site
+        <em> before</em> applying those weights, rather than just averaging each site's final grade.
+      </p>
     </div>
   )
 }
@@ -159,7 +182,7 @@ function FormulaFooter({ source }) {
       </div>
       <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '8px 0 0' }}>
         {isOverall
-          ? 'All three scores are untethered z-scores within NNBE (0 = league average), combined per source. "Overall" averages each owner’s composite across every available source — which also cancels out any one site systematically ranking a team higher or lower than the others.'
+          ? '"Overall" blends each owner’s Roster, Capital, and Age z-score across every available source first, then applies the same weights above — which also cancels out any one site systematically ranking a team higher or lower than the others.'
           : 'All three scores are untethered z-scores within NNBE — 0 = league average, positive/negative show how many standard deviations above/below average a team is.'}
         {' '}Values via {isOverall ? 'all available sources' : sourceLabel(source)} · refreshed 4× per year.
       </p>
@@ -240,11 +263,12 @@ export default function DynastyRankings({ season }) {
           </span>
         )}
         <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)' }}>
-          {isOverall ? 'Average composite across sources' : 'Roster 60% · Capital 35% · Age 5%'}
+          Roster 60% · Capital 35% · Age 5%
         </span>
       </div>
 
       {SourceToggle}
+      <ReadingGuide />
 
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '400px' }}>
@@ -253,17 +277,15 @@ export default function DynastyRankings({ season }) {
               <TH width="36px">#</TH>
               <TH>Owner</TH>
               <TH align="right" title="Composite dynasty z-score — 0 is league average">Score</TH>
-              {isOverall ? (
-                availableSources.map(s => (
-                  <TH key={s} title={`${sourceLabel(s)} composite z-score — 0 is league average`}>{sourceLabel(s)}</TH>
-                ))
-              ) : (
-                <>
-                  <TH title="Roster value z-score: the source's own published team total when it has one, else summed player values">Roster</TH>
-                  <TH title="Future draft pick capital z-score: picks owned × the source's own pick values">Capital</TH>
-                  <TH title="Age z-score: plain average age across the full roster incl. taxi squad. Younger = higher score">Age</TH>
-                </>
-              )}
+              <TH title={isOverall
+                ? "Roster value z-score, blended across every valuation site"
+                : "Roster value z-score: the source's own published team total when it has one, else summed player values"}>Roster</TH>
+              <TH title={isOverall
+                ? "Future draft pick capital z-score, blended across every valuation site"
+                : "Future draft pick capital z-score: picks owned × the source's own pick values"}>Capital</TH>
+              <TH title={isOverall
+                ? "Age z-score, blended across every valuation site"
+                : "Age z-score: plain average age across the full roster incl. taxi squad. Younger = higher score"}>Age</TH>
             </tr>
           </thead>
           <tbody>
@@ -293,17 +315,9 @@ export default function DynastyRankings({ season }) {
                     </span>
                   </td>
 
-                  {isOverall ? (
-                    availableSources.map(s => (
-                      <td key={s} style={{ padding: '6px 10px' }}>{scoreBar(r.source_scores?.[s])}</td>
-                    ))
-                  ) : (
-                    <>
-                      <td style={{ padding: '6px 10px' }}>{scoreBar(r.roster_score)}</td>
-                      <td style={{ padding: '6px 10px' }}>{scoreBar(r.capital_score)}</td>
-                      <td style={{ padding: '6px 10px' }}>{scoreBar(r.age_score)}</td>
-                    </>
-                  )}
+                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.roster_score)}</td>
+                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.capital_score)}</td>
+                  <td style={{ padding: '6px 10px' }}>{scoreBar(r.age_score)}</td>
                 </tr>
               )
             })}

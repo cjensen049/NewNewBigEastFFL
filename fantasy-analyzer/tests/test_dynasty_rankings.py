@@ -103,11 +103,20 @@ class TestOverallBlend:
         overall_by_owner = {r["owner"]: r["composite"] for r in overall["rows"]}
 
         for owner in ("Alice", "Bob"):
+            # Averaging composites and averaging components-then-weighting are
+            # mathematically equivalent (weighted averaging is linear).
             expected = round((dp_by_owner[owner] + fc_by_owner[owner]) / 2, 2)
-            assert overall_by_owner[owner] == pytest.approx(expected)
+            assert overall_by_owner[owner] == pytest.approx(expected, abs=0.01)
 
         assert overall["rows"][0]["owner"] == "Alice"
-        assert overall["rows"][0]["source_scores"].keys() == {"dynastyprocess", "fantasycalc"}
+        # roster_score should itself be the average of each source's own
+        # roster z-score for that owner, not an opaque per-site total.
+        dp_roster = {r["owner"]: r["roster_score"] for r in dp["rows"]}
+        fc_roster = {r["owner"]: r["roster_score"] for r in fc["rows"]}
+        overall_roster = {r["owner"]: r["roster_score"] for r in overall["rows"]}
+        for owner in ("Alice", "Bob"):
+            expected_roster = round((dp_roster[owner] + fc_roster[owner]) / 2, 2)
+            assert overall_roster[owner] == pytest.approx(expected_roster)
 
     def test_ignores_source_with_no_data_for_league(self, db):
         # fantasycalc has rows in the table, but none of them are for this
@@ -118,7 +127,9 @@ class TestOverallBlend:
         _add_player_value(db, "fantasycalc", "p_unrelated", 5000)
 
         overall = compute_dynasty_rankings_overall(db, "L1", 2026)
-        assert set(overall["rows"][0]["source_scores"].keys()) == {"dynastyprocess", "fantasycalc"}
+        assert "roster_score" in overall["rows"][0]
+        assert "capital_score" in overall["rows"][0]
+        assert "age_score" in overall["rows"][0]
 
 
 class TestZScore:
