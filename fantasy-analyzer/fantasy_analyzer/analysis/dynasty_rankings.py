@@ -2,19 +2,37 @@
 
 Formula:
   DynastyScore =
-    0.55 × RosterValue    (value_2qb for all players; taxi at 80%)
-    + 0.30 × DraftCapital (future picks you hold × DynastyProcess pick values)
-    + 0.15 × AgeCurve     (value-weighted avg age of top-15 players; young = bonus)
+    0.60 × RosterValue    (z-scored; a source's own published team total when
+                            it has one, else sum of matched player values —
+                            taxi at 80%)
+    + 0.35 × DraftCapital (z-scored; future picks you hold × the source's own
+                            pick values)
+    + 0.05 × AgeCurve     (z-scored; -avg age across the whole roster incl.
+                            taxi; young = bonus)
 
-Roster includes: active players + bench + taxi squad (taxi discounted to 80%).
+All three components — and the composite — are untethered z-scores
+((x - mean) / population stdev), not mapped onto a 0-100 scale. A score of
+0 means league-average; positive/negative reflect how many standard
+deviations above/below average a team is. This is intentionally more
+sensitive to genuine outliers (e.g. a team holding most of the league's
+first-round draft capital) than the old min-max normalization, which
+compressed everyone else toward the bottom whenever one team was way out front.
+
+Roster: KTC publishes its own per-team dynasty value on its league page, so we
+  use that number directly for KTC rather than re-summing our own matched
+  player values (it's KTC's own number, and KTC's own dynasty rankings are
+  exactly what owners compare themselves against). FantasyCalc and
+  DynastyProcess don't publish a per-team total, so they keep the
+  computed-sum approach (active + bench + taxi squad, taxi discounted to 80%).
 Draft capital: uses a source's own pick-ownership feed when it has one (KTC,
   synced from Sleeper), else reconstructs ownership from transaction history;
   covers 3 future seasons (current+1 through current+3), 3 rounds each. Pick
-  value is averaged across tiers (no per-pick slot prediction pre-season) and
-  falls back to the nearest season a source actually prices when one of the
-  3 years isn't covered.
-Age curve: compares value-weighted average age to a dynasty-prime benchmark of 25.
-  Each year above 25 costs ~5 points; normalized within league so it's relative.
+  value is the source's own quoted price, averaged across tiers (no per-pick
+  slot prediction pre-season) and falling back to the nearest season a source
+  actually prices when one of the 3 years isn't covered.
+Age curve: simple (non-value-weighted) average age across the full roster —
+  active and taxi squad alike, no top-N cap. Younger = higher raw score
+  (we score -avg_age, then z-score it like everything else).
 
 Returns {} when no dynasty value data has been scraped yet.
 """
@@ -26,21 +44,25 @@ from collections import defaultdict
 
 
 _TAXI_DISCOUNT   = 0.80   # taxi players counted at 80% of value
-_AGE_TOP_N       = 15     # number of top players (by value) used for age curve
-_AGE_PRIME       = 25.0   # age considered peak for dynasty purposes
-_AGE_COST_PER_YR = 5.0    # score penalty per year above prime
 _FUTURE_YEARS    = 3      # how many future draft years to value (NNBE allows 3)
 _ROUNDS          = 3      # NNBE rookie draft rounds per year
 
 
-def _normalize(values: dict[str, float]) -> dict[str, float]:
-    """Min-max normalize to 0–100. Returns 50.0 for all if no spread."""
+def _zscore(values: dict[str, float]) -> dict[str, float]:
+    """Untethered z-score: (x - mean) / population stdev.
+
+    Returns 0.0 for everyone if there's no spread (stdev == 0), since z-scoring
+    a constant is undefined and 0 ("league average") is the natural neutral value.
+    """
     if not values:
         return {}
-    mn, mx = min(values.values()), max(values.values())
-    if mx == mn:
-        return {k: 50.0 for k in values}
-    return {k: (v - mn) / (mx - mn) * 100.0 for k, v in values.items()}
+    n = len(values)
+    mean = sum(values.values()) / n
+    variance = sum((v - mean) ** 2 for v in values.values()) / n
+    stdev = variance ** 0.5
+    if stdev == 0:
+        return {k: 0.0 for k in values}
+    return {k: (v - mean) / stdev for k, v in values.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +198,21 @@ def _roster_values(
     league_id: str,
     source: str,
 ) -> dict[str, float]:
-    """Return {user_id: raw_roster_value} using the given valuation source."""
+    """Return {user_id: raw_roster_value} using the given valuation source.
+
+    Prefers a source's own published per-team total (currently only KTC
+    provides one) over re-summing our own matched player values, since it's
+    the source's own number and is what owners actually compare themselves
+    against on that site. Sources with no published total fall back to the
+    computed sum (active + bench + taxi squad, taxi discounted).
+    """
+    published = con.execute(
+        "SELECT user_id, total FROM team_totals WHERE source = ? AND league_id = ?",
+        (source, league_id),
+    ).fetchall()
+    if published:
+        return {user_id: total for user_id, total in published}
+
     owner_rows = con.execute(
         "SELECT lo.user_id, lo.roster_id FROM league_owners lo WHERE lo.league_id = ?",
         (league_id,),
@@ -238,10 +274,11 @@ def _age_curve_values(
     league_id: str,
     source: str,
 ) -> dict[str, float]:
-    """Return {user_id: age_score} where younger rosters score higher.
+    """Return {user_id: -avg_age} — higher (less negative) is younger/better.
 
-    Computes value-weighted average age of each roster's top-N players
-    then converts to 0-100 via: 100 - max(0, (avg_age - AGE_PRIME) * AGE_COST).
+    Simple mean age across the entire roster, active and taxi squad alike
+    (no value-weighting, no top-N cap). The negation just orients the raw
+    score so a higher value means younger, ready to be z-scored upstream.
     """
     owner_rows = con.execute(
         "SELECT lo.user_id, lo.roster_id FROM league_owners lo WHERE lo.league_id = ?",
@@ -252,26 +289,19 @@ def _age_curve_values(
 
     for user_id, roster_id in owner_rows:
         rows = con.execute(
-            """SELECT pdv.value, pdv.age
+            """SELECT pdv.age
                FROM current_rosters cr
                JOIN player_dynasty_values pdv ON cr.player_id = pdv.player_id
                WHERE cr.league_id = ? AND cr.roster_id = ?
-                 AND pdv.value > 0 AND pdv.age > 0 AND pdv.source = ?
-               ORDER BY pdv.value DESC
-               LIMIT ?""",
-            (league_id, roster_id, source, _AGE_TOP_N),
+                 AND pdv.age > 0 AND pdv.source = ?""",
+            (league_id, roster_id, source),
         ).fetchall()
 
         if not rows:
             continue
 
-        total_val = sum(v for v, _ in rows)
-        if total_val == 0:
-            continue
-
-        weighted_age = sum(v * a for v, a in rows) / total_val
-        raw_score = 100.0 - max(0.0, (weighted_age - _AGE_PRIME) * _AGE_COST_PER_YR)
-        scores[user_id] = raw_score
+        avg_age = sum(a for (a,) in rows) / len(rows)
+        scores[user_id] = -avg_age
 
     return scores
 
@@ -328,21 +358,27 @@ def compute_dynasty_rankings(
     if not uids:
         return {"season": season, "data_date": data_date, "rows": []}
 
-    # Components
+    # Components — raw values per owner
     rv_raw  = _roster_values(con, league_id, source)
     dc_raw  = _draft_capital_values(con, league_id, season, source)
     age_raw = _age_curve_values(con, league_id, source)
 
-    rv_norm  = _normalize({uid: rv_raw.get(uid, 0.0) for uid in uids})
-    dc_norm  = _normalize({uid: dc_raw.get(uid, 0.0) for uid in uids})
-    age_norm = _normalize({uid: age_raw.get(uid, 50.0) for uid in uids})
+    # Missing roster/capital data is a genuine zero (empty roster / no future
+    # picks), so it's scored as-is. Missing age data (no age info for any
+    # rostered player) has no real "zero" — default to the league's own mean
+    # so it lands at a neutral z-score instead of skewing as fake-best/worst.
+    age_mean = sum(age_raw.values()) / len(age_raw) if age_raw else 0.0
 
-    # Composite
+    rv_z  = _zscore({uid: rv_raw.get(uid, 0.0) for uid in uids})
+    dc_z  = _zscore({uid: dc_raw.get(uid, 0.0) for uid in uids})
+    age_z = _zscore({uid: age_raw.get(uid, age_mean) for uid in uids})
+
+    # Composite — weighted sum of untethered z-scores (can be negative)
     power: dict[str, float] = {
         uid: (
-            0.55 * rv_norm.get(uid, 50.0)
-            + 0.30 * dc_norm.get(uid, 50.0)
-            + 0.15 * age_norm.get(uid, 50.0)
+            0.60 * rv_z.get(uid, 0.0)
+            + 0.35 * dc_z.get(uid, 0.0)
+            + 0.05 * age_z.get(uid, 0.0)
         )
         for uid in uids
     }
@@ -375,10 +411,10 @@ def compute_dynasty_rankings(
         rows.append({
             "rank":          rank,
             "owner":         user_to_name[uid],
-            "composite":     round(power[uid], 1),
-            "roster_score":  round(rv_norm.get(uid, 0.0), 1),
-            "capital_score": round(dc_norm.get(uid, 0.0), 1),
-            "age_score":     round(age_norm.get(uid, 0.0), 1),
+            "composite":     round(power[uid], 2),
+            "roster_score":  round(rv_z.get(uid, 0.0), 2),
+            "capital_score": round(dc_z.get(uid, 0.0), 2),
+            "age_score":     round(age_z.get(uid, 0.0), 2),
             "actual_wins":   wins_by_uid.get(uid, 0),
             "actual_losses": losses_by_uid.get(uid, 0),
             "pts_for":       pts_by_uid.get(uid, 0.0),
@@ -395,8 +431,12 @@ def compute_dynasty_rankings_overall(
     """Blend dynasty rankings across every available valuation source.
 
     Computes the full roster+capital+age composite per source, then averages
-    each owner's composite across sources. Returns {} (empty rows) when no
-    source has any data.
+    each owner's composite across sources. Because each source's composite is
+    already built from that source's own z-scores, this average naturally
+    cancels out a site's overall tendency to rank a team higher/lower than
+    the others — each source's scale and bias is stripped out before the
+    cross-source average is taken. Returns {} (empty rows) when no source
+    has any data.
     """
     per_source: dict[str, dict] = {}
     for source in get_available_dynasty_sources(con):
@@ -432,7 +472,7 @@ def compute_dynasty_rankings_overall(
         rows.append({
             "rank":           rank,
             "owner":          owner,
-            "composite":      round(avg_composite[owner], 1),
+            "composite":      round(avg_composite[owner], 2),
             "source_scores":  owner_source_composite[owner],
             **owner_context[owner],
         })

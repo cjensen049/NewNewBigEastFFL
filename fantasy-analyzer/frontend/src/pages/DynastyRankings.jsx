@@ -2,11 +2,17 @@
  * DynastyRankings.jsx — Long-term dynasty power rankings panel.
  *
  * Ranks all 12 owners by dynasty strength using three components:
- *   Roster Score   (55%) — player values from the selected source; taxi at 80%
- *   Capital Score  (30%) — Future draft picks owned × pick tier values
- *   Age Score      (15%) — Value-weighted avg age; younger rosters score higher
+ *   Roster Score   (60%) — the source's own published team total when it has
+ *                          one (KTC), else sum of player values; taxi at 80%
+ *   Capital Score  (35%) — Future draft picks owned × the source's own pick values
+ *   Age Score       (5%) — Plain avg age across the full roster incl. taxi;
+ *                          younger rosters score higher
  *
- * All component scores are normalised 0–100 within the league.
+ * All component scores (and the composite) are untethered z-scores — how many
+ * standard deviations above/below the league average a team is. 0 = average;
+ * there's no fixed ceiling, so a real outlier (e.g. a team holding most of the
+ * league's first-round picks) can show up far above everyone else instead of
+ * being compressed toward a 0–100 cap.
  * A source toggle lets you view the ranking using a single valuation site
  * (DynastyProcess, FantasyCalc, ...) or "Overall", which averages each
  * owner's composite score across every source that has data.
@@ -40,16 +46,24 @@ function rankStyle(rank) {
   return                 { bg: 'var(--border)',         text: 'var(--text-muted)' }
 }
 
+// Scores are untethered z-scores (typically roughly -2.5..+2.5, occasionally
+// further out for a real outlier). Clamp just for the bar's visual width —
+// the displayed number is always the raw, unclamped z-score.
+const _Z_BAR_RANGE = 2.5
+
 function scoreBar(value) {
   const v = value ?? 0
-  const color = v >= 70 ? 'var(--green)' : v >= 40 ? 'var(--gold)' : 'var(--brand-red)'
+  const clamped = Math.max(-_Z_BAR_RANGE, Math.min(_Z_BAR_RANGE, v))
+  const pct = ((clamped + _Z_BAR_RANGE) / (2 * _Z_BAR_RANGE)) * 100
+  const color = v >= 1 ? 'var(--green)' : v >= -0.5 ? 'var(--gold)' : 'var(--brand-red)'
+  const label = `${v >= 0 ? '+' : ''}${v.toFixed(2)}`
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
       <div style={{ flex: 1, height: '4px', background: 'var(--border)', borderRadius: '2px', minWidth: '40px' }}>
-        <div style={{ width: `${v}%`, height: '100%', background: color, borderRadius: '2px', transition: 'width 0.3s' }} />
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '2px', transition: 'width 0.3s' }} />
       </div>
-      <span style={{ fontSize: '11px', fontVariantNumeric: 'tabular-nums', color, fontWeight: 600, minWidth: '28px', textAlign: 'right' }}>
-        {v.toFixed(0)}
+      <span style={{ fontSize: '11px', fontVariantNumeric: 'tabular-nums', color, fontWeight: 600, minWidth: '38px', textAlign: 'right' }}>
+        {label}
       </span>
     </div>
   )
@@ -82,27 +96,27 @@ function SourcePill({ active, onClick, label }) {
 const FORMULA_CARDS = [
   {
     label: 'Roster Score',
-    weight: '55%',
+    weight: '60%',
     color: '#5b8dd9',
     bg: 'rgba(26,58,107,0.15)',
     border: 'rgba(91,141,217,0.2)',
-    desc: 'Every player on your roster valued using the selected source’s SuperFlex (2QB) ratings. Taxi squad players counted at 80% of full value.',
+    desc: 'The source’s own published team total when it has one (KTC), else the sum of every player on your roster using the source’s SuperFlex (2QB) ratings — taxi squad at 80% of full value.',
   },
   {
     label: 'Draft Capital',
-    weight: '30%',
+    weight: '35%',
     color: 'var(--gold)',
     bg: 'rgba(227,179,65,0.1)',
     border: 'rgba(227,179,65,0.25)',
-    desc: 'Combined value of all future rookie draft picks you currently own, covering the next 3 draft classes. Picks valued by round and tier (early/mid/late).',
+    desc: 'Combined value of all future rookie draft picks you currently own, covering the next 3 draft classes, priced using the source’s own draft pick values.',
   },
   {
     label: 'Age Score',
-    weight: '15%',
+    weight: '5%',
     color: 'var(--green)',
     bg: 'rgba(63,185,80,0.08)',
     border: 'rgba(63,185,80,0.2)',
-    desc: 'Value-weighted average age of your top 15 players. Dynasty prime is age 25 — each year older reduces your score. Rewards building young.',
+    desc: 'Plain average age across your entire roster, including the taxi squad. Younger rosters score higher. Weighted lightly — it’s a tiebreaker, not a driver.',
   },
 ]
 
@@ -134,8 +148,8 @@ function FormulaFooter({ source }) {
       </div>
       <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '8px 0 0' }}>
         {isOverall
-          ? 'All three scores normalised 0–100 within NNBE, then combined per source. "Overall" averages each owner’s composite across every available source.'
-          : 'All three scores normalised 0–100 within NNBE, then combined.'}
+          ? 'All three scores are untethered z-scores within NNBE (0 = league average), combined per source. "Overall" averages each owner’s composite across every available source — which also cancels out any one site systematically ranking a team higher or lower than the others.'
+          : 'All three scores are untethered z-scores within NNBE — 0 = league average, positive/negative show how many standard deviations above/below average a team is.'}
         {' '}Values via {isOverall ? 'all available sources' : sourceLabel(source)} · refreshed 4× per year.
       </p>
     </div>
@@ -215,7 +229,7 @@ export default function DynastyRankings({ season }) {
           </span>
         )}
         <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)' }}>
-          {isOverall ? 'Average composite across sources' : 'Roster 55% · Capital 30% · Age 15%'}
+          {isOverall ? 'Average composite across sources' : 'Roster 60% · Capital 35% · Age 5%'}
         </span>
       </div>
 
@@ -227,16 +241,16 @@ export default function DynastyRankings({ season }) {
             <tr>
               <TH width="36px">#</TH>
               <TH>Owner</TH>
-              <TH align="right" title="Composite dynasty score (0–100)">Score</TH>
+              <TH align="right" title="Composite dynasty z-score — 0 is league average">Score</TH>
               {isOverall ? (
                 availableSources.map(s => (
-                  <TH key={s} title={`${sourceLabel(s)} composite score, normalised 0–100`}>{sourceLabel(s)}</TH>
+                  <TH key={s} title={`${sourceLabel(s)} composite z-score — 0 is league average`}>{sourceLabel(s)}</TH>
                 ))
               ) : (
                 <>
-                  <TH title="Roster value from the selected source's SuperFlex values, normalised 0–100">Roster</TH>
-                  <TH title="Future draft pick capital: picks owned × tier value, normalised 0–100">Capital</TH>
-                  <TH title="Value-weighted avg age of top 15 players vs. dynasty prime (25). Younger = higher score, normalised 0–100">Age</TH>
+                  <TH title="Roster value z-score: the source's own published team total when it has one, else summed player values">Roster</TH>
+                  <TH title="Future draft pick capital z-score: picks owned × the source's own pick values">Capital</TH>
+                  <TH title="Age z-score: plain average age across the full roster incl. taxi squad. Younger = higher score">Age</TH>
                 </>
               )}
             </tr>
@@ -261,7 +275,7 @@ export default function DynastyRankings({ season }) {
                   {/* Composite score */}
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', letterSpacing: '0.5px', color: 'var(--text-primary)', lineHeight: 1 }}>
-                      {r.composite.toFixed(1)}
+                      {r.composite >= 0 ? '+' : ''}{r.composite.toFixed(2)}
                     </span>
                   </td>
 

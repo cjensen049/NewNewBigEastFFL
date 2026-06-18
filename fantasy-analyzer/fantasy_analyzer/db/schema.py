@@ -175,6 +175,15 @@ CREATE TABLE IF NOT EXISTS pick_ownership (
     scraped_at          TEXT    NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS team_totals (
+    source      TEXT    NOT NULL,
+    league_id   TEXT    NOT NULL,
+    user_id     TEXT    NOT NULL,
+    total       REAL    NOT NULL,
+    scraped_at  TEXT    NOT NULL,
+    PRIMARY KEY (source, league_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_pick_ownership_source ON pick_ownership(source, league_id);
 CREATE INDEX IF NOT EXISTS idx_matchups_league_week ON matchups(league_id, week);
 CREATE INDEX IF NOT EXISTS idx_matchups_user ON matchups(user_id);
@@ -380,4 +389,19 @@ async def apply_migrations(db_path: str) -> None:
         await db.execute(
             "CREATE INDEX IF NOT EXISTS idx_pick_ownership_source ON pick_ownership(source, league_id)"
         )
+        await db.commit()
+
+        # A source's own published per-team roster total (e.g. KTC's league
+        # page), used in place of summing our own matched player values when
+        # a source provides one directly.
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS team_totals (
+                source      TEXT    NOT NULL,
+                league_id   TEXT    NOT NULL,
+                user_id     TEXT    NOT NULL,
+                total       REAL    NOT NULL,
+                scraped_at  TEXT    NOT NULL,
+                PRIMARY KEY (source, league_id, user_id)
+            )
+        """)
         await db.commit()

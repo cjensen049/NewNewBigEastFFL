@@ -4,8 +4,11 @@ import sqlite3
 import pytest
 
 from fantasy_analyzer.analysis.dynasty_rankings import (
+    _age_curve_values,
     _draft_capital_values,
     _pick_value,
+    _roster_values,
+    _zscore,
     compute_dynasty_rankings,
     compute_dynasty_rankings_overall,
     get_available_dynasty_sources,
@@ -100,7 +103,7 @@ class TestOverallBlend:
         overall_by_owner = {r["owner"]: r["composite"] for r in overall["rows"]}
 
         for owner in ("Alice", "Bob"):
-            expected = round((dp_by_owner[owner] + fc_by_owner[owner]) / 2, 1)
+            expected = round((dp_by_owner[owner] + fc_by_owner[owner]) / 2, 2)
             assert overall_by_owner[owner] == pytest.approx(expected)
 
         assert overall["rows"][0]["owner"] == "Alice"
@@ -116,6 +119,72 @@ class TestOverallBlend:
 
         overall = compute_dynasty_rankings_overall(db, "L1", 2026)
         assert set(overall["rows"][0]["source_scores"].keys()) == {"dynastyprocess", "fantasycalc"}
+
+
+class TestZScore:
+    def test_empty_returns_empty(self):
+        assert _zscore({}) == {}
+
+    def test_no_spread_returns_zero_for_all(self):
+        assert _zscore({"u1": 100.0, "u2": 100.0}) == {"u1": 0.0, "u2": 0.0}
+
+    def test_untethered_not_bounded_to_100(self):
+        # One huge outlier should NOT compress everyone else toward a floor --
+        # this is the whole reason for moving off min-max normalization.
+        z = _zscore({"u1": 100.0, "u2": 1.0, "u3": 1.0, "u4": 1.0})
+        assert z["u1"] > 1.5  # clearly above the pack
+        assert z["u1"] != pytest.approx(100.0)  # not min-max-scaled
+
+    def test_mean_is_zero(self):
+        z = _zscore({"u1": 10.0, "u2": 20.0, "u3": 30.0})
+        assert sum(z.values()) == pytest.approx(0.0, abs=1e-9)
+
+
+class TestRosterValuesTeamTotals:
+    def test_uses_published_team_total_when_present(self, db):
+        # KTC-style published total should win over the computed sum, even
+        # though the computed sum (from player_dynasty_values) would give a
+        # different number.
+        _add_player_value(db, "ktc", "p1", 9000)
+        db.execute(
+            "INSERT INTO team_totals (source, league_id, user_id, total, scraped_at) "
+            "VALUES ('ktc', 'L1', 'u1', 5000, '2026-01-01')"
+        )
+        db.commit()
+
+        result = _roster_values(db, "L1", "ktc")
+        assert result == {"u1": 5000.0}
+
+    def test_falls_back_to_computed_sum_when_no_published_total(self, db):
+        _add_player_value(db, "dynastyprocess", "p1", 9000)
+        result = _roster_values(db, "L1", "dynastyprocess")
+        assert result.get("u1") == pytest.approx(9000.0)
+
+
+class TestAgeCurve:
+    def test_simple_mean_age_across_full_roster_incl_taxi(self, db):
+        # u1 (roster_id 1) gets a second, taxi-squad player -- age should be a
+        # plain mean across BOTH active and taxi, not value-weighted and not
+        # filtered to active-only.
+        db.execute("INSERT INTO players (player_id, full_name) VALUES ('p3', 'Player Three')")
+        db.execute(
+            "INSERT INTO current_rosters (league_id, roster_id, player_id, status, updated_at) "
+            "VALUES ('L1', 1, 'p3', 'taxi', '2026-01-01')"
+        )
+        _add_player_value(db, "dynastyprocess", "p1", 9000, age=20.0)
+        _add_player_value(db, "dynastyprocess", "p3", 9000, age=30.0)
+        db.commit()
+
+        scores = _age_curve_values(db, "L1", "dynastyprocess")
+        # -avg_age, simple mean of 20 and 30 -> -25, regardless of value
+        assert scores["u1"] == pytest.approx(-25.0)
+
+    def test_younger_roster_scores_higher(self, db):
+        _add_player_value(db, "dynastyprocess", "p1", 9000, age=22.0)
+        _add_player_value(db, "dynastyprocess", "p2", 1000, age=30.0)
+
+        scores = _age_curve_values(db, "L1", "dynastyprocess")
+        assert scores["u1"] > scores["u2"]
 
 
 def _add_pick_value(con, source, season, rnd, tier, value):

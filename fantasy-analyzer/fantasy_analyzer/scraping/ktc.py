@@ -193,6 +193,17 @@ def run_ktc_scrape(
             ownership_inserts.append((season, rnd, current_user_id, original_user_id, now))
     log.info("  Pick ownership: %d entries", len(ownership_inserts))
 
+    # KTC's own published roster total per team -- used directly for the roster
+    # component of dynasty rankings instead of re-summing our matched player
+    # values, since it's KTC's own number and KTC's own dynasty rankings are
+    # exactly what owners compare themselves against.
+    team_total_inserts = [
+        (team["teamId"], float(team["total"]), now)
+        for team in league_teams
+        if team.get("teamId") and team.get("total") is not None
+    ]
+    log.info("  Team totals: %d entries", len(team_total_inserts))
+
     # Write to DB atomically — scoped to this source so other sources'
     # rows (DynastyProcess, FantasyCalc) in the same tables are left untouched.
     con.execute("DELETE FROM player_dynasty_values WHERE source = ?", (_SOURCE,))
@@ -214,6 +225,13 @@ def run_ktc_scrape(
         """INSERT INTO pick_ownership (source, league_id, season, round, user_id, original_user_id, scraped_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
         [(_SOURCE, league_id, *row) for row in ownership_inserts],
+    )
+
+    con.execute("DELETE FROM team_totals WHERE source = ? AND league_id = ?", (_SOURCE, league_id))
+    con.executemany(
+        """INSERT INTO team_totals (source, league_id, user_id, total, scraped_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        [(_SOURCE, league_id, *row) for row in team_total_inserts],
     )
 
     con.commit()
