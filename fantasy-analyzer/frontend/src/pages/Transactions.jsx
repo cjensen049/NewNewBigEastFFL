@@ -4,6 +4,7 @@
  * Tabs: Trade Tree | Trade Log | Waivers | Tendencies
  */
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   ReactFlow,
@@ -862,7 +863,13 @@ function TendenciesTab() {
 const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px, 3vw, 24px)' }
 
 export default function Transactions() {
-  const [tab, setTab] = useState('tree')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') || 'tree'
+  const setTab = (id) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', id)
+    setSearchParams(next)
+  }
 
   return (
     <div>

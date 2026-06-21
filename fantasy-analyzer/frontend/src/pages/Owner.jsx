@@ -7,7 +7,7 @@
  * Tabs: Career Summary | Head-to-Head | Top Players | Draft Picks | Trades | Waivers
  */
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { TabPanel } from '../components/Tabs'
@@ -495,7 +495,13 @@ function initials(name) {
 export default function Owner() {
   const { name: urlName } = useParams()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('summary')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') || 'summary'
+  const setTab = (id) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', id)
+    setSearchParams(next)
+  }
 
   const { data: ownersData, isLoading } = useQuery({
     queryKey: ['owners-list'],
@@ -534,7 +540,7 @@ export default function Owner() {
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Owner</span>
             <select
               value={activeOwner ?? ''}
-              onChange={e => navigate(`/owner/${encodeURIComponent(e.target.value)}`)}
+              onChange={e => navigate(`/owner/${encodeURIComponent(e.target.value)}?tab=${tab}`)}
               style={{ background: 'var(--border)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', fontFamily: 'var(--font-body)' }}
             >
               {owners.map(o => <option key={o} value={o}>{o}</option>)}

@@ -7,25 +7,43 @@
  *
  * Mobile (<md): sticky 52px top bar with hamburger icon. Tapping the hamburger
  *   slides the full sidebar in from the left as an overlay; tapping the overlay
- *   or any nav item closes it.
+ *   or any nav item closes it. Tapping a top-level item that has sub-sections
+ *   (League, Transactions, Owners) expands them in place instead of navigating
+ *   straight to the default tab — and a sub-section can itself expand further
+ *   (e.g. League > Power Rankings > Weekly/Dynasty).
  */
 import { useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 
-const TOP_NAV = [
-  { to: '/',             label: 'Home',         emoji: '🏠', end: true },
-  { to: '/league',       label: 'League',       emoji: '🏆' },
-  { to: '/owner',        label: 'Owners',       emoji: '👤' },
-  { to: '/transactions', label: 'Transactions', emoji: '🔄' },
-]
-
 const LEAGUE_SUBS = [
   { tab: 'inseason',  label: 'In-Season',      emoji: '📅' },
-  { tab: 'rankings',  label: 'Power Rankings', emoji: '🏆' },
+  {
+    tab: 'rankings', label: 'Power Rankings', emoji: '🏆',
+    views: [
+      { view: 'weekly',  label: 'Weekly' },
+      { view: 'dynasty', label: 'Dynasty' },
+    ],
+  },
   { tab: 'history',   label: 'History',        emoji: '📊' },
   { tab: 'h2h',       label: 'Head-to-Head',   emoji: '⚔️' },
   { tab: 'draft',     label: 'Draft',          emoji: '📋' },
   { tab: 'schedule',  label: 'Schedule',       emoji: '🗓' },
+]
+
+const TRANSACTIONS_SUBS = [
+  { tab: 'tree',       label: 'Trade Tree',  emoji: '🌳' },
+  { tab: 'log',        label: 'Trade Log',   emoji: '📜' },
+  { tab: 'waivers',    label: 'Waivers',     emoji: '💰' },
+  { tab: 'tendencies', label: 'Tendencies',  emoji: '📈' },
+]
+
+const OWNER_SUBS = [
+  { tab: 'summary', label: 'Career Summary', emoji: '📋' },
+  { tab: 'h2h',     label: 'Head-to-Head',   emoji: '⚔️' },
+  { tab: 'players', label: 'Top Players',    emoji: '⭐' },
+  { tab: 'draft',   label: 'Draft Picks',    emoji: '🏈' },
+  { tab: 'trades',  label: 'Trades',         emoji: '🔄' },
+  { tab: 'waivers', label: 'Waivers',        emoji: '💰' },
 ]
 
 function Wordmark() {
@@ -39,16 +57,101 @@ function Wordmark() {
   )
 }
 
+// ─── Mobile: a top-level item that expands into its sub-sections ─────────────
+// Auto-expands when you're already in that section; can also be toggled by tap.
+
+function ExpandableNavItem({ emoji, label, isActive, subItems, onNavClick, depth = 0 }) {
+  const [open, setOpen] = useState(false)
+  const showOpen = open || isActive
+
+  const className = depth === 0 ? 'sidebar-nav-item' : 'sidebar-sub-item'
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`${className}${isActive ? ' active' : ''}`}
+        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', justifyContent: 'space-between' }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 'inherit' }}>
+          <span>{emoji}</span>
+          <span>{label}</span>
+        </span>
+        <span style={{ fontSize: '10px', color: 'var(--text-faint)', transform: showOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+      </button>
+      {showOpen && (
+        <div>
+          {subItems.map((sub, i) => (
+            <SidebarLeafOrBranch key={i} {...sub} onNavClick={onNavClick} depth={depth + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SidebarLeafOrBranch({ emoji, label, href, isActive, subItems, onNavClick, depth }) {
+  if (subItems) {
+    return <ExpandableNavItem emoji={emoji} label={label} isActive={isActive} subItems={subItems} onNavClick={onNavClick} depth={depth} />
+  }
+  const className = depth <= 1 ? 'sidebar-sub-item' : 'sidebar-sub-sub-item'
+  return (
+    <Link to={href} onClick={onNavClick} className={`${className}${isActive ? ' active' : ''}`}>
+      {emoji && <span>{emoji}</span>}
+      <span>{label}</span>
+    </Link>
+  )
+}
+
 function SidebarContent({ onNavClick, isMobile }) {
   const location = useLocation()
-  const isLeague = location.pathname.startsWith('/league')
-  const activeTab = new URLSearchParams(location.search).get('tab') || 'inseason'
-  const [subsOpen, setSubsOpen] = useState(false)
+  const searchParams = new URLSearchParams(location.search)
 
-  // Mobile: tapping "League" expands the sub-menu in place instead of
-  // navigating straight to the default tab. Desktop: subs already appear
-  // automatically once you're on a /league route, so no toggle needed there.
-  const showLeagueSubs = isLeague || (isMobile && subsOpen)
+  const isLeague = location.pathname.startsWith('/league')
+  const activeLeagueTab = searchParams.get('tab') || 'inseason'
+  const activeView = searchParams.get('view') || 'weekly'
+
+  const isTransactions = location.pathname.startsWith('/transactions')
+  const activeTxnTab = searchParams.get('tab') || 'tree'
+
+  const ownerMatch = location.pathname.match(/^\/owner\/([^/?]+)/)
+  const currentOwnerName = ownerMatch ? decodeURIComponent(ownerMatch[1]) : null
+  const activeOwnerTab = searchParams.get('tab') || 'summary'
+
+  // Desktop keeps its original simple behavior: League subs auto-show when
+  // on /league, no toggle buttons. Mobile gets the full expandable tree.
+  const showLeagueSubsDesktop = isLeague
+
+  const leagueSubItems = LEAGUE_SUBS.map(sub => sub.views
+    ? {
+        emoji: sub.emoji, label: sub.label,
+        isActive: isLeague && activeLeagueTab === sub.tab,
+        subItems: sub.views.map(v => ({
+          label: v.label,
+          href: `/league?tab=${sub.tab}&view=${v.view}`,
+          isActive: isLeague && activeLeagueTab === sub.tab && activeView === v.view,
+        })),
+      }
+    : {
+        emoji: sub.emoji, label: sub.label,
+        href: `/league?tab=${sub.tab}`,
+        isActive: isLeague && activeLeagueTab === sub.tab,
+      }
+  )
+
+  const txnSubItems = TRANSACTIONS_SUBS.map(sub => ({
+    emoji: sub.emoji, label: sub.label,
+    href: `/transactions?tab=${sub.tab}`,
+    isActive: isTransactions && activeTxnTab === sub.tab,
+  }))
+
+  const ownerSubItems = currentOwnerName
+    ? OWNER_SUBS.map(sub => ({
+        emoji: sub.emoji, label: sub.label,
+        href: `/owner/${encodeURIComponent(currentOwnerName)}?tab=${sub.tab}`,
+        isActive: activeOwnerTab === sub.tab,
+      }))
+    : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -68,54 +171,54 @@ function SidebarContent({ onNavClick, isMobile }) {
 
       {/* Nav items */}
       <nav style={{ flex: 1, paddingTop: '8px', overflowY: 'auto' }}>
-        {TOP_NAV.map(item => {
-          const isLeagueItem = item.to === '/league'
+        <NavLink to="/" end onClick={onNavClick} className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}>
+          <span>🏠</span>
+          <span>Home</span>
+        </NavLink>
 
-          return (
-            <div key={item.to}>
-              {isMobile && isLeagueItem ? (
-                <button
-                  onClick={() => setSubsOpen(v => !v)}
-                  className={`sidebar-nav-item${isLeague ? ' active' : ''}`}
-                  style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', justifyContent: 'space-between' }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 'inherit' }}>
-                    <span>{item.emoji}</span>
-                    <span>{item.label}</span>
-                  </span>
-                  <span style={{ fontSize: '10px', color: 'var(--text-faint)', transform: showLeagueSubs ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
-                </button>
-              ) : (
-                <NavLink
-                  to={item.to}
-                  end={item.end}
-                  onClick={onNavClick}
-                  className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}
-                >
-                  <span>{item.emoji}</span>
-                  <span>{item.label}</span>
-                </NavLink>
-              )}
+        {isMobile ? (
+          <ExpandableNavItem emoji="🏆" label="League" isActive={isLeague} subItems={leagueSubItems} onNavClick={onNavClick} />
+        ) : (
+          <div>
+            <NavLink to="/league" onClick={onNavClick} className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}>
+              <span>🏆</span>
+              <span>League</span>
+            </NavLink>
+            {showLeagueSubsDesktop && (
+              <div>
+                {LEAGUE_SUBS.map(sub => (
+                  <Link
+                    key={sub.tab}
+                    to={`/league?tab=${sub.tab}`}
+                    onClick={onNavClick}
+                    className={`sidebar-sub-item${activeLeagueTab === sub.tab ? ' active' : ''}`}
+                  >
+                    <span>{sub.emoji}</span>
+                    <span>{sub.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-              {/* League sub-items */}
-              {isLeagueItem && showLeagueSubs && (
-                <div>
-                  {LEAGUE_SUBS.map(sub => (
-                    <Link
-                      key={sub.tab}
-                      to={`/league?tab=${sub.tab}`}
-                      onClick={onNavClick}
-                      className={`sidebar-sub-item${activeTab === sub.tab ? ' active' : ''}`}
-                    >
-                      <span>{sub.emoji}</span>
-                      <span>{sub.label}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {isMobile && currentOwnerName ? (
+          <ExpandableNavItem emoji="👤" label="Owners" isActive={true} subItems={ownerSubItems} onNavClick={onNavClick} />
+        ) : (
+          <NavLink to="/owner" onClick={onNavClick} className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}>
+            <span>👤</span>
+            <span>Owners</span>
+          </NavLink>
+        )}
+
+        {isMobile ? (
+          <ExpandableNavItem emoji="🔄" label="Transactions" isActive={isTransactions} subItems={txnSubItems} onNavClick={onNavClick} />
+        ) : (
+          <NavLink to="/transactions" onClick={onNavClick} className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}>
+            <span>🔄</span>
+            <span>Transactions</span>
+          </NavLink>
+        )}
       </nav>
 
       {/* Footer */}

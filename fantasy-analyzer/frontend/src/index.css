@@ -227,6 +227,27 @@ body {
   color: var(--text-primary);
 }
 
+.sidebar-sub-sub-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 20px 7px 64px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  color: var(--text-faint);
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+.sidebar-sub-sub-item:hover {
+  color: var(--text-muted);
+}
+.sidebar-sub-sub-item.active {
+  border-left-color: var(--brand-red);
+  color: var(--text-primary);
+}
+
 /* ─── Content area offset for fixed sidebar ──────────────────────────────────── */
 
 @media (min-width: 768px) {
