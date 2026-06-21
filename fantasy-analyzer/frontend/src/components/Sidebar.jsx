@@ -39,10 +39,16 @@ function Wordmark() {
   )
 }
 
-function SidebarContent({ onNavClick }) {
+function SidebarContent({ onNavClick, isMobile }) {
   const location = useLocation()
   const isLeague = location.pathname.startsWith('/league')
   const activeTab = new URLSearchParams(location.search).get('tab') || 'inseason'
+  const [subsOpen, setSubsOpen] = useState(false)
+
+  // Mobile: tapping "League" expands the sub-menu in place instead of
+  // navigating straight to the default tab. Desktop: subs already appear
+  // automatically once you're on a /league route, so no toggle needed there.
+  const showLeagueSubs = isLeague || (isMobile && subsOpen)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -62,36 +68,54 @@ function SidebarContent({ onNavClick }) {
 
       {/* Nav items */}
       <nav style={{ flex: 1, paddingTop: '8px', overflowY: 'auto' }}>
-        {TOP_NAV.map(item => (
-          <div key={item.to}>
-            <NavLink
-              to={item.to}
-              end={item.end}
-              onClick={onNavClick}
-              className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}
-            >
-              <span>{item.emoji}</span>
-              <span>{item.label}</span>
-            </NavLink>
+        {TOP_NAV.map(item => {
+          const isLeagueItem = item.to === '/league'
 
-            {/* League sub-items — visible only when on any /league route */}
-            {item.to === '/league' && isLeague && (
-              <div>
-                {LEAGUE_SUBS.map(sub => (
-                  <Link
-                    key={sub.tab}
-                    to={`/league?tab=${sub.tab}`}
-                    onClick={onNavClick}
-                    className={`sidebar-sub-item${activeTab === sub.tab ? ' active' : ''}`}
-                  >
-                    <span>{sub.emoji}</span>
-                    <span>{sub.label}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+          return (
+            <div key={item.to}>
+              {isMobile && isLeagueItem ? (
+                <button
+                  onClick={() => setSubsOpen(v => !v)}
+                  className={`sidebar-nav-item${isLeague ? ' active' : ''}`}
+                  style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', justifyContent: 'space-between' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 'inherit' }}>
+                    <span>{item.emoji}</span>
+                    <span>{item.label}</span>
+                  </span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-faint)', transform: showLeagueSubs ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+                </button>
+              ) : (
+                <NavLink
+                  to={item.to}
+                  end={item.end}
+                  onClick={onNavClick}
+                  className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}
+                >
+                  <span>{item.emoji}</span>
+                  <span>{item.label}</span>
+                </NavLink>
+              )}
+
+              {/* League sub-items */}
+              {isLeagueItem && showLeagueSubs && (
+                <div>
+                  {LEAGUE_SUBS.map(sub => (
+                    <Link
+                      key={sub.tab}
+                      to={`/league?tab=${sub.tab}`}
+                      onClick={onNavClick}
+                      className={`sidebar-sub-item${activeTab === sub.tab ? ' active' : ''}`}
+                    >
+                      <span>{sub.emoji}</span>
+                      <span>{sub.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </nav>
 
       {/* Footer */}
@@ -180,7 +204,7 @@ export default function Sidebar() {
           transition: 'transform 0.25s ease',
         }}
       >
-        <SidebarContent onNavClick={close} />
+        <SidebarContent onNavClick={close} isMobile />
       </div>
     </>
   )
