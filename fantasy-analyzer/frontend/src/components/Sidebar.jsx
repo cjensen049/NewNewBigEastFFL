@@ -12,7 +12,7 @@
  *   straight to the default tab — and a sub-section can itself expand further
  *   (e.g. League > Power Rankings > Weekly/Dynasty).
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 
 const LEAGUE_SUBS = [
@@ -63,6 +63,12 @@ function Wordmark() {
 function ExpandableNavItem({ emoji, label, isActive, subItems, onNavClick, depth = 0 }) {
   const [open, setOpen] = useState(false)
   const showOpen = open || isActive
+
+  // Auto-collapse once you've navigated away from this section, so leaving
+  // it manually expanded doesn't leak into other pages.
+  useEffect(() => {
+    if (!isActive) setOpen(false)
+  }, [isActive])
 
   const className = depth === 0 ? 'sidebar-nav-item' : 'sidebar-sub-item'
 
