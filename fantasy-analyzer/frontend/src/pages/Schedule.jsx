@@ -363,8 +363,8 @@ export default function Schedule({ embedded }) {
   const nextSeason = (prevSeason ?? 2025) + 1
 
   const { data: finishData, isLoading } = useQuery({
-    queryKey: ['finish-order', prevSeason],
-    queryFn: () => fetch(`/api/history/finish-order/${prevSeason}`).then(r => r.json()),
+    queryKey: ['division-order', prevSeason],
+    queryFn: () => fetch(`/api/history/division-order/${prevSeason}`).then(r => r.json()),
     enabled: !!prevSeason,
   })
 

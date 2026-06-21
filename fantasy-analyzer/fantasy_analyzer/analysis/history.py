@@ -630,6 +630,70 @@ def get_playoff_records(con: sqlite3.Connection) -> list[PlayoffSummary]:
 
 
 # ---------------------------------------------------------------------------
+# Division order (for next season's division/schedule grouping)
+# ---------------------------------------------------------------------------
+
+def get_division_order(con: sqlite3.Connection, year: int) -> list[dict]:
+    """Return next season's division order: top 4 by actual playoff finish,
+    the remaining 8 (ranks 5-12) by pure regular-season record.
+
+    The toilet-bowl/placement bracket that determines ranks 5-12 in
+    `compute_playoff_results` can badly misrepresent a team's actual season
+    (e.g. a 9-5 team that lost a meaningless placement game can finish
+    "12th"), so division grouping uses plain regular-season standings for
+    everyone outside the top 4 instead.
+
+    Each owner's name is resolved to whoever CURRENTLY holds that Sleeper
+    roster — `roster_id` stays stable across an owner handoff even though
+    the user_id/canonical_name changes — so a departed owner's old slot
+    shows their replacement instead of the departed owner.
+    """
+    league_row = con.execute(
+        "SELECT league_id, playoff_week_start, COALESCE(last_scored_leg, playoff_week_start + 2) "
+        "FROM leagues WHERE season = ?",
+        (year,),
+    ).fetchone()
+    if not league_row:
+        return []
+    league_id, playoff_week_start, last_week = league_row
+
+    playoff_results = compute_playoff_results(con, league_id, year, playoff_week_start, last_week)
+    top4 = sorted((r for r in playoff_results if r.finish and r.finish <= 4), key=lambda r: r.finish)
+    top4_uids = {r.user_id for r in top4}
+
+    reg_records = compute_regular_season_records(con, league_id, year, playoff_week_start)
+    rest = [r for r in reg_records if r.user_id not in top4_uids]  # already sorted by (-win_pct, -points_for)
+
+    ordered = [(r.finish, r.user_id, r.canonical_name) for r in top4]
+    ordered += [(5 + i, r.user_id, r.canonical_name) for i, r in enumerate(rest)]
+
+    latest_league_id = con.execute("SELECT league_id FROM leagues ORDER BY season DESC LIMIT 1").fetchone()[0]
+
+    teams = []
+    for finish, uid, name in ordered:
+        roster_row = con.execute(
+            "SELECT roster_id FROM matchups WHERE league_id = ? AND user_id = ? LIMIT 1",
+            (league_id, uid),
+        ).fetchone()
+        current_name = name
+        if roster_row:
+            current_row = con.execute(
+                """
+                SELECT o.canonical_name FROM matchups m
+                JOIN owners o ON m.user_id = o.user_id
+                WHERE m.league_id = ? AND m.roster_id = ?
+                LIMIT 1
+                """,
+                (latest_league_id, roster_row[0]),
+            ).fetchone()
+            if current_row:
+                current_name = current_row[0]
+        teams.append({"finish": finish, "owner": current_name})
+
+    return teams
+
+
+# ---------------------------------------------------------------------------
 # Real schedule (from Sleeper's published matchup pairings)
 # ---------------------------------------------------------------------------
 

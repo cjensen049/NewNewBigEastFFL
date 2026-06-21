@@ -13,6 +13,7 @@ from fantasy_analyzer.analysis.history import (
     get_all_time_standings,
     get_available_seasons,
     get_championship_rosters,
+    get_division_order,
     get_league_records,
     get_season_breakdown,
     get_season_schedule,
@@ -169,6 +170,19 @@ def finish_order(year: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
         {"finish": rank, "owner": name}
         for rank, name in sorted(history[year].items())
     ]
+    return {"season": year, "teams": teams}
+
+
+@router.get("/division-order/{year}")
+def division_order(year: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Next season's division order, for the Schedule page.
+
+    Top 4 = actual playoff finish. Ranks 5-12 = pure regular-season record
+    (not the toilet-bowl bracket, which can misrepresent a team's actual
+    season). Names are resolved to whoever currently holds that roster, so
+    a departed owner's old slot shows their replacement.
+    """
+    teams = get_division_order(con, year)
     return {"season": year, "teams": teams}
 
 

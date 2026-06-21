@@ -161,7 +161,7 @@ body {
 
 @media (max-width: 640px) {
   .home-explore-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   .home-season-grid {
     grid-template-columns: 1fr;
