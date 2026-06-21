@@ -142,15 +142,15 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Playoff Picture</span>
+        <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Playoff Picture</span>
         {isSorted && (
-          <button onClick={reset} style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}>
+          <button onClick={reset} className="fs-label" style={{ marginLeft: 'auto', color: 'var(--text-faint)', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}>
             Reset ×
           </button>
         )}
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '480px' }}>
+        <table className="nnbe-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '480px' }}>
           <thead>
             <tr>
               {th('owner',        'Owner')}
@@ -238,10 +238,10 @@ function RaceToBottom({ rows }) {
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginTop: '20px' }}>
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Race to the Bottom</span>
+        <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Race to the Bottom</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px' }}>
+        <table className="nnbe-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               {th('draft_pick',  '#')}

@@ -147,7 +147,7 @@ export default function Sidebar() {
         </Link>
         <button
           onClick={() => setMobileOpen(true)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px 8px', display: 'flex', alignItems: 'center' }}
           aria-label="Open navigation"
         >
           <svg width="20" height="16" viewBox="0 0 20 16" fill="none">

@@ -39,7 +39,7 @@ export default function League() {
             onClick={() => setSearchParams({ tab: t.id })}
             style={{
               display: 'inline-block',
-              padding: '6px 16px',
+              padding: '9px 16px',
               borderRadius: '20px',
               fontSize: '13px',
               fontWeight: 500,

@@ -125,7 +125,7 @@ function MatchupLookupTab() {
           </div>
 
           {/* Line chart of scores each game */}
-          <h2 className="text-lg font-semibold mb-3">Points Each Game</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-3">Points Each Game</h2>
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -146,7 +146,7 @@ function MatchupLookupTab() {
           </ResponsiveContainer>
 
           {/* Matchup log */}
-          <h2 className="text-lg font-semibold mt-8 mb-3">All Matchups</h2>
+          <h2 className="text-base md:text-lg font-semibold mt-8 mb-3">All Matchups</h2>
           <DataTable
             rows={rows}
             maxHeight="420px"
@@ -207,7 +207,7 @@ function RivalriesTab() {
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <h2 className="text-lg font-semibold mb-1">Top Rivalries</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-1">Top Rivalries</h2>
           <p className="text-xs text-gray-500 mb-3">Most games played with the closest records</p>
           <DataTable
             rows={rivalryRows}
@@ -221,7 +221,7 @@ function RivalriesTab() {
           />
         </div>
         <div>
-          <h2 className="text-lg font-semibold mb-1">Most Lopsided</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-1">Most Lopsided</h2>
           <p className="text-xs text-gray-500 mb-3">Biggest mismatches (min 4 games)</p>
           <DataTable
             rows={lopsidedRows}
@@ -237,7 +237,7 @@ function RivalriesTab() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold mb-1">Nemesis &amp; Prey</h2>
+        <h2 className="text-base md:text-lg font-semibold mb-1">Nemesis &amp; Prey</h2>
         <p className="text-xs text-gray-500 mb-3">Nemesis = worst record against (min 2 games) · Prey = best record against</p>
         <DataTable
           rows={nemesisRows}
@@ -289,7 +289,7 @@ function FullMatrixTab() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-1">All-Time Regular Season Head-to-Head</h2>
+      <h2 className="text-base md:text-lg font-semibold mb-1">All-Time Regular Season Head-to-Head</h2>
       <p className="text-xs text-gray-500 mb-3">Read row vs column: row owner's record against column opponent</p>
       <div className="overflow-auto rounded border border-gray-700">
         <table className="text-xs text-gray-300">

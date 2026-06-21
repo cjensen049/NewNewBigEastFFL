@@ -47,6 +47,7 @@ def matchups(
         WHERE o1.canonical_name = ?
           AND o2.canonical_name = ?
           AND m1.week < l.playoff_week_start
+          AND NOT (m1.points = 0 AND m2.points = 0)
         ORDER BY m1.season, m1.week
         """,
         (owner1, owner2),

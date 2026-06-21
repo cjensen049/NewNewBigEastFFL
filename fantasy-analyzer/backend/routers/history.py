@@ -9,11 +9,13 @@ from typing import Generator
 from fastapi import APIRouter, Depends, Query
 
 from fantasy_analyzer.analysis.history import (
+    get_all_seasons,
     get_all_time_standings,
     get_available_seasons,
     get_championship_rosters,
     get_league_records,
     get_season_breakdown,
+    get_season_schedule,
     get_standings_history,
     get_weekly_scoring_extremes,
 )
@@ -74,6 +76,18 @@ def standings(con: sqlite3.Connection = Depends(get_db)) -> dict:
 def seasons(con: sqlite3.Connection = Depends(get_db)) -> dict:
     """List of available season years, newest first."""
     years = sorted(get_available_seasons(con), reverse=True)
+    return {"seasons": years}
+
+
+@router.get("/seasons/complete")
+def seasons_complete(con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """List of seasons with a finished regular season + playoffs, newest first.
+
+    Unlike /seasons (which includes the in-progress current season), this is
+    for views that need the last season with real final standings — e.g.
+    next year's division preview on the Schedule page.
+    """
+    years = sorted((s["season"] for s in get_all_seasons(con)), reverse=True)
     return {"seasons": years}
 
 
@@ -156,6 +170,24 @@ def finish_order(year: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
         for rank, name in sorted(history[year].items())
     ]
     return {"season": year, "teams": teams}
+
+
+@router.get("/schedule/{year}")
+def schedule(year: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Real per-week opponent for every owner, from Sleeper's published matchup pairings.
+
+    Works even before any games are played — Sleeper publishes the full
+    season's pairings up front, scores just default to 0 until played.
+    """
+    league = con.execute(
+        "SELECT league_id, playoff_week_start FROM leagues WHERE season = ?",
+        (year,),
+    ).fetchone()
+    if not league:
+        return {"season": year, "weeks": 0, "schedule": {}}
+    league_id, playoff_week_start = league
+    sched = get_season_schedule(con, league_id, playoff_week_start)
+    return {"season": year, "weeks": playoff_week_start - 1, "schedule": sched}
 
 
 @router.get("/records")

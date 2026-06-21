@@ -105,7 +105,7 @@ function StatCard({ label, value, subLabel }) {
       }}>
         {value ?? '—'}
       </p>
-      {subLabel && <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>{subLabel}</p>}
+      {subLabel && <p className="fs-label" style={{ color: 'var(--text-muted)', marginTop: '4px' }}>{subLabel}</p>}
     </div>
   )
 }
@@ -159,82 +159,64 @@ function CareerSummaryTab({ owner }) {
           <p style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: 'var(--text-primary)', lineHeight: 1, marginBottom: '4px' }}>
             {rival?.nemesis ?? '—'}
           </p>
-          {rival?.nemesis_record && <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{rival.nemesis_record}</p>}
+          {rival?.nemesis_record && <p className="fs-body" style={{ color: 'var(--text-muted)' }}>{rival.nemesis_record}</p>}
         </div>
         <div style={{ background: 'rgba(63,185,80,0.06)', border: '1px solid rgba(63,185,80,0.2)', borderRadius: '10px', padding: '16px' }}>
           <p style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--green)', marginBottom: '6px' }}>🎯 Prey</p>
           <p style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: 'var(--text-primary)', lineHeight: 1, marginBottom: '4px' }}>
             {rival?.prey ?? '—'}
           </p>
-          {rival?.prey_record && <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{rival.prey_record}</p>}
+          {rival?.prey_record && <p className="fs-body" style={{ color: 'var(--text-muted)' }}>{rival.prey_record}</p>}
         </div>
       </div>
 
       {/* Season-by-season table */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Season by Season</span>
-          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+          <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Season by Season</span>
+          <span className="fs-label" style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
             {seasons.length} seasons
           </span>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-page)' }}>
-                {['Season', 'Seed', 'W-L', 'Win%', 'Pts For', 'Pts Vs', 'PPG', 'Finish'].map((col, i) => (
-                  <th key={col} style={{
-                    padding: '8px 12px',
-                    fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase',
-                    color: 'var(--text-faint)', textAlign: i === 0 ? 'left' : 'right',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {seasons.map((s, i) => {
-                const prevPpg = seasons[i + 1]?.ppg
-                const currPpg = s.ppg
-                const trend = prevPpg != null && currPpg != null
-                  ? currPpg > prevPpg ? '↑' : currPpg < prevPpg ? '↓' : null
-                  : null
-                const trendColor = trend === '↑' ? 'var(--green)' : 'var(--brand-red)'
-
-                const pillStyle = { ...wlPillStyle(s.record), borderRadius: '4px', padding: '2px 8px', fontSize: '13px', fontWeight: 600 }
-
+        <DataTable
+          bordered={false}
+          rowClassName={() => 'season-table-row'}
+          rows={seasons}
+          defaultSort="season"
+          defaultDir="desc"
+          columns={[
+            { key: 'season', label: 'Season' },
+            { key: 'seed', label: 'Seed', align: 'right', render: v => v ?? '—' },
+            {
+              key: 'record', label: 'W-L', align: 'right',
+              render: (v) => <span className="fs-body" style={{ ...wlPillStyle(v), borderRadius: '4px', padding: '2px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>{v ?? '—'}</span>,
+            },
+            {
+              key: 'win_pct', label: 'Win%', align: 'right',
+              render: (v) => <span style={{ fontWeight: 600, color: winPctColor(v) }}>{pct(v)}</span>,
+            },
+            { key: 'pts_for', label: 'Pts For', align: 'right', render: fmtPts },
+            { key: 'pts_against', label: 'Pts Vs', align: 'right', render: v => <span style={{ color: 'var(--text-faint)' }}>{fmtPts(v)}</span> },
+            {
+              key: 'ppg', label: 'PPG', align: 'right',
+              render: (v, s, i) => {
+                const prevPpg = seasons.find(x => x.season === s.season - 1)?.ppg
+                const trend = prevPpg != null && v != null ? (v > prevPpg ? '↑' : v < prevPpg ? '↓' : null) : null
                 return (
-                  <tr key={s.season} className="season-table-row" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '9px 12px', fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)' }}>{s.season}</td>
-                    <td style={{ padding: '9px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right' }}>{s.seed ?? '—'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <span style={{ ...pillStyle, whiteSpace: 'nowrap' }}>{s.record ?? '—'}</span>
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', fontWeight: 600, color: winPctColor(s.win_pct) }}>
-                      {pct(s.win_pct)}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {fmtPts(s.pts_for)}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' }}>
-                      {fmtPts(s.pts_against)}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {s.ppg ?? '—'}
-                      {trend && <span style={{ color: trendColor, marginLeft: '3px', fontSize: '11px' }}>{trend}</span>}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', fontWeight: 600, color: finishColor(s.finish) }}>
-                      {s.finish ?? '—'}
-                    </td>
-                  </tr>
+                  <>
+                    {v ?? '—'}
+                    {trend && <span className="fs-label" style={{ color: trend === '↑' ? 'var(--green)' : 'var(--brand-red)', marginLeft: '3px' }}>{trend}</span>}
+                  </>
                 )
-              })}
-            </tbody>
-          </table>
-        </div>
+              },
+            },
+            {
+              key: 'finish', label: 'Finish', align: 'right',
+              render: (v) => <span style={{ fontWeight: 600, color: finishColor(v) }}>{v ?? '—'}</span>,
+            },
+          ]}
+        />
       </div>
     </div>
   )
@@ -253,7 +235,7 @@ function H2HTab({ owner }) {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-3">Head-to-Head vs Each Opponent</h2>
+      <h2 className="text-base md:text-lg font-semibold mb-3">Head-to-Head vs Each Opponent</h2>
       <DataTable
         rows={data?.h2h ?? []}
         maxHeight="480px"
@@ -300,7 +282,7 @@ function TopPlayersTab({ owner }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4 mb-4">
-        <h2 className="text-lg font-semibold">Top Scoring Players</h2>
+        <h2 className="text-base md:text-lg font-semibold">Top Scoring Players</h2>
         <p className="text-xs text-gray-500">Regular season only · points scored while in the starting lineup</p>
         <div className="flex items-center gap-2 ml-auto">
           <label className="text-gray-400 text-sm">Season</label>
@@ -315,37 +297,29 @@ function TopPlayersTab({ owner }) {
         </div>
       </div>
 
-      <div className="rounded border border-gray-700 overflow-hidden overflow-x-auto">
-        <table className="w-full text-sm" style={{ minWidth: '500px' }}>
-          <thead>
-            <tr className="bg-gray-800 text-gray-400 text-left text-xs uppercase tracking-wide">
-              <th className="px-3 py-2">Player</th>
-              <th className="px-3 py-2 w-12">Pos</th>
-              <th className="px-3 py-2 w-28 text-right">Total Pts</th>
-              <th className="px-3 py-2 w-24 text-right">Wks Started</th>
-              <th className="px-3 py-2 w-24 text-right">Avg/Wk</th>
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((p, i) => {
-              const { border, bg } = POS_STYLE[p.position] ?? { border: 'border-l-gray-600', bg: 'bg-gray-800/40' }
-              return (
-                <tr key={i} className={`border-l-4 ${border} ${bg} border-b border-gray-800/50`}>
-                  <td className="px-3 py-2 text-white font-medium">{p.player}</td>
-                  <td className="px-3 py-2"><OwnerPosBadge pos={p.position} /></td>
-                  <td className="px-3 py-2 text-right font-mono text-gray-300">
-                    {p.total_pts != null ? Number(p.total_pts).toFixed(1) : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right text-gray-400">{p.weeks_started ?? '—'}</td>
-                  <td className="px-3 py-2 text-right font-mono text-gray-300">
-                    {p.avg_pts != null ? Number(p.avg_pts).toFixed(1) : '—'}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        minWidth="500px"
+        defaultSort="total_pts"
+        defaultDir="desc"
+        rows={players}
+        rowClassName={(p) => {
+          const { border, bg } = POS_STYLE[p.position] ?? { border: 'border-l-gray-600', bg: 'bg-gray-800/40' }
+          return `border-l-4 ${border} ${bg}`
+        }}
+        columns={[
+          { key: 'player', label: 'Player' },
+          { key: 'position', label: 'Pos', sortable: false, render: (v) => <OwnerPosBadge pos={v} /> },
+          {
+            key: 'total_pts', label: 'Total Pts', align: 'right',
+            render: (v) => v != null ? Number(v).toFixed(1) : '—',
+          },
+          { key: 'weeks_started', label: 'Wks Started', align: 'right', render: v => v ?? '—' },
+          {
+            key: 'avg_pts', label: 'Avg/Wk', align: 'right',
+            render: (v) => v != null ? Number(v).toFixed(1) : '—',
+          },
+        ]}
+      />
     </div>
   )
 }
@@ -353,8 +327,6 @@ function TopPlayersTab({ owner }) {
 // ─── Draft Picks tab ──────────────────────────────────────────────────────────
 
 function DraftPicksTab({ owner }) {
-  const [sortMode, setSortMode] = useState('pts')
-
   const { data: draftOwnersData } = useQuery({
     queryKey: ['draft-owners'],
     queryFn: () => fetch('/api/draft/owners').then(r => r.json()),
@@ -373,36 +345,13 @@ function DraftPicksTab({ owner }) {
   if (!userId) return <p className="text-gray-500">No draft data found for {owner}.</p>
 
   const allPicks = data?.picks ?? []
-
-  const sorted = [...allPicks].sort((a, b) =>
-    sortMode === 'pts'
-      ? b.points_on_team - a.points_on_team
-      : (b.season - a.season) || (a.round - b.round) || (a.pick_no - b.pick_no)
-  )
-
   const totalPts = allPicks.reduce((s, p) => s + (p.points_on_team ?? 0), 0)
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4 mb-4">
-        <h2 className="text-lg font-semibold">Draft Picks</h2>
+        <h2 className="text-base md:text-lg font-semibold">Draft Picks</h2>
         <p className="text-xs text-gray-500">Points scored while on {owner}'s roster only</p>
-        <div className="flex items-center gap-2 ml-auto">
-          <label className="text-gray-400 text-sm">Sort</label>
-          <div className="flex rounded overflow-hidden border border-gray-600">
-            {[['pts', 'By Points'], ['draft', 'By Draft']].map(([mode, label]) => (
-              <button
-                key={mode}
-                onClick={() => setSortMode(mode)}
-                className={`px-3 py-1 text-xs font-medium transition-colors ${
-                  sortMode === mode ? 'bg-emerald-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {allPicks.length > 0 && (
@@ -411,51 +360,37 @@ function DraftPicksTab({ owner }) {
         </p>
       )}
 
-      <div className="rounded border border-gray-700 overflow-hidden overflow-x-auto">
-        <table className="w-full text-sm" style={{ minWidth: '640px' }}>
-          <thead>
-            <tr className="bg-gray-800 text-gray-400 text-left text-xs uppercase tracking-wide">
-              <th className="px-3 py-2">Player</th>
-              <th className="px-3 py-2 w-12">Pos</th>
-              <th className="px-3 py-2 w-16">Season</th>
-              <th className="px-3 py-2 w-14 text-center">Rd</th>
-              <th className="px-3 py-2 w-16 text-center">Pick</th>
-              <th className="px-3 py-2 w-28 text-right">Total Pts</th>
-              <th className="px-3 py-2 w-28 text-right">Pts on Roster</th>
-              <th className="px-3 py-2 w-24">Current Owner</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((p, i) => {
-              const { border, bg } = POS_STYLE[p.position] ?? { border: 'border-l-gray-600', bg: 'bg-gray-800/40' }
-              return (
-                <tr key={i} className={`border-l-4 ${border} ${bg} border-b border-gray-800/50`}>
-                  <td className="px-3 py-2 text-white font-medium">{p.player_name}</td>
-                  <td className="px-3 py-2"><OwnerPosBadge pos={p.position} /></td>
-                  <td className="px-3 py-2 text-gray-400">{p.season}</td>
-                  <td className="px-3 py-2 text-gray-400 text-center">{p.round}</td>
-                  <td className="px-3 py-2 text-gray-400 text-center">{p.pick_no}</td>
-                  <td className="px-3 py-2 text-right font-mono text-gray-300">
-                    {p.total_points > 0 ? p.total_points.toFixed(1) : '—'}
-                  </td>
-                  <td className={`px-3 py-2 text-right font-mono font-medium ${
-                    p.points_on_team > 500 ? 'text-emerald-400' :
-                    p.points_on_team > 200 ? 'text-emerald-600' :
-                    p.points_on_team > 0   ? 'text-gray-300'    : 'text-gray-600'
-                  }`}>
-                    {p.points_on_team > 0 ? p.points_on_team.toFixed(1) : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-sm">
-                    {p.current_owner === 'Free Agent'
-                      ? <span className="text-gray-500 italic">Free Agent</span>
-                      : <span className="text-gray-300">{p.current_owner}</span>}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        minWidth="640px"
+        defaultSort="points_on_team"
+        defaultDir="desc"
+        rows={allPicks}
+        rowClassName={(p) => {
+          const { border, bg } = POS_STYLE[p.position] ?? { border: 'border-l-gray-600', bg: 'bg-gray-800/40' }
+          return `border-l-4 ${border} ${bg}`
+        }}
+        columns={[
+          { key: 'player_name', label: 'Player' },
+          { key: 'position', label: 'Pos', sortable: false, render: (v) => <OwnerPosBadge pos={v} /> },
+          { key: 'season', label: 'Season', align: 'right' },
+          { key: 'round', label: 'Rd', align: 'right' },
+          { key: 'pick_no', label: 'Pick', align: 'right' },
+          {
+            key: 'total_points', label: 'Total Pts', align: 'right',
+            render: (v) => v > 0 ? v.toFixed(1) : '—',
+          },
+          {
+            key: 'points_on_team', label: 'Pts on Roster', align: 'right',
+            render: (v) => v > 0 ? v.toFixed(1) : '—',
+          },
+          {
+            key: 'current_owner', label: 'Current Owner',
+            render: (v) => v === 'Free Agent'
+              ? <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>Free Agent</span>
+              : v,
+          },
+        ]}
+      />
     </div>
   )
 }
@@ -482,8 +417,8 @@ function TradesTab({ owner }) {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-1">Trade History</h2>
-      <p className="text-sm text-gray-500 mb-3">{rows.length} trades</p>
+      <h2 className="text-base md:text-lg font-semibold mb-1">Trade History</h2>
+      <p className="text-xs md:text-sm text-gray-500 mb-3">{rows.length} trades</p>
       <DataTable
         rows={rows}
         maxHeight="500px"
@@ -642,7 +577,7 @@ export default function Owner() {
                 {memberSince ? `Member since ${memberSince}` : ''}
                 {memberSince && seasons.length ? ` · ${seasons.length} season${seasons.length !== 1 ? 's' : ''}` : ''}
                 {departedAfter ? (
-                  <span style={{ marginLeft: '8px', background: 'rgba(204,31,46,0.12)', color: 'var(--brand-red)', border: '1px solid rgba(204,31,46,0.25)', borderRadius: '4px', padding: '1px 7px', fontSize: '11px', fontWeight: 600 }}>
+                  <span className="fs-label" style={{ marginLeft: '8px', background: 'rgba(204,31,46,0.12)', color: 'var(--brand-red)', border: '1px solid rgba(204,31,46,0.25)', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>
                     Departed after {departedAfter}
                   </span>
                 ) : null}
@@ -671,7 +606,7 @@ export default function Owner() {
                 onClick={() => setTab(t.id)}
                 style={{
                   display: 'inline-block',
-                  padding: '6px 16px',
+                  padding: '9px 16px',
                   borderRadius: '20px',
                   fontSize: '13px',
                   fontWeight: 500,

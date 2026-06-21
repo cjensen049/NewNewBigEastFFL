@@ -346,6 +346,7 @@ def owner_h2h(name: str, con: sqlite3.Connection = Depends(get_db)) -> dict:
             WHERE o1.canonical_name = ?
               AND o2.canonical_name = ?
               AND m1.week < l.playoff_week_start
+              AND NOT (m1.points = 0 AND m2.points = 0)
             """,
             (name, opp),
         ).fetchall()

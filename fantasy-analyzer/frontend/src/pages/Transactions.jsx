@@ -362,7 +362,7 @@ function TradeTreeTab() {
       {!searchQuery && !treeData && (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔍</div>
-          <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+          <p className="fs-title" style={{ color: 'var(--text-muted)' }}>
             Search for a player to trace their trade history
           </p>
         </div>
@@ -372,8 +372,8 @@ function TradeTreeTab() {
 
       {treeData && !isLoading && (
         <>
-          <h2 className="text-lg font-semibold mb-1">{treeData.player} — Trade Tree</h2>
-          <p className="text-sm text-gray-500 mb-3">{trades.length} trade(s) in league history</p>
+          <h2 className="text-base md:text-lg font-semibold mb-1">{treeData.player} — Trade Tree</h2>
+          <p className="text-xs md:text-sm text-gray-500 mb-3">{trades.length} trade(s) in league history</p>
 
           {trades.length === 0 ? (
             <p className="text-gray-500 italic">No recorded trades for this player.</p>
@@ -596,10 +596,10 @@ function TradeLogTab() {
 
       {isLoading ? <LoadingSpinner /> : (
         <>
-          <p className="text-sm text-gray-500 mb-3">{sorted.length} trades</p>
+          <p className="text-xs md:text-sm text-gray-500 mb-3">{sorted.length} trades</p>
           <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
             <div style={{ overflowY: 'auto', maxHeight: '600px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px' }}>
+              <table className="nnbe-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
                     <TH colKey="season">Season</TH>
@@ -696,40 +696,27 @@ function WaiversTab() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-lg font-semibold mb-1">Biggest FAAB Claims</h2>
+        <h2 className="text-base md:text-lg font-semibold mb-1">Biggest FAAB Claims</h2>
         <p className="text-xs text-gray-500 mb-3">Top 20 successful FAAB bids of all time</p>
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-          <div style={{ overflowY: 'auto', maxHeight: '380px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg-page)', position: 'sticky', top: 0, zIndex: 1 }}>
-                  {['Player', 'Pos', 'Owner', 'Season', 'Wk', 'FAAB'].map((h, i) => (
-                    <th key={h} style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i >= 3 ? 'right' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(faabData?.top_bids?.slice(0, 20) ?? []).map((b, i) => {
-                  const rowStyle = WAV_POS_ROW[b.position] ?? {}
-                  return (
-                    <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', ...rowStyle }}>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-primary)', fontWeight: 500 }}>{b.player}</td>
-                      <td style={{ padding: '8px 12px' }}><WavPosBadge pos={b.position} /></td>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)' }}>{b.owner}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.season}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right' }}>{b.week}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--green)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>${b.amount}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          maxHeight="380px"
+          defaultSort="amount"
+          defaultDir="desc"
+          rows={faabData?.top_bids?.slice(0, 20) ?? []}
+          rowStyle={(b) => WAV_POS_ROW[b.position] ?? {}}
+          columns={[
+            { key: 'player', label: 'Player', render: v => <span style={{ fontWeight: 500 }}>{v}</span> },
+            { key: 'position', label: 'Pos', sortable: false, render: v => <WavPosBadge pos={v} /> },
+            { key: 'owner', label: 'Owner', render: v => <span style={{ color: 'var(--text-muted)' }}>{v}</span> },
+            { key: 'season', label: 'Season', align: 'right', render: v => <span style={{ color: 'var(--text-muted)' }}>{v}</span> },
+            { key: 'week', label: 'Wk', align: 'right', render: v => <span style={{ color: 'var(--text-muted)' }}>{v}</span> },
+            { key: 'amount', label: 'FAAB', align: 'right', render: v => <span style={{ color: 'var(--green)', fontWeight: 600 }}>${v}</span> },
+          ]}
+        />
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold mb-3">Owner Activity — All Time</h2>
+        <h2 className="text-base md:text-lg font-semibold mb-3">Owner Activity — All Time</h2>
         <DataTable
           rows={activityRows}
           maxHeight="460px"
@@ -745,7 +732,7 @@ function WaiversTab() {
 
       <div>
         <div className="flex items-center gap-3 mb-3">
-          <h2 className="text-lg font-semibold">Activity by Season</h2>
+          <h2 className="text-base md:text-lg font-semibold">Activity by Season</h2>
           <select
             value={activeSeason ?? ''}
             onChange={e => setSelectedSeason(Number(e.target.value))}
@@ -767,35 +754,22 @@ function WaiversTab() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold mb-1">Revolving Door Players</h2>
+        <h2 className="text-base md:text-lg font-semibold mb-1">Revolving Door Players</h2>
         <p className="text-xs text-gray-500 mb-3">Players with the most total moves (adds + drops)</p>
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-          <div style={{ overflowY: 'auto', maxHeight: '440px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg-page)', position: 'sticky', top: 0, zIndex: 1 }}>
-                  {[['Player', 'left'], ['Pos', 'left'], ['Adds', 'right'], ['Drops', 'right'], ['Total', 'right']].map(([h, align]) => (
-                    <th key={h} style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: align, whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(playersData?.players?.slice(0, 20) ?? []).map((p, i) => {
-                  const rowStyle = WAV_POS_ROW[p.position] ?? {}
-                  return (
-                    <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)', ...rowStyle }}>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-primary)', fontWeight: 500 }}>{p.player}</td>
-                      <td style={{ padding: '8px 12px' }}><WavPosBadge pos={p.position} /></td>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.adds}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.drops}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '16px', color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.total_moves}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          maxHeight="440px"
+          defaultSort="total_moves"
+          defaultDir="desc"
+          rows={playersData?.players?.slice(0, 20) ?? []}
+          rowStyle={(p) => WAV_POS_ROW[p.position] ?? {}}
+          columns={[
+            { key: 'player', label: 'Player', render: v => <span style={{ fontWeight: 500 }}>{v}</span> },
+            { key: 'position', label: 'Pos', sortable: false, render: v => <WavPosBadge pos={v} /> },
+            { key: 'adds', label: 'Adds', align: 'right', render: v => <span style={{ color: 'var(--text-muted)' }}>{v}</span> },
+            { key: 'drops', label: 'Drops', align: 'right', render: v => <span style={{ color: 'var(--text-muted)' }}>{v}</span> },
+            { key: 'total_moves', label: 'Total', align: 'right', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
+          ]}
+        />
       </div>
     </div>
   )
@@ -829,7 +803,7 @@ function TendenciesTab() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-lg font-semibold mb-3">Trade Activity by Owner</h2>
+        <h2 className="text-base md:text-lg font-semibold mb-3">Trade Activity by Owner</h2>
         <DataTable
           rows={stats}
           maxHeight="460px"
@@ -847,7 +821,7 @@ function TendenciesTab() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold mb-1">Trade Partner Frequency</h2>
+        <h2 className="text-base md:text-lg font-semibold mb-1">Trade Partner Frequency</h2>
         <p className="text-xs text-gray-500 mb-3">Number of trades between each pair</p>
         <div className="overflow-auto rounded border border-gray-700">
           <table className="text-xs text-gray-300">

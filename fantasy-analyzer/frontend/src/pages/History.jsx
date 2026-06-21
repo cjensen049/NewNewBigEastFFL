@@ -74,54 +74,52 @@ function StandingsTab() {
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>All-Time Standings</span>
         </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-page)' }}>
-                {['#', 'Owner', 'Seasons', 'W-L', 'Win%', 'Total Pts', 'PPG', 'Playoffs', 'Titles'].map((col, i) => (
-                  <th key={col} style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: i <= 1 ? 'left' : 'right', whiteSpace: 'nowrap' }}>
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.standings.map((s) => {
-                const rk = rankCircleStyle(s.rank)
-                const wl = wlPillStyle(s.record)
-                return (
-                  <tr key={s.owner} className="season-table-row" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '9px 12px' }}>
-                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, ...rk }}>
-                        {s.rank}
-                      </div>
-                    </td>
-                    <td style={{ padding: '9px 12px', fontSize: '16px', fontWeight: 500, color: s.championships > 0 ? '#e3b341' : 'var(--text-primary)' }}>
-                      {s.owner}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)' }}>{s.seasons}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 8px', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{s.record}</span>
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', fontWeight: 600, color: winPctColor(s.win_pct) }}>{pct(s.win_pct)}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {s.total_pts != null ? Number(s.total_pts).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)' }}>{s.ppg}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)' }}>{s.playoff_appearances}/{s.seasons}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: '16px', fontWeight: 700, color: s.championships > 0 ? '#e3b341' : 'var(--text-faint)' }}>
-                      {s.championships > 0 ? '🏆'.repeat(Math.min(s.championships, 4)) : '—'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          bordered={false}
+          rowClassName={() => 'season-table-row'}
+          rows={data.standings}
+          defaultSort="rank"
+          columns={[
+            {
+              key: 'rank', label: '#',
+              render: (v) => (
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, ...rankCircleStyle(v) }}>
+                  {v}
+                </div>
+              ),
+            },
+            {
+              key: 'owner', label: 'Owner',
+              render: (v, s) => <span style={{ color: s.championships > 0 ? '#e3b341' : 'var(--text-primary)' }}>{v}</span>,
+            },
+            { key: 'seasons', label: 'Seasons', align: 'right' },
+            {
+              key: 'record', label: 'W-L', align: 'right',
+              render: (v) => <span style={{ ...wlPillStyle(v), borderRadius: '4px', padding: '2px 8px', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{v}</span>,
+            },
+            {
+              key: 'win_pct', label: 'Win%', align: 'right',
+              render: (v) => <span style={{ fontWeight: 600, color: winPctColor(v) }}>{pct(v)}</span>,
+            },
+            {
+              key: 'total_pts', label: 'Total Pts', align: 'right',
+              render: (v) => v != null ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—',
+            },
+            { key: 'ppg', label: 'PPG', align: 'right' },
+            {
+              key: 'playoff_appearances', label: 'Playoffs', align: 'right',
+              render: (v, s) => `${v}/${s.seasons}`,
+            },
+            {
+              key: 'championships', label: 'Titles', align: 'right',
+              render: (v) => <span style={{ fontWeight: 700, color: v > 0 ? '#e3b341' : 'var(--text-faint)' }}>{v > 0 ? '🏆'.repeat(Math.min(v, 4)) : '—'}</span>,
+            },
+          ]}
+        />
       </div>
 
       {/* Win % bar chart */}
-      <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>All-Time Win Percentage</h2>
+      <h2 className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>All-Time Win Percentage</h2>
       <p style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '12px' }}>Gold bars = at least one championship</p>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }} style={{ background: 'transparent' }}>
@@ -205,7 +203,7 @@ function SeasonTab() {
         <LoadingSpinner />
       ) : (
         <>
-          <h2 className="text-lg font-semibold mb-3">{activeSeason} Season Standings</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-3">{activeSeason} Season Standings</h2>
           <DataTable
             rows={standings}
             maxHeight="460px"
@@ -221,7 +219,7 @@ function SeasonTab() {
             ]}
           />
 
-          <h2 className="text-lg font-semibold mt-8 mb-3">Points Scored</h2>
+          <h2 className="text-base md:text-lg font-semibold mt-8 mb-3">Points Scored</h2>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart
               data={[...chartData].sort((a, b) => b['Points For'] - a['Points For'])}
@@ -247,7 +245,7 @@ function SeasonTab() {
       {/* History grid — finish by season */}
       {histData && (
         <>
-          <h2 className="text-lg font-semibold mt-10 mb-3">Owner Finish by Season</h2>
+          <h2 className="text-base md:text-lg font-semibold mt-10 mb-3">Owner Finish by Season</h2>
           <div className="overflow-x-auto rounded border border-gray-700">
             <table className="text-sm text-gray-300">
               <thead className="bg-gray-800 text-gray-400 text-xs uppercase">
@@ -316,7 +314,7 @@ function RecordsTab() {
         })}
       </div>
 
-      <h2 className="text-lg font-semibold mb-3">League Records</h2>
+      <h2 className="text-base md:text-lg font-semibold mb-3">League Records</h2>
       <DataTable
         rows={data.records}
         maxHeight="560px"
@@ -348,7 +346,7 @@ function WeeklyScoringTab() {
     <div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div>
-          <h2 className="text-lg font-semibold mb-3">Top 10 Single-Week Scores</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-3">Top 10 Single-Week Scores</h2>
           <DataTable
             rows={data.top}
             maxHeight="400px"
@@ -362,7 +360,7 @@ function WeeklyScoringTab() {
           />
         </div>
         <div>
-          <h2 className="text-lg font-semibold mb-3">Bottom 10 Single-Week Scores</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-3">Bottom 10 Single-Week Scores</h2>
           <DataTable
             rows={data.bottom}
             maxHeight="400px"
@@ -377,8 +375,8 @@ function WeeklyScoringTab() {
         </div>
       </div>
 
-      <h2 className="text-lg font-semibold mb-3">Weekly High / Low Score Counts</h2>
-      <p className="text-sm text-gray-500 mb-3">Regular season only</p>
+      <h2 className="text-base md:text-lg font-semibold mb-3">Weekly High / Low Score Counts</h2>
+      <p className="text-xs md:text-sm text-gray-500 mb-3">Regular season only</p>
       <DataTable
         rows={data.counts}
         maxHeight="460px"
@@ -406,7 +404,7 @@ function PlayoffRecordsTab() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-3">All-Time Playoff Records</h2>
+      <h2 className="text-base md:text-lg font-semibold mb-3">All-Time Playoff Records</h2>
       <DataTable
         rows={data?.records ?? []}
         maxHeight="480px"

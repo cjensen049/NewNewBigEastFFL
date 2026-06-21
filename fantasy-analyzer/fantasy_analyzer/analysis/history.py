@@ -630,6 +630,45 @@ def get_playoff_records(con: sqlite3.Connection) -> list[PlayoffSummary]:
 
 
 # ---------------------------------------------------------------------------
+# Real schedule (from Sleeper's published matchup pairings)
+# ---------------------------------------------------------------------------
+
+def get_season_schedule(
+    con: sqlite3.Connection, league_id: str, playoff_week_start: int
+) -> dict[str, dict[int, str]]:
+    """Return {owner_name: {week: opponent_name}} for the regular season.
+
+    Sleeper publishes matchup pairings for the full season up front, so this
+    works even before any games are played (scores will just be 0).
+    """
+    rows = con.execute(
+        """
+        SELECT m.week, m.matchup_id, o.canonical_name
+        FROM matchups m
+        JOIN owners o ON m.user_id = o.user_id
+        WHERE m.league_id = ? AND m.week < ?
+        ORDER BY m.week, m.matchup_id
+        """,
+        (league_id, playoff_week_start),
+    ).fetchall()
+
+    from collections import defaultdict
+    groups: dict[tuple[int, int], list[str]] = defaultdict(list)
+    for week, mid, name in rows:
+        groups[(week, mid)].append(name)
+
+    schedule: dict[str, dict[int, str]] = defaultdict(dict)
+    for (week, _mid), names in groups.items():
+        if len(names) != 2:
+            continue
+        name_a, name_b = names
+        schedule[name_a][week] = name_b
+        schedule[name_b][week] = name_a
+
+    return schedule
+
+
+# ---------------------------------------------------------------------------
 # Head-to-head matrix
 # ---------------------------------------------------------------------------
 

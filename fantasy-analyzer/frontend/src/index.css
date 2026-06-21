@@ -130,8 +130,14 @@ body {
 
 .home-explore-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .home-explore-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .home-season-grid {
@@ -371,4 +377,30 @@ body {
     width: 110px;
     height: 110px;
   }
+}
+
+/* ─── Sitewide mobile font scale ─────────────────────────────────────────────
+   Shared text-size classes so every page steps down one size on phones
+   instead of staying at desktop sizing. Floor is 10px — never shrink below
+   that, it was previously raised from 10 to 11 for legibility.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.nnbe-table { font-size: 16px; }
+.nnbe-table-lg { font-size: 18px; }
+.nnbe-table-header-sm { font-size: 11px; }
+
+.fs-card-title { font-size: 16px; }
+.fs-title { font-size: 14px; }
+.fs-body { font-size: 13px; }
+.fs-label { font-size: 11px; }
+
+@media (max-width: 640px) {
+  .nnbe-table { font-size: 14px; }
+  .nnbe-table-lg { font-size: 16px; }
+  .nnbe-table-header-sm { font-size: 10px; }
+
+  .fs-card-title { font-size: 14px; }
+  .fs-title { font-size: 13px; }
+  .fs-body { font-size: 12px; }
+  .fs-label { font-size: 10px; }
 }

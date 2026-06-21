@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
+import DataTable from '../components/DataTable'
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -8,7 +9,7 @@ const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px
 
 function SectionLabel({ children }) {
   return (
-    <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>
+    <p className="fs-label" style={{ fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>
       {children}
     </p>
   )
@@ -30,8 +31,8 @@ function Hero() {
         {/* Established badge */}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(26,58,107,0.3)', border: '1px solid var(--border-mid)', borderRadius: '20px', padding: '4px 14px', marginBottom: '14px' }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--brand-red)', flexShrink: 0 }} />
-          <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Established</span>
-          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--brand-red)' }}>2021</span>
+          <span className="fs-label" style={{ fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Established</span>
+          <span className="fs-label" style={{ fontWeight: 700, color: 'var(--brand-red)' }}>2021</span>
         </div>
 
         {/* Logo + two-line title */}
@@ -75,10 +76,18 @@ const QUICK_LINKS = [
     iconBg: 'rgba(204,31,46,0.15)',
   },
   {
+    to: '/owner',
+    icon: '👥',
+    title: 'Owners Dashboard',
+    description: 'Career stats, championships, head-to-head records, and roster history for every owner.',
+    accentStyle: { background: 'var(--gold)' },
+    iconBg: 'rgba(227,179,65,0.15)',
+  },
+  {
     to: '/transactions',
     icon: '🔄',
-    title: 'Trade Log',
-    description: 'Full trade history across all seasons — players and picks exchanged, by owner and week.',
+    title: 'Trade Tree',
+    description: 'Trace any player or pick’s full trade history — every hop, forward and back, across seasons.',
     accentStyle: { background: 'linear-gradient(to right, var(--brand-navy), var(--brand-red))' },
     iconBg: 'rgba(26,58,107,0.25)',
   },
@@ -99,8 +108,8 @@ function ExploreSection() {
               {card.icon}
             </div>
 
-            <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>{card.title}</p>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>{card.description}</p>
+            <p className="fs-card-title" style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>{card.title}</p>
+            <p className="fs-body" style={{ color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>{card.description}</p>
 
             <span className="card-arrow">↗</span>
           </Link>
@@ -152,78 +161,68 @@ function StandingsPanel() {
   const nextWeek = data?.next_week
   const oppHeader = nextWeek ? `Wk ${nextWeek} Opp` : 'Next Opp'
 
-  const TH = ({ children, align = 'left', width }) => (
-    <th style={{ padding: '7px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', textAlign: align, whiteSpace: 'nowrap', ...(width ? { width } : {}) }}>
-      {children}
-    </th>
-  )
-
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       {/* Panel header */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Current Standings</span>
+        <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Current Standings</span>
         {currentSeason && (
-          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+          <span className="fs-label" style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
             {currentSeason}
           </span>
         )}
-        <Link to="/league?tab=inseason" style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', textDecoration: 'none' }}>
+        <Link to="/league?tab=inseason" className="fs-label" style={{ marginLeft: 'auto', color: 'var(--text-faint)', textDecoration: 'none' }}>
           Full standings →
         </Link>
       </div>
 
       {rows.length === 0 ? (
-        <p style={{ padding: '16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic' }}>No in-season data yet.</p>
+        <p className="fs-body" style={{ padding: '16px', color: 'var(--text-faint)', fontStyle: 'italic' }}>No in-season data yet.</p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '340px' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-page)' }}>
-                <TH width="28px">#</TH>
-                <TH>Owner</TH>
-                <TH align="right">W-L</TH>
-                <TH align="right">Pts For</TH>
-                <TH align="center">Luck</TH>
-                <TH>{oppHeader}</TH>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => {
-                const wl = wlStyle(r.actual_wins, r.actual_losses)
-                const rk = rankStyle(i)
-                const pts = r.pts_for != null ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
-                const verdict = luckVerdict(r.luck_diff)
-                return (
-                  <tr key={i} className="standings-row" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '8px 10px' }}>
-                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, ...rk }}>
-                        {i + 1}
-                      </div>
-                    </td>
-                    <td style={{ padding: '8px 10px', fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.owner}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <span style={{ ...wl, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {r.actual_wins}-{r.actual_losses}
-                      </span>
-                    </td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: '16px', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{pts}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                      {verdict && (
-                        <span style={{ background: verdict.bg, color: verdict.color, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {verdict.label}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '8px 10px', fontSize: '16px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                      {r.next_opponent ?? <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>—</span>}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={rows}
+          maxHeight="460px"
+          minWidth="340px"
+          bordered={false}
+          columns={[
+            {
+              key: '_rank', label: '#', sortable: false,
+              render: (_, __, i) => (
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, ...rankStyle(i) }}>
+                  {i + 1}
+                </div>
+              ),
+            },
+            { key: 'owner', label: 'Owner' },
+            {
+              key: 'actual_wins', label: 'W-L', align: 'right',
+              render: (_, r) => (
+                <span style={{ ...wlStyle(r.actual_wins, r.actual_losses), borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  {r.actual_wins}-{r.actual_losses}
+                </span>
+              ),
+            },
+            {
+              key: 'pts_for', label: 'Pts For', align: 'right',
+              render: v => v != null ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—',
+            },
+            {
+              key: 'luck_diff', label: 'Luck', align: 'center',
+              render: v => {
+                const verdict = luckVerdict(v)
+                return verdict ? (
+                  <span style={{ background: verdict.bg, color: verdict.color, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    {verdict.label}
+                  </span>
+                ) : null
+              },
+            },
+            {
+              key: 'next_opponent', label: oppHeader,
+              render: v => v ?? <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>—</span>,
+            },
+          ]}
+        />
       )}
     </div>
   )
@@ -251,11 +250,11 @@ function CalendarPanel() {
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       {/* Panel header */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Season Calendar</span>
-        <span style={{ background: 'rgba(35,134,54,0.15)', color: 'var(--green)', border: '1px solid rgba(63,185,80,0.25)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+        <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Season Calendar</span>
+        <span className="fs-label" style={{ background: 'rgba(35,134,54,0.15)', color: 'var(--green)', border: '1px solid rgba(63,185,80,0.25)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
           {currentSeason}
         </span>
-        <Link to="/calendar" style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)', textDecoration: 'none' }}>
+        <Link to="/calendar" className="fs-label" style={{ marginLeft: 'auto', color: 'var(--text-faint)', textDecoration: 'none' }}>
           Full calendar →
         </Link>
       </div>
@@ -284,16 +283,16 @@ function CalendarPanel() {
 
               {/* Icon + name */}
               <span style={{ fontSize: '14px', flexShrink: 0 }}>{TYPE_ICON[e.type] ?? '📅'}</span>
-              <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0 }}>{e.title}</span>
+              <span className="fs-body" style={{ fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0 }}>{e.title}</span>
 
               {/* Date */}
-              {dateStr && <span style={{ fontSize: '11px', color: 'var(--text-faint)', flexShrink: 0 }}>{dateStr}</span>}
+              {dateStr && <span className="fs-label" style={{ color: 'var(--text-faint)', flexShrink: 0 }}>{dateStr}</span>}
 
               {/* Status label */}
               {isActive ? (
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--brand-red)', background: 'rgba(204,31,46,0.12)', borderRadius: '4px', padding: '2px 8px', flexShrink: 0 }}>Active</span>
+                <span className="fs-label" style={{ fontWeight: 600, color: 'var(--brand-red)', background: 'rgba(204,31,46,0.12)', borderRadius: '4px', padding: '2px 8px', flexShrink: 0 }}>Active</span>
               ) : (
-                <span style={{ fontSize: '11px', color: 'var(--text-faint)', flexShrink: 0 }}>
+                <span className="fs-label" style={{ color: 'var(--text-faint)', flexShrink: 0 }}>
                   {e.status === 'complete' ? 'Complete' : 'Upcoming'}
                 </span>
               )}
@@ -337,8 +336,8 @@ function ResourcesSection() {
           >
             <span style={{ position: 'absolute', top: '12px', right: '14px', fontSize: '13px', color: 'var(--text-faint)' }}>↗</span>
             <div style={{ fontSize: '20px', marginBottom: '8px' }}>{link.icon}</div>
-            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>{link.title}</p>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{link.desc}</p>
+            <p className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>{link.title}</p>
+            <p className="fs-body" style={{ color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{link.desc}</p>
           </a>
         ))}
       </div>

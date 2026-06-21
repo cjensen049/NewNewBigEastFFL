@@ -1,13 +1,14 @@
 /**
- * Schedule.jsx — Projected season schedule based on prior-year final standings.
+ * Schedule.jsx — Upcoming season schedule.
  *
  * Fetches the most recent season's finish order (1-12) to determine next
- * year's divisions (Top 4 / Mid 4 / Bot 4), then generates the 14-week
- * NNBE schedule:
- *   Weeks  1-3:  in-division round-robin
- *   Weeks  4-11: every cross-division opponent exactly once
- *   Weeks 12-14: in-division round-robin (rematch)
+ * year's divisions (Top 4 / Mid 4 / Bot 4) for the division-preview panel,
+ * and the real per-week opponents from Sleeper's published matchup pairings
+ * (GET /api/history/schedule/{season} — available before any games are
+ * played). Falls back to a generated round-robin projection only if the
+ * real schedule isn't in the database yet (e.g. season not drafted/synced).
  */
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 
@@ -55,7 +56,10 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || 'th')
 }
 
-// ─── 14-week schedule definition ─────────────────────────────────────────────
+// ─── 14-week round-robin pattern ─────────────────────────────────────────────
+// This is NNBE's published scheduling rule (see "How the schedule is built"
+// below) and is also used as a fallback projection when the real schedule
+// isn't in the database yet (season not drafted/synced from Sleeper).
 // Teams indexed 0-11: [0-3] = Top, [4-7] = Mid, [8-11] = Bot.
 // Each entry is one week's 6 matchup pairs.
 
@@ -78,8 +82,8 @@ const WEEK_PAIRS = [
 
 const IN_DIV_WEEK = new Set([0, 1, 2, 11, 12, 13])  // 0-indexed
 
-function buildSchedule(teams) {
-  // Returns oppByTeam[teamIdx][weekIdx] = opponentTeamIdx
+function buildProjectedSchedule(teams) {
+  // Fallback only — returns oppByTeam[teamIdx][weekIdx] = opponentTeamIdx
   const opp = teams.map(() => Array(14).fill(-1))
   WEEK_PAIRS.forEach((pairs, wi) => {
     pairs.forEach(([a, b]) => {
@@ -88,6 +92,56 @@ function buildSchedule(teams) {
     })
   })
   return opp
+}
+
+function buildRealSchedule(teams, schedule, weeks) {
+  // Converts {ownerName: {week: opponentName}} into oppByTeam[teamIdx][weekIdx] = opponentTeamIdx
+  const indexByOwner = {}
+  teams.forEach((t, i) => { indexByOwner[t.owner] = i })
+  return teams.map(team => {
+    const weekMap = schedule[team.owner] ?? {}
+    return Array.from({ length: weeks }, (_, wi) => {
+      const oppName = weekMap[wi + 1]
+      return oppName != null ? indexByOwner[oppName] : -1
+    })
+  })
+}
+
+// ─── How the schedule is built ────────────────────────────────────────────────
+
+function HowScheduleWorks() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginTop: '16px', marginBottom: '8px' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: 'var(--text-faint)', fontSize: '12px', fontWeight: 500,
+          padding: '4px 0', marginBottom: open ? '14px' : 0,
+        }}
+      >
+        <span style={{ fontSize: '11px', display: 'inline-block', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+        How the schedule is built
+      </button>
+      {open && (
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+          <p style={{ margin: '0 0 10px' }}>
+            Each year, divisions are set by the <strong style={{ color: 'var(--text-primary)' }}>prior season's final standings</strong>:
+            the top 4 finishers form the Top division, the next 4 the Mid division, and the bottom 4 the Bottom division.
+          </p>
+          <p style={{ margin: '0 0 10px' }}>
+            <strong style={{ color: '#e3b341' }}>Weeks 1–3 &amp; 12–14</strong> are an in-division round robin — you play each
+            division-mate, then play them again in weeks 12–14.
+          </p>
+          <p style={{ margin: 0 }}>
+            <strong style={{ color: '#5b8dd9' }}>Weeks 4–11</strong> cover every team outside your division exactly once.
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Division preview ─────────────────────────────────────────────────────────
@@ -144,7 +198,7 @@ const WEEK_GROUPS = [
 // Column indices where a left-separator border should appear (W4 and W12)
 const SEP_LEFT = new Set([3, 11])
 
-function ScheduleGrid({ teams, oppByTeam, nextSeason }) {
+function ScheduleGrid({ teams, oppByTeam, nextSeason, isProjected }) {
   const thBase = {
     padding: '5px 4px',
     fontSize: '11px',
@@ -156,11 +210,20 @@ function ScheduleGrid({ teams, oppByTeam, nextSeason }) {
 
   return (
     <div style={{ marginBottom: '8px' }}>
-      <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '6px' }}>
-        {nextSeason} Projected Schedule
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+        <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--text-faint)', margin: 0 }}>
+          {nextSeason} Schedule
+        </p>
+        {isProjected && (
+          <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.3)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+            PROJECTED
+          </span>
+        )}
+      </div>
       <p style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '14px' }}>
-        Wks 1–3 &amp; 12–14: in-division · Wks 4–11: every cross-division opponent once
+        {isProjected
+          ? `Official ${nextSeason} schedule isn't published yet — showing the projected round-robin instead.`
+          : `Official ${nextSeason} schedule, published by Sleeper.`}
       </p>
 
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
@@ -235,6 +298,13 @@ function ScheduleGrid({ teams, oppByTeam, nextSeason }) {
                     {/* Opponent cells */}
                     {oppByTeam[ti].map((oppIdx, wi) => {
                       const opp = teams[oppIdx]
+                      if (!opp) {
+                        return (
+                          <td key={wi} style={{ padding: '6px 4px', textAlign: 'center', fontSize: '11px', color: 'var(--text-faint)', fontStyle: 'italic', borderLeft: SEP_LEFT.has(wi) ? '2px solid var(--border-mid)' : 'none' }}>
+                            —
+                          </td>
+                        )
+                      }
                       const odi = divIdx(opp.finish)
                       const oc = DIV[odi]
                       const isInDiv = IN_DIV_WEEK.has(wi)
@@ -285,11 +355,12 @@ function ScheduleGrid({ teams, oppByTeam, nextSeason }) {
 
 export default function Schedule({ embedded }) {
   const { data: seasonsData } = useQuery({
-    queryKey: ['history-seasons'],
-    queryFn: () => fetch('/api/history/seasons').then(r => r.json()),
+    queryKey: ['history-seasons-complete'],
+    queryFn: () => fetch('/api/history/seasons/complete').then(r => r.json()),
   })
 
   const prevSeason = seasonsData?.seasons?.[0]
+  const nextSeason = (prevSeason ?? 2025) + 1
 
   const { data: finishData, isLoading } = useQuery({
     queryKey: ['finish-order', prevSeason],
@@ -297,9 +368,15 @@ export default function Schedule({ embedded }) {
     enabled: !!prevSeason,
   })
 
+  const { data: scheduleData, isLoading: loadingSchedule } = useQuery({
+    queryKey: ['real-schedule', nextSeason],
+    queryFn: () => fetch(`/api/history/schedule/${nextSeason}`).then(r => r.json()),
+    enabled: !!prevSeason,
+  })
+
   const teams = finishData?.teams ?? []
 
-  if (isLoading || (!finishData && prevSeason)) {
+  if (isLoading || loadingSchedule || (!finishData && prevSeason)) {
     return (
       <div style={{ padding: '40px 0', display: 'flex', justifyContent: 'center' }}>
         <LoadingSpinner />
@@ -315,8 +392,11 @@ export default function Schedule({ embedded }) {
     )
   }
 
-  const nextSeason = (prevSeason ?? 2025) + 1
-  const oppByTeam = buildSchedule(teams)
+  const realSchedule = scheduleData?.schedule ?? {}
+  const hasRealSchedule = Object.keys(realSchedule).length > 0
+  const oppByTeam = hasRealSchedule
+    ? buildRealSchedule(teams, realSchedule, scheduleData.weeks || 14)
+    : buildProjectedSchedule(teams)
 
   return (
     <div style={embedded ? {} : { maxWidth: '1280px', margin: '0 auto', padding: '24px clamp(12px, 3vw, 24px)' }}>
@@ -326,13 +406,16 @@ export default function Schedule({ embedded }) {
             Schedule
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>
-            Projected {nextSeason} matchup schedule based on {prevSeason} final standings.
+            {hasRealSchedule
+              ? `${nextSeason} matchup schedule, as published by Sleeper.`
+              : `Projected ${nextSeason} matchup schedule based on ${prevSeason} final standings.`}
           </p>
         </>
       )}
 
       <DivisionPreview teams={teams} prevSeason={prevSeason} nextSeason={nextSeason} />
-      <ScheduleGrid teams={teams} oppByTeam={oppByTeam} nextSeason={nextSeason} />
+      <ScheduleGrid teams={teams} oppByTeam={oppByTeam} nextSeason={nextSeason} isProjected={!hasRealSchedule} />
+      <HowScheduleWorks />
     </div>
   )
 }

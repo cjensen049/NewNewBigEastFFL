@@ -16,6 +16,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 import PowerRankingsExplainer from '../components/PowerRankingsExplainer'
+import { useSortableTable } from '../hooks/useSortableTable'
 
 // Component score colours — must match PowerRankingsExplainer
 const SCORE_COLORS = {
@@ -64,29 +65,29 @@ function PanelHeader({ currentWeek, phaseKey, phaseLabel, weights, isFallback, d
 
   return (
     <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+      <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
         Power Rankings
       </span>
 
       {isFallback ? (
-        <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.3)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+        <span className="fs-label" style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.3)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
           FINAL {displaySeason}
         </span>
       ) : (
         currentWeek > 0 && (
-          <span style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+          <span className="fs-label" style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
             WK {currentWeek}
           </span>
         )
       )}
 
       {!isFallback && (
-        <span style={{ background: pb.bg, color: pb.color, border: `1px solid ${pb.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.5px' }}>
+        <span className="fs-label" style={{ background: pb.bg, color: pb.color, border: `1px solid ${pb.border}`, borderRadius: '4px', padding: '2px 7px', fontWeight: 600, letterSpacing: '0.5px' }}>
           {phaseLabel.toUpperCase()}
         </span>
       )}
 
-      <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)' }}>
+      <span className="fs-label" style={{ marginLeft: 'auto', color: 'var(--text-faint)' }}>
         Scoring {pct(weights.scoring)} · Record {pct(weights.record)} · SoS {pct(weights.sos)}
       </span>
     </div>
@@ -162,10 +163,6 @@ export default function PowerRankings({ season }) {
     enabled: noCurrentData && !!season,
   })
 
-  if (isLoading || (noCurrentData && prevLoading)) {
-    return <div style={{ padding: '20px 0' }}><LoadingSpinner /></div>
-  }
-
   const isFallback    = noCurrentData && (prevData?.rows ?? []).length > 0
   const display       = isFallback ? prevData : data
   const rows          = display?.rows ?? []
@@ -174,6 +171,14 @@ export default function PowerRankings({ season }) {
   const phaseLabel    = display?.phase_label ?? 'Mid Season'
   const weights       = display?.weights ?? { scoring: 0.45, record: 0.40, sos: 0.15 }
   const displaySeason = isFallback ? season - 1 : season
+
+  // Hooks must run unconditionally every render, so this is called before the
+  // isLoading/empty-state early returns below (rows defaults to [] while loading).
+  const { sorted, sortKey, sortDir, handleSort } = useSortableTable(rows, null, 'asc')
+
+  if (isLoading || (noCurrentData && prevLoading)) {
+    return <div style={{ padding: '20px 0' }}><LoadingSpinner /></div>
+  }
 
   if (rows.length === 0) {
     return (
@@ -191,15 +196,28 @@ export default function PowerRankings({ season }) {
 
   const isFirstWeek = currentWeek <= 1
 
-  const TH = ({ children, align = 'left', title }) => (
-    <th title={title} style={{
-      padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px',
-      textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)',
-      borderBottom: '1px solid var(--border)', textAlign: align, whiteSpace: 'nowrap',
-    }}>
-      {children}
-    </th>
-  )
+  const TH = ({ children, align = 'left', title, colKey }) => {
+    const canSort = !!colKey
+    const isSorted = sortKey === colKey
+    return (
+      <th
+        title={title}
+        onClick={canSort ? () => handleSort(colKey) : undefined}
+        style={{
+          padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px',
+          textTransform: 'uppercase', color: isSorted ? 'var(--text-primary)' : 'var(--text-faint)', background: 'var(--bg-page)',
+          borderBottom: '1px solid var(--border)', textAlign: align, whiteSpace: 'nowrap',
+          cursor: canSort ? 'pointer' : 'default', userSelect: 'none',
+        }}>
+        {children}
+        {canSort && (
+          <span style={{ marginLeft: '4px', opacity: isSorted ? 1 : 0.35, fontSize: '9px' }}>
+            {isSorted ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+          </span>
+        )}
+      </th>
+    )
+  }
 
   return (
   <>
@@ -212,21 +230,21 @@ export default function PowerRankings({ season }) {
       )}
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px', minWidth: '480px' }}>
+        <table className="nnbe-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '480px' }}>
           <thead>
             <tr>
               <TH>#</TH>
               <TH title="Change vs. last week">▲▼</TH>
-              <TH>Owner</TH>
-              <TH align="right" title={`Scoring ${pct(weights.scoring)} · Record ${pct(weights.record)} · SoS ${pct(weights.sos)}`}>Power</TH>
-              <TH align="right" title="Monte Carlo playoff probability (10,000 simulations)">Playoff%</TH>
-              <TH align="right">W-L</TH>
-              <TH align="right">Pts For</TH>
+              <TH colKey="owner">Owner</TH>
+              <TH align="right" colKey="power_score" title={`Scoring ${pct(weights.scoring)} · Record ${pct(weights.record)} · SoS ${pct(weights.sos)}`}>Power</TH>
+              <TH align="right" colKey="playoff_pct" title="Monte Carlo playoff probability (10,000 simulations)">Playoff%</TH>
+              <TH align="right" colKey="actual_wins">W-L</TH>
+              <TH align="right" colKey="pts_for">Pts For</TH>
               <TH></TH>
             </tr>
           </thead>
-          {rows.map((r) => {
-              const rs = rankStyle(r.rank)
+          {sorted.map((r, i) => {
+              const rs = rankStyle(i + 1)
               const wl = wlStyle(r.actual_wins, r.actual_losses)
               const ps = playoffStyle(r.playoff_pct)
               const pts = r.pts_for != null
@@ -251,7 +269,7 @@ export default function PowerRankings({ season }) {
                     {/* Rank */}
                     <td style={{ padding: '8px 10px', width: '36px' }}>
                       <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, background: rs.bg, color: rs.text }}>
-                        {r.rank}
+                        {i + 1}
                       </div>
                     </td>
 

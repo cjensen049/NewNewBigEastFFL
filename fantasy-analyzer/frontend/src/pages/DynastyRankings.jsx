@@ -267,13 +267,13 @@ export default function DynastyRankings({ season }) {
     return (
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', maxWidth: '700px' }}>
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Dynasty Rankings</span>
-          <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.25)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+          <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Dynasty Rankings</span>
+          <span className="fs-label" style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.25)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
             {sourceLabel(source)}
           </span>
         </div>
         {SourceToggle}
-        <p style={{ padding: '24px 16px', fontSize: '13px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
+        <p className="fs-body" style={{ padding: '24px 16px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
           Dynasty rankings refreshed 4× per year: post rookie draft, Week 1, post trade deadline, and post championship.
         </p>
         <FormulaFooter source={source} />
@@ -296,10 +296,10 @@ export default function DynastyRankings({ season }) {
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', maxWidth: '960px' }}>
       {/* Panel header */}
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+        <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
           Dynasty Rankings
         </span>
-        <span style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.25)', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
+        <span className="fs-label" style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.25)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
           {sourceLabel(source)}
         </span>
         {dataDate && (
@@ -315,7 +315,7 @@ export default function DynastyRankings({ season }) {
       {SourceToggle}
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '18px', minWidth: '600px' }}>
+        <table className="nnbe-table-lg" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
           <thead>
             <tr>
               <TH width="40px">#</TH>

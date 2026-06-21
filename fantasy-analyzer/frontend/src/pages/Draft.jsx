@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { TabBar, TabPanel } from '../components/Tabs'
+import DataTable from '../components/DataTable'
 
 // ─── Position colours ────────────────────────────────────────────────────────
 // Each position gets a left-border colour and a subtle row background tint.
@@ -54,8 +55,6 @@ const TABS = [
 
 function ByOwnerTab() {
   const [selectedUserId, setSelectedUserId] = useState(null)
-  // 'pts' = sorted by points desc, 'draft' = sorted by season/round/pick
-  const [sortMode, setSortMode] = useState('pts')
 
   // Fetch owners who have picks (for the dropdown)
   const { data: ownersData, isLoading: loadingOwners } = useQuery({
@@ -76,14 +75,6 @@ function ByOwnerTab() {
   if (loadingOwners) return <div className="text-gray-400">Loading owners…</div>
 
   const allPicks = picksData?.picks ?? []
-
-  // Sort based on mode — "By Draft" shows newest season first
-  const sorted = [...allPicks].sort((a, b) =>
-    sortMode === 'pts'
-      ? b.points_on_team - a.points_on_team
-      : (b.season - a.season) || (a.round - b.round) || (a.pick_no - b.pick_no)
-  )
-
   const totalPts = allPicks.reduce((s, p) => s + (p.points_on_team ?? 0), 0)
 
   return (
@@ -103,25 +94,6 @@ function ByOwnerTab() {
           </select>
         </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-gray-400 text-sm">Sort</label>
-          <div className="flex rounded overflow-hidden border border-gray-600">
-            {[['pts', 'By Points'], ['draft', 'By Draft']].map(([mode, label]) => (
-              <button
-                key={mode}
-                onClick={() => setSortMode(mode)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                  sortMode === mode
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {allPicks.length > 0 && (
           <span className="text-gray-500 text-sm ml-auto">
             {allPicks.length} picks · {totalPts.toFixed(1)} total pts on roster
@@ -131,59 +103,41 @@ function ByOwnerTab() {
 
       {loadingPicks && <div className="text-gray-400">Loading picks…</div>}
 
-      {!loadingPicks && sorted.length === 0 && (
+      {!loadingPicks && allPicks.length === 0 && (
         <div className="text-gray-500">No picks found.</div>
       )}
 
-      {sorted.length > 0 && (
-        <div className="rounded border border-gray-700 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-800 text-gray-400 text-left text-xs uppercase tracking-wide">
-                <th className="px-3 py-2">Player</th>
-                <th className="px-3 py-2 w-12">Pos</th>
-                <th className="px-3 py-2 w-16">Season</th>
-                <th className="px-3 py-2 w-14 text-center">Rd</th>
-                <th className="px-3 py-2 w-16 text-center">Pick</th>
-                <th className="px-3 py-2 w-28 text-right">Total Pts</th>
-                <th className="px-3 py-2 w-28 text-right">Pts on Roster</th>
-                <th className="px-3 py-2 w-24">Current Owner</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((p, i) => {
-                const { border, bg } = posStyle(p.position)
-                return (
-                  <tr
-                    key={i}
-                    className={`border-l-4 ${border} ${bg} border-b border-gray-800/50`}
-                  >
-                    <td className="px-3 py-2 text-white font-medium">{p.player_name}</td>
-                    <td className="px-3 py-2"><PosBadge pos={p.position} /></td>
-                    <td className="px-3 py-2 text-gray-400">{p.season}</td>
-                    <td className="px-3 py-2 text-gray-400 text-center">{p.round}</td>
-                    <td className="px-3 py-2 text-gray-400 text-center">{p.pick_no}</td>
-                    <td className="px-3 py-2 text-right font-mono text-gray-300">
-                      {p.total_points > 0 ? p.total_points.toFixed(1) : '—'}
-                    </td>
-                    <td className={`px-3 py-2 text-right font-mono font-medium ${
-                      p.points_on_team > 500 ? 'text-emerald-400' :
-                      p.points_on_team > 200 ? 'text-emerald-600' :
-                      p.points_on_team > 0   ? 'text-gray-300'    : 'text-gray-600'
-                    }`}>
-                      {p.points_on_team > 0 ? p.points_on_team.toFixed(1) : '—'}
-                    </td>
-                    <td className="px-3 py-2 text-sm">
-                      {p.current_owner === 'Free Agent'
-                        ? <span className="text-gray-500 italic">Free Agent</span>
-                        : <span className="text-gray-300">{p.current_owner}</span>}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      {allPicks.length > 0 && (
+        <DataTable
+          defaultSort="points_on_team"
+          defaultDir="desc"
+          rows={allPicks}
+          rowClassName={(p) => {
+            const { border, bg } = posStyle(p.position)
+            return `border-l-4 ${border} ${bg}`
+          }}
+          columns={[
+            { key: 'player_name', label: 'Player' },
+            { key: 'position', label: 'Pos', sortable: false, render: (v) => <PosBadge pos={v} /> },
+            { key: 'season', label: 'Season', align: 'right' },
+            { key: 'round', label: 'Rd', align: 'right' },
+            { key: 'pick_no', label: 'Pick', align: 'right' },
+            {
+              key: 'total_points', label: 'Total Pts', align: 'right',
+              render: (v) => v > 0 ? v.toFixed(1) : '—',
+            },
+            {
+              key: 'points_on_team', label: 'Pts on Roster', align: 'right',
+              render: (v) => v > 0 ? v.toFixed(1) : '—',
+            },
+            {
+              key: 'current_owner', label: 'Current Owner',
+              render: (v) => v === 'Free Agent'
+                ? <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>Free Agent</span>
+                : v,
+            },
+          ]}
+        />
       )}
     </div>
   )
