@@ -6,6 +6,8 @@ import json
 import sqlite3
 from dataclasses import dataclass, field
 
+from fantasy_analyzer.analysis.start_sit import get_start_sit_leaderboard, get_start_sit_weeks
+
 
 @dataclass
 class RegularSeasonRecord:
@@ -532,6 +534,31 @@ def get_league_records(con: sqlite3.Connection, include_playoffs: bool = False) 
     if champ_counts:
         top = max(champ_counts, key=lambda k: champ_counts[k])
         _add("Most Championships", top, str(champ_counts[top]), "All-Time")
+
+    # Lineup efficiency (start/sit) — best possible score vs. actual score, per team-week
+    ss_weeks = get_start_sit_weeks(con, include_playoffs=include_playoffs)
+    if ss_weeks:
+        best_week = max(ss_weeks, key=lambda w: w["pct"])
+        _add(
+            "Best Lineup Efficiency, Single Week", best_week["owner"],
+            f"{best_week['pct']:.1f}%", f"{best_week['season']} Wk{best_week['week']}",
+        )
+        worst_week = min(ss_weeks, key=lambda w: w["pct"])
+        _add(
+            "Worst Lineup Efficiency, Single Week", worst_week["owner"],
+            f"{worst_week['pct']:.1f}%", f"{worst_week['season']} Wk{worst_week['week']}",
+        )
+
+    # Career lineup efficiency — qualify with a minimum sample (~1 season) so a
+    # short-tenured owner's small sample can't dominate a rate-based record.
+    ss_board = get_start_sit_leaderboard(con, include_playoffs=include_playoffs)
+    qualified = [r for r in ss_board if r["weeks"] >= 10]
+    if qualified:
+        best_career = max(qualified, key=lambda r: r["avg_pct"])
+        _add(
+            "Best Career Lineup Efficiency", best_career["owner"],
+            f"{best_career['avg_pct']:.1f}%", "All-Time",
+        )
 
     return records
 

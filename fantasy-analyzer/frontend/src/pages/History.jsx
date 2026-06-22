@@ -8,7 +8,7 @@
  *   4. Handle loading and error states at the top of each component
  *   5. Render tables with <DataTable> and charts with Recharts
  *
- * Tabs: Standings | Season | Records | Weekly Scoring | Champions
+ * Tabs: Standings | Season | Records | Weekly Scoring | Start/Sit | Playoff Records | Champions
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -45,6 +45,13 @@ function winPctColor(v) {
   const p = v * 100
   if (p < 40) return 'var(--brand-red)'
   if (p < 55) return 'var(--gold)'
+  return 'var(--green)'
+}
+
+function efficiencyColor(p) {
+  if (p == null) return 'var(--text-faint)'
+  if (p < 75) return 'var(--brand-red)'
+  if (p < 90) return 'var(--gold)'
   return 'var(--green)'
 }
 
@@ -423,6 +430,159 @@ function PlayoffRecordsTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Start/Sit tab — lineup efficiency (actual vs. best-possible score)
+// ---------------------------------------------------------------------------
+
+function StartSitTab() {
+  const [season, setSeason] = useState(null) // null = All-Time
+  const [selectedOwner, setSelectedOwner] = useState(null) // { user_id, owner }
+
+  const { data: seasonsData } = useQuery({
+    queryKey: ['history-seasons'],
+    queryFn: () => fetch('/api/history/seasons').then(r => r.json()),
+  })
+  const seasons = seasonsData?.seasons ?? []
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['history-start-sit', season],
+    queryFn: () => {
+      const url = season ? `/api/history/start-sit?season=${season}` : '/api/history/start-sit'
+      return fetch(url).then(r => r.json())
+    },
+  })
+
+  if (isLoading) return <LoadingSpinner />
+  if (error) return <p className="text-red-400">Error: {error.message}</p>
+
+  const leaderboard = data?.leaderboard ?? []
+  const ownerWeeks = selectedOwner
+    ? (data?.weeks ?? [])
+        .filter(w => w.user_id === selectedOwner.user_id)
+        .sort((a, b) => a.season - b.season || a.week - b.week)
+    : []
+
+  const renderWeekBadge = (w) => w ? (
+    <div>
+      <div style={{ fontWeight: 600, color: efficiencyColor(w.pct) }}>{w.pct.toFixed(1)}%</div>
+      <div style={{ fontSize: '10px', color: 'var(--text-faint)' }}>{w.season} Wk{w.week}</div>
+    </div>
+  ) : '—'
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-1">
+        <h2 className="text-base md:text-lg font-semibold">Lineup Efficiency (Start/Sit)</h2>
+        <div className="flex items-center gap-2 ml-auto">
+          <label className="text-gray-400 text-sm">Season</label>
+          <select
+            value={season ?? ''}
+            onChange={e => { setSeason(e.target.value ? Number(e.target.value) : null); setSelectedOwner(null) }}
+            style={{ background: 'var(--border)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)', borderRadius: '6px', padding: '4px 10px', fontSize: '13px', fontFamily: 'var(--font-body)' }}
+          >
+            <option value="">All Time</option>
+            {seasons.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+      <p className="text-xs md:text-sm text-gray-500 mb-4">
+        Actual score vs. the best possible lineup that week, built from each team's full active
+        roster (taxi squad players are never eligible and excluded automatically). Click an owner
+        to see their week-by-week breakdown.
+      </p>
+
+      <DataTable
+        rows={leaderboard}
+        defaultSort="avg_pct"
+        defaultDir="desc"
+        maxHeight="560px"
+        columns={[
+          {
+            key: 'rank', label: '#', sortable: false,
+            render: (_v, _row, i) => (
+              <div style={{ width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, ...rankCircleStyle(i + 1) }}>
+                {i + 1}
+              </div>
+            ),
+          },
+          {
+            key: 'owner', label: 'Owner',
+            render: (v, row) => (
+              <button
+                onClick={() => setSelectedOwner(selectedOwner?.user_id === row.user_id ? null : { user_id: row.user_id, owner: row.owner })}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  fontWeight: 500, fontFamily: 'inherit', fontSize: 'inherit',
+                  color: selectedOwner?.user_id === row.user_id ? 'var(--brand-red)' : 'var(--text-primary)',
+                  textDecoration: 'underline', textDecorationColor: 'var(--border-mid)',
+                }}
+              >
+                {v}
+              </button>
+            ),
+          },
+          { key: 'weeks', label: 'Weeks', align: 'right' },
+          {
+            key: 'avg_pct', label: 'Avg Efficiency', align: 'right',
+            render: v => <span style={{ fontWeight: 600, color: efficiencyColor(v) }}>{v.toFixed(1)}%</span>,
+          },
+          {
+            key: 'total_left_on_bench', label: 'Pts Left on Bench', align: 'right',
+            render: v => v.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+          },
+          { key: 'best_week', label: 'Best Week', align: 'right', sortable: false, render: renderWeekBadge },
+          { key: 'worst_week', label: 'Worst Week', align: 'right', sortable: false, render: renderWeekBadge },
+        ]}
+      />
+
+      {selectedOwner && (
+        <div style={{ marginTop: '20px' }}>
+          <div className="flex items-center gap-3 mb-3">
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {selectedOwner.owner} — Week-by-Week
+            </h3>
+            <button
+              onClick={() => setSelectedOwner(null)}
+              style={{ background: 'none', border: 'none', color: 'var(--text-faint)', fontSize: '13px', cursor: 'pointer' }}
+            >
+              Reset ×
+            </button>
+          </div>
+          <DataTable
+            rows={ownerWeeks}
+            defaultSort="season"
+            maxHeight="420px"
+            columns={[
+              { key: 'season', label: 'Season', align: 'right' },
+              { key: 'week', label: 'Week', align: 'right' },
+              {
+                key: 'is_playoff', label: 'Type',
+                render: v => v ? 'Playoff' : 'Regular',
+              },
+              {
+                key: 'actual_pts', label: 'Actual', align: 'right',
+                render: v => v.toFixed(1),
+              },
+              {
+                key: 'optimal_pts', label: 'Optimal', align: 'right',
+                render: v => v.toFixed(1),
+              },
+              {
+                key: 'pct', label: 'Efficiency', align: 'right',
+                render: v => <span style={{ fontWeight: 600, color: efficiencyColor(v) }}>{v.toFixed(1)}%</span>,
+              },
+              {
+                key: 'pts_left_on_bench', label: 'Left on Bench', align: 'right',
+                render: v => v.toFixed(1),
+              },
+            ]}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Champions tab
 // ---------------------------------------------------------------------------
 
@@ -501,6 +661,7 @@ const TABS = [
   { id: 'season',    label: 'Season View' },
   { id: 'records',   label: 'Records' },
   { id: 'weekly',    label: 'Weekly Scoring' },
+  { id: 'startsit',  label: 'Start/Sit' },
   { id: 'playoff',   label: 'Playoff Records' },
   { id: 'champions', label: 'Champions' },
 ]
@@ -523,6 +684,7 @@ export default function History({ embedded = false }) {
       <TabPanel id="season"    activeTab={tab}><SeasonTab /></TabPanel>
       <TabPanel id="records"   activeTab={tab}><RecordsTab /></TabPanel>
       <TabPanel id="weekly"    activeTab={tab}><WeeklyScoringTab /></TabPanel>
+      <TabPanel id="startsit"  activeTab={tab}><StartSitTab /></TabPanel>
       <TabPanel id="playoff"   activeTab={tab}><PlayoffRecordsTab /></TabPanel>
       <TabPanel id="champions" activeTab={tab}><ChampionsTab /></TabPanel>
     </div>

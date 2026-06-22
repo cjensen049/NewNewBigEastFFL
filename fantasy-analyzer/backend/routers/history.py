@@ -20,6 +20,7 @@ from fantasy_analyzer.analysis.history import (
     get_standings_history,
     get_weekly_scoring_extremes,
 )
+from fantasy_analyzer.analysis.start_sit import get_start_sit_leaderboard, get_start_sit_weeks
 
 router = APIRouter()
 
@@ -237,6 +238,23 @@ def weekly_scoring(con: sqlite3.Connection = Depends(get_db)) -> dict:
         "bottom": data["bottom"],
         "counts": count_rows,
     }
+
+
+@router.get("/start-sit")
+def start_sit(
+    season: int | None = Query(None, description="Omit for all-time"),
+    include_playoffs: bool = Query(True),
+    con: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    """Lineup efficiency leaderboard + per-week detail (actual vs. best-possible score).
+
+    Best-possible score is computed from each week's full active-roster player
+    pool (Sleeper never includes taxi-squad players in a week's matchup pool,
+    so taxi is excluded automatically).
+    """
+    leaderboard = get_start_sit_leaderboard(con, season=season, include_playoffs=include_playoffs)
+    weeks = get_start_sit_weeks(con, season=season, include_playoffs=include_playoffs)
+    return {"season": season, "leaderboard": leaderboard, "weeks": weeks}
 
 
 @router.get("/champions")
