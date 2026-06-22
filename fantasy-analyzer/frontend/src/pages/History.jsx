@@ -330,6 +330,12 @@ function RecordsTab() {
           { key: 'Holder',   label: 'Holder' },
           { key: 'Value',    label: 'Value',  align: 'right' },
           { key: 'Season',   label: 'Season', align: 'right' },
+          {
+            key: 'Notes', label: 'Notes',
+            render: v => v
+              ? <span style={{ color: 'var(--text-faint)', fontSize: '12px', fontStyle: 'italic' }}>{v}</span>
+              : <span style={{ color: 'var(--text-faint)' }}>—</span>,
+          },
         ]}
       />
     </div>
