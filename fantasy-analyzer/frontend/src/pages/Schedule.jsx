@@ -128,8 +128,10 @@ function HowScheduleWorks() {
       {open && (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
           <p style={{ margin: '0 0 10px' }}>
-            Each year, divisions are set by the <strong style={{ color: 'var(--text-primary)' }}>prior season's final standings</strong>:
-            the top 4 finishers form the Top division, the next 4 the Mid division, and the bottom 4 the Bottom division.
+            Each year, divisions are set by the <strong style={{ color: 'var(--text-primary)' }}>prior season's playoff bracket and standings</strong>:
+            the Top division is the 4 semifinalists from the championship bracket. The Mid division is the other 2 playoff
+            teams plus the next 2 teams by regular-season record (tiebreak: points, then head-to-head). The Bottom
+            division is the remaining 4 teams by regular-season record.
           </p>
           <p style={{ margin: '0 0 10px' }}>
             <strong style={{ color: '#e3b341' }}>Weeks 1–3 &amp; 12–14</strong> are an in-division round robin — you play each

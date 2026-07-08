@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass, field
+from functools import cmp_to_key
 
 from fantasy_analyzer.analysis.start_sit import get_start_sit_leaderboard, get_start_sit_weeks
 
@@ -741,15 +742,50 @@ def get_playoff_records(con: sqlite3.Connection) -> list[PlayoffSummary]:
 # Division order (for next season's division/schedule grouping)
 # ---------------------------------------------------------------------------
 
-def get_division_order(con: sqlite3.Connection, year: int) -> list[dict]:
-    """Return next season's division order: top 4 by actual playoff finish,
-    the remaining 8 (ranks 5-12) by pure regular-season record.
+def _h2h_wins(con: sqlite3.Connection, league_id: str, playoff_week_start: int, uid_a: str, uid_b: str) -> int:
+    """Count regular-season matchup wins uid_a has over uid_b in this league/season."""
+    rows = con.execute(
+        """
+        SELECT m1.points, m2.points FROM matchups m1
+        JOIN matchups m2 ON m1.league_id = m2.league_id AND m1.week = m2.week
+            AND m1.matchup_id = m2.matchup_id
+        WHERE m1.league_id = ? AND m1.week < ? AND m1.user_id = ? AND m2.user_id = ?
+        """,
+        (league_id, playoff_week_start, uid_a, uid_b),
+    ).fetchall()
+    return sum(1 for pa, pb in rows if pa is not None and pb is not None and pa > pb)
 
-    The toilet-bowl/placement bracket that determines ranks 5-12 in
-    `compute_playoff_results` can badly misrepresent a team's actual season
-    (e.g. a 9-5 team that lost a meaningless placement game can finish
-    "12th"), so division grouping uses plain regular-season standings for
-    everyone outside the top 4 instead.
+
+def _sorted_by_record(
+    con: sqlite3.Connection, league_id: str, playoff_week_start: int, records: list[RegularSeasonRecord]
+) -> list[RegularSeasonRecord]:
+    """Sort by win_pct desc, then points_for desc, then head-to-head record."""
+    def cmp(a: RegularSeasonRecord, b: RegularSeasonRecord) -> int:
+        if a.win_pct != b.win_pct:
+            return -1 if a.win_pct > b.win_pct else 1
+        if a.points_for != b.points_for:
+            return -1 if a.points_for > b.points_for else 1
+        wins_a = _h2h_wins(con, league_id, playoff_week_start, a.user_id, b.user_id)
+        wins_b = _h2h_wins(con, league_id, playoff_week_start, b.user_id, a.user_id)
+        return wins_b - wins_a
+
+    return sorted(records, key=cmp_to_key(cmp))
+
+
+def get_division_order(con: sqlite3.Connection, year: int) -> list[dict]:
+    """Return next season's 3-division order (4 teams each):
+
+    - Division 1 (finish 1-4): the 4 semifinalists from the championship
+      playoff bracket (win or lose their semifinal).
+    - Division 2 (finish 5-8): the other 2 playoff teams (the 5th/6th place
+      game participants), plus the next 2 non-playoff teams by regular-season
+      record -- tiebreak by points, then head-to-head.
+    - Division 3 (finish 9-12): the remaining 4 teams by regular-season record.
+
+    Non-playoff ranking uses plain regular-season standings rather than the
+    toilet-bowl/placement bracket, since that bracket can badly misrepresent
+    a team's actual season (e.g. a 9-5 team that lost a meaningless placement
+    game).
 
     Each owner's name is resolved to whoever CURRENTLY holds that Sleeper
     roster — `roster_id` stays stable across an owner handoff even though
@@ -766,14 +802,19 @@ def get_division_order(con: sqlite3.Connection, year: int) -> list[dict]:
     league_id, playoff_week_start, last_week = league_row
 
     playoff_results = compute_playoff_results(con, league_id, year, playoff_week_start, last_week)
-    top4 = sorted((r for r in playoff_results if r.finish and r.finish <= 4), key=lambda r: r.finish)
-    top4_uids = {r.user_id for r in top4}
+    div1 = sorted((r for r in playoff_results if r.finish and r.finish <= 4), key=lambda r: r.finish)
+    div2_playoff = sorted((r for r in playoff_results if r.finish in (5, 6)), key=lambda r: r.finish)
+    assigned_uids = {r.user_id for r in div1} | {r.user_id for r in div2_playoff}
 
     reg_records = compute_regular_season_records(con, league_id, year, playoff_week_start)
-    rest = [r for r in reg_records if r.user_id not in top4_uids]  # already sorted by (-win_pct, -points_for)
+    non_playoff = [r for r in reg_records if r.user_id not in assigned_uids]
+    non_playoff = _sorted_by_record(con, league_id, playoff_week_start, non_playoff)
+    div2_record, div3 = non_playoff[:2], non_playoff[2:6]
 
-    ordered = [(r.finish, r.user_id, r.canonical_name) for r in top4]
-    ordered += [(5 + i, r.user_id, r.canonical_name) for i, r in enumerate(rest)]
+    ordered = [(r.finish, r.user_id, r.canonical_name) for r in div1]
+    ordered += [(5 + i, r.user_id, r.canonical_name) for i, r in enumerate(div2_playoff)]
+    ordered += [(7 + i, r.user_id, r.canonical_name) for i, r in enumerate(div2_record)]
+    ordered += [(9 + i, r.user_id, r.canonical_name) for i, r in enumerate(div3)]
 
     latest_league_id = con.execute("SELECT league_id FROM leagues ORDER BY season DESC LIMIT 1").fetchone()[0]
 
