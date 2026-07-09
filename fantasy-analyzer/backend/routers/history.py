@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
-from typing import Generator
 
 from fastapi import APIRouter, Depends, Query
 
+from backend.routers.db import get_db
+
 from fantasy_analyzer.analysis.history import (
+    FINISH_DISPLAY,
     get_all_seasons,
     get_all_time_standings,
     get_available_seasons,
@@ -25,30 +26,8 @@ from fantasy_analyzer.analysis.start_sit import get_start_sit_leaderboard, get_s
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# DB dependency — creates a new connection per request, closes when done
-# ---------------------------------------------------------------------------
-
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "league.db"
-
-
-def get_db() -> Generator[sqlite3.Connection, None, None]:
-    """FastAPI dependency: yield a SQLite connection, close after request."""
-    con = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    try:
-        yield con
-    finally:
-        con.close()
-
-
-# ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
-
-FINISH_DISPLAY = {
-    1: "Champion", 2: "Runner-up", 3: "3rd", 4: "4th",
-    5: "5th", 6: "6th", 7: "7th", 8: "8th",
-    9: "9th", 10: "10th", 11: "11th", 12: "12th",
-}
 
 
 @router.get("/standings")

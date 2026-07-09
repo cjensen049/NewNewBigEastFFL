@@ -67,7 +67,7 @@ def _scrape_position(pos: str, week: int) -> list[dict]:
         log.warning("FantasyPros fetch failed for %s wk%s: %s", pos.upper(), week, e)
         return []
 
-    soup = BeautifulSoup(resp.text, "lxml")
+    soup = BeautifulSoup(resp.text, "html.parser")
     table = soup.find("table", id="data")
     if not table:
         log.warning("No #data table found for %s wk%s", pos.upper(), week)

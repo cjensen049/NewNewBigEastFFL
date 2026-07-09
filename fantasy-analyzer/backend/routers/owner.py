@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
-from typing import Generator
 
 import httpx
 from fastapi import APIRouter, Depends, Query
+
+from backend.routers.db import get_db
 
 # Simple in-memory avatar cache so we don't call Sleeper on every request
 _avatar_cache: dict[str, str] = {}  # canonical_name -> avatar_url
 
 from fantasy_analyzer.analysis.history import (
+    FINISH_DISPLAY,
     get_all_time_standings,
     get_available_seasons,
     get_season_breakdown,
@@ -24,23 +25,6 @@ from fantasy_analyzer.analysis.transactions import (
 )
 
 router = APIRouter()
-
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "league.db"
-
-FINISH_DISPLAY = {
-    1: "Champion", 2: "Runner-up", 3: "3rd", 4: "4th",
-    5: "5th", 6: "6th", 7: "7th", 8: "8th",
-    9: "9th", 10: "10th", 11: "11th", 12: "12th",
-}
-
-
-def get_db() -> Generator[sqlite3.Connection, None, None]:
-    """FastAPI dependency: yield a SQLite connection, close after request."""
-    con = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    try:
-        yield con
-    finally:
-        con.close()
 
 
 @router.get("/")
