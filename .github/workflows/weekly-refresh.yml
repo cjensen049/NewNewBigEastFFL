@@ -18,6 +18,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history needed to merge into staging below
 
       - uses: actions/setup-python@v5
         with:
@@ -54,3 +56,9 @@ jobs:
 
       - name: Push changes
         run: git push
+
+      - name: Sync staging so it doesn't go stale
+        run: |
+          git checkout staging
+          git merge master --no-edit
+          git push origin staging
