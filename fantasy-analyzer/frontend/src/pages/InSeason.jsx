@@ -157,7 +157,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
               {th('actual_wins',  'W-L',     'right')}
               {th('pts_for',      'Pts',     'right')}
               {th('_back',        'Back',    'right')}
-              {th('sim_wins',     'Sim',     'right')}
+              {th('sim_wins',     'All-Play', 'right')}
               {th('_winPctDiff',  'Diff',    'right')}
               {th('luck_diff',    'Verdict', 'right')}
               <th style={{ padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
@@ -212,6 +212,13 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
             })}
           </tbody>
         </table>
+      </div>
+      <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
+        <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
+          All-Play / Diff / Verdict: your cumulative record (and luck) if you'd played every team
+          every week so far, not just your actual schedule — grows each week, and isn't a
+          projection. For projected playoff odds, see Power Rankings.
+        </p>
       </div>
     </div>
   )
