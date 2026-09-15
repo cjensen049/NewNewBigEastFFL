@@ -1146,9 +1146,12 @@ def get_standings_snapshot(
     # Current win% per owner name (for SoS denominator)
     win_pct_by_name: dict[str, float] = {r["owner"]: r["actual_win_pct"] for r in luck_rows}
 
-    # Most recent played week (non-null points)
+    # Most recent played week. Sleeper stores 0.0 (not NULL) for unplayed future
+    # weeks since the full schedule is published up front, so "> 0" is required
+    # to tell a played week apart from a future one (same convention as
+    # power_rankings.py's current_week detection).
     max_week_row = con.execute(
-        "SELECT MAX(week) FROM matchups WHERE league_id=? AND is_playoff=0 AND points IS NOT NULL",
+        "SELECT MAX(week) FROM matchups WHERE league_id=? AND is_playoff=0 AND points IS NOT NULL AND points > 0",
         (league_id,),
     ).fetchone()
     current_week: int = max_week_row[0] or 0

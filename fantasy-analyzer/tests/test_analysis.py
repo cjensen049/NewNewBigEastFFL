@@ -11,6 +11,7 @@ from fantasy_analyzer.analysis.history import (
     compute_luck_scores,
     get_race_to_bottom,
     get_standings_history,
+    get_standings_snapshot,
 )
 from fantasy_analyzer.db.schema import DDL
 
@@ -28,12 +29,21 @@ def db():
     return con
 
 
-def _league(con, league_id="L1", season=2024, pws=15, last_week=17):
+def _league(con, league_id="L1", season=2024, pws=15, last_week=17, status="complete"):
     con.execute(
         "INSERT INTO leagues "
         "(league_id, season, name, status, total_rosters, playoff_week_start, last_scored_leg) "
         "VALUES (?,?,?,?,?,?,?)",
-        (league_id, season, "Test League", "complete", 12, pws, last_week),
+        (league_id, season, "Test League", status, 12, pws, last_week),
+    )
+    con.commit()
+
+
+def _league_owners(con, league_id, *user_ids):
+    """Assign sequential roster_ids to owners for one league (needed by get_standings_snapshot)."""
+    con.executemany(
+        "INSERT INTO league_owners (league_id, user_id, roster_id) VALUES (?,?,?)",
+        [(league_id, uid, i + 1) for i, uid in enumerate(user_ids)],
     )
     con.commit()
 
@@ -388,3 +398,42 @@ class TestGetStandingsHistory:
         # Both should appear at rank 7+
         assert "Nonplayoff1" in history[2024].values()
         assert "Nonplayoff2" in history[2024].values()
+
+
+# ---------------------------------------------------------------------------
+# get_standings_snapshot (in-season "next opponent")
+# ---------------------------------------------------------------------------
+
+class TestGetStandingsSnapshot:
+    def test_next_opponent_with_prepublished_future_weeks(self, db):
+        """Sleeper publishes the whole season's pairings up front with points=0.0
+        (not NULL) for weeks that haven't been played yet. current_week detection
+        must not mistake those 0.0 rows for played games, or next_opponent breaks
+        for the entire rest of the season (regression: it used to)."""
+        _league(db, pws=15, last_week=17, status="in_season")
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"), ("u3", "Cara"), ("u4", "Dee"))
+        _league_owners(db, "L1", "u1", "u2", "u3", "u4")
+
+        # Week 1: played (real scores)
+        _matchup(db, "L1", 2024, 1, 1, "u1", 110.0)
+        _matchup(db, "L1", 2024, 1, 1, "u2", 90.0)
+        _matchup(db, "L1", 2024, 1, 2, "u3", 100.0)
+        _matchup(db, "L1", 2024, 1, 2, "u4", 95.0)
+        # Weeks 2-14: pre-published, unplayed (Sleeper sends points=0.0, not NULL)
+        for week in range(2, 15):
+            _matchup(db, "L1", 2024, week, 1, "u1", 0.0)
+            _matchup(db, "L1", 2024, week, 1, "u3", 0.0)
+            _matchup(db, "L1", 2024, week, 2, "u2", 0.0)
+            _matchup(db, "L1", 2024, week, 2, "u4", 0.0)
+
+        snap = get_standings_snapshot(db, "L1", 2024, playoff_week_start=15)
+        assert snap["current_week"] == 1
+        assert snap["next_week"] == 2
+
+        next_opp = {r["owner"]: r["next_opponent"] for r in snap["rows"]}
+        assert next_opp["Alice"] == "Cara"
+        assert next_opp["Bob"] == "Dee"
+
+    def test_no_matchup_data_returns_empty(self, db):
+        _league(db, status="in_season")
+        assert get_standings_snapshot(db, "L1", 2024, playoff_week_start=15) == {}

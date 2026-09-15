@@ -52,7 +52,8 @@ def _fmt(iso: str | None) -> str:
     if not iso:
         return ""
     d = date.fromisoformat(iso)
-    return d.strftime("%b %-d, %Y")
+    # %-d (no zero-pad) is Linux/Mac-only; d.day is portable and does the same thing.
+    return f"{d:%b} {d.day}, {d:%Y}"
 
 
 def _deadline_status(deadline: date | None, league_status: str) -> str:
@@ -64,10 +65,30 @@ def _deadline_status(deadline: date | None, league_status: str) -> str:
     return "complete" if date.today() > deadline else "upcoming"
 
 
+def _range_status(date_start: str | None, date_end: str | None, league_complete: bool) -> str:
+    """Return upcoming/active/complete for a date range (e.g. regular season, playoffs).
+
+    Compares today against the event's own dates instead of the league's overall
+    status, so playoffs/championship correctly read "upcoming" while the
+    regular season is still active (the league row stays "in_season" for the
+    whole year, so it can't tell these apart on its own).
+    """
+    if league_complete:
+        return "complete"
+    if not date_start or not date_end:
+        return "upcoming"
+    today = date.today().isoformat()
+    if today < date_start:
+        return "upcoming"
+    if today > date_end:
+        return "complete"
+    return "active"
+
+
 def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
     """Return all calendar events sorted newest season first, then by week within season."""
     leagues = con.execute(
-        "SELECT league_id, season, status, playoff_week_start, last_scored_leg FROM leagues ORDER BY season DESC"
+        "SELECT league_id, season, status, playoff_week_start FROM leagues ORDER BY season DESC"
     ).fetchall()
 
     drafts_by_season: dict[int, dict] = {
@@ -77,11 +98,14 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
 
     events: list[dict] = []
 
-    for league_id, season, status, playoff_week_start, last_scored_leg in leagues:
+    for league_id, season, status, playoff_week_start in leagues:
         reg_end_week = (playoff_week_start or 15) - 1  # last regular-season week
         playoff_start_week = playoff_week_start or 15
-        champ_week = last_scored_leg or 17
-        league_active = status == "in_season"
+        # Final week of the season (standard 3-week playoff bracket). Not derived
+        # from `last_scored_leg` -- that field tracks the last week scored SO FAR
+        # and keeps climbing all season, so it can't stand in for "final week"
+        # until the league is already complete.
+        champ_week = playoff_start_week + 2
         league_complete = status == "complete"
 
         # ── League dues (due before the NFL Draft) ──────────────────────────────
@@ -133,7 +157,7 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
             "season": season,
             "sort_key": 3,
             "type": "regular_season",
-            "status": "complete" if league_complete else ("active" if league_active else "upcoming"),
+            "status": _range_status(rs_start, rs_end, league_complete),
             "title": f"{season} Regular Season",
             "subtitle": f"Weeks 1–{reg_end_week}",
             "date_start": rs_start,
@@ -161,7 +185,7 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
             "season": season,
             "sort_key": 5,
             "type": "playoffs",
-            "status": "complete" if league_complete else ("active" if league_active else "upcoming"),
+            "status": _range_status(pl_start, pl_end, league_complete),
             "title": f"{season} Playoffs",
             "subtitle": f"Weeks {playoff_start_week}–{champ_week - 1}",
             "date_start": pl_start,
@@ -174,7 +198,7 @@ def get_calendar_events(con: sqlite3.Connection) -> list[dict]:
             "season": season,
             "sort_key": 6,
             "type": "championship",
-            "status": "complete" if league_complete else ("active" if league_active else "upcoming"),
+            "status": _range_status(champ_start, champ_end, league_complete),
             "title": f"{season} Championship",
             "subtitle": f"Week {champ_week}",
             "date_start": champ_start,
