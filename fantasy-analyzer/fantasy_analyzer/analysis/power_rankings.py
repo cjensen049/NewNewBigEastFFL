@@ -245,6 +245,98 @@ def _normalize(values: dict[str, float]) -> dict[str, float]:
 
 
 # ---------------------------------------------------------------------------
+# Mathematical clinch / elimination
+# ---------------------------------------------------------------------------
+
+def _score_ceiling(con: sqlite3.Connection) -> float:
+    """The highest single-week score on record, league-wide, all-time.
+
+    Used as the "best case" scoring assumption for a rival in a clinch/
+    elimination bound check. The wild-card cutoff has no fixed points
+    threshold (it's whichever teams end up with the most points among the
+    non-top-4 group), so without SOME ceiling, no team could ever be
+    mathematically eliminated from it. Using the league's actual highest
+    week ever is a real, defensible number rather than an arbitrary guess.
+    """
+    row = con.execute("SELECT MAX(points) FROM matchups WHERE points IS NOT NULL").fetchone()
+    return float(row[0]) if row and row[0] is not None else 200.0
+
+
+def _playoff_positions(
+    uids: list[str], wins: dict[str, float], pts: dict[str, float],
+) -> tuple[set[str], set[str]]:
+    """Apply the NNBE playoff rule to one (wins, pts) scenario.
+
+    Returns (top4_by_record, all_playoff_teams) -- top4_by_record is a
+    subset of all_playoff_teams. Same rule as _monte_carlo's ranking, just
+    for one scenario instead of a vectorised batch of random simulations.
+    """
+    ordered = sorted(uids, key=lambda u: (-wins.get(u, 0), -pts.get(u, 0.0)))
+    top4 = set(ordered[:_TOP_BY_RECORD])
+    rest_by_pts = sorted(ordered[_TOP_BY_RECORD:], key=lambda u: -pts.get(u, 0.0))
+    wildcard = set(rest_by_pts[:_PLAYOFF_SPOTS - _TOP_BY_RECORD])
+    return top4, top4 | wildcard
+
+
+def compute_playoff_certainty(
+    uids: list[str],
+    wins_by_uid: dict[str, int],
+    pts_by_uid: dict[str, float],
+    remaining_games_by_uid: dict[str, int],
+    ceiling: float,
+) -> tuple[set[str], set[str], set[str]]:
+    """Bound-check clinch/elimination -- a certainty check, not a simulation.
+
+    Full combinatorial enumeration of the remaining schedule is intractable
+    (every team's fate is coupled through shared opponents), so this checks
+    the single most extreme scenario that could possibly change a team's
+    fate instead:
+      - Clinched: even if THIS team loses out and scores 0 the rest of the
+        way, while EVERY rival wins out and scores the ceiling every
+        remaining week, does this team still hold a spot? If so, no
+        possible real outcome can take it away.
+      - Eliminated: even if THIS team wins out and scores the ceiling every
+        remaining week, while every rival is frozen at their current
+        wins/points (their own worst case), does this team still miss the
+        top 6? If so, no possible real outcome can save them.
+
+    Returns (clinched_top4, clinched_playoffs, eliminated). clinched_top4 is
+    a subset of clinched_playoffs (making the top 4 guarantees a spot).
+    """
+    clinched_top4: set[str] = set()
+    clinched_playoffs: set[str] = set()
+    eliminated: set[str] = set()
+
+    for x in uids:
+        # Worst case for x (no more wins/points), best case for every rival
+        worst_wins = dict(wins_by_uid)
+        worst_pts = dict(pts_by_uid)
+        for y in uids:
+            if y == x:
+                continue
+            g = remaining_games_by_uid.get(y, 0)
+            worst_wins[y] = wins_by_uid.get(y, 0) + g
+            worst_pts[y] = pts_by_uid.get(y, 0.0) + g * ceiling
+        top4, playoffs = _playoff_positions(uids, worst_wins, worst_pts)
+        if x in top4:
+            clinched_top4.add(x)
+        if x in playoffs:
+            clinched_playoffs.add(x)
+
+        # Best case for x, every rival frozen at their current standing
+        best_wins = dict(wins_by_uid)
+        best_pts = dict(pts_by_uid)
+        g = remaining_games_by_uid.get(x, 0)
+        best_wins[x] = wins_by_uid.get(x, 0) + g
+        best_pts[x] = pts_by_uid.get(x, 0.0) + g * ceiling
+        _, best_case_playoffs = _playoff_positions(uids, best_wins, best_pts)
+        if x not in best_case_playoffs:
+            eliminated.add(x)
+
+    return clinched_top4, clinched_playoffs, eliminated
+
+
+# ---------------------------------------------------------------------------
 # Monte Carlo simulation
 # ---------------------------------------------------------------------------
 
@@ -461,6 +553,30 @@ def compute_power_rankings(
         score_means, score_stds, sched, n_sims=n_sims,
     )
 
+    # ── Mathematical clinch / elimination ──────────────────────────────────────
+    # The Monte Carlo % above is a probabilistic estimate under a normal-
+    # distribution scoring model -- it can read ~100% or ~0% well before a
+    # spot is actually decided. Clamp everything to 1-99% except where a
+    # team's fate is truly locked in, per compute_playoff_certainty's bound
+    # check, so the shown number never overclaims certainty the model doesn't
+    # actually have.
+    remaining_games_by_uid: dict[str, int] = defaultdict(int)
+    for week_pairs in sched:
+        for a, b in week_pairs:
+            remaining_games_by_uid[a] += 1
+            remaining_games_by_uid[b] += 1
+    ceiling = _score_ceiling(con)
+    clinched_top4, clinched_playoffs, eliminated = compute_playoff_certainty(
+        uids, wins_by_uid, pts_by_uid, remaining_games_by_uid, ceiling,
+    )
+    for uid in uids:
+        if uid in eliminated:
+            playoff_pcts[uid] = 0.0
+        elif uid in clinched_playoffs:
+            playoff_pcts[uid] = 100.0
+        else:
+            playoff_pcts[uid] = min(max(playoff_pcts.get(uid, 0.0), 1.0), 99.0)
+
     # ── Build output ──────────────────────────────────────────────────────────
     sorted_uids = sorted(uids, key=lambda u: -power_curr[u])
     rows = []
@@ -473,6 +589,9 @@ def compute_power_rankings(
             "owner":         user_to_name[uid],
             "power_score":   round(power_curr[uid], 1),
             "playoff_pct":   playoff_pcts.get(uid, 0.0),
+            "clinched_top4": uid in clinched_top4,
+            "clinched":      uid in clinched_playoffs,
+            "eliminated":    uid in eliminated,
             "actual_wins":   wins_by_uid.get(uid, 0),
             "actual_losses": losses_by_uid.get(uid, 0),
             "pts_for":       pts_by_uid.get(uid, 0.0),

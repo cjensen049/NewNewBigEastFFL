@@ -41,10 +41,14 @@ function rankStyle(rank) {
   return                 { bg: 'var(--border)',         text: 'var(--text-muted)' }
 }
 
-function playoffStyle(pct) {
-  if (pct >= 99) return { color: 'var(--green)',     bg: 'rgba(63,185,80,0.15)',  border: 'rgba(63,185,80,0.35)',  label: 'IN' }
-  if (pct <=  1) return { color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.12)',  border: 'rgba(204,31,46,0.3)',   label: 'OUT' }
-  // 2–98%: color by pct
+function playoffStyle(pct, clinched, eliminated) {
+  // "IN"/"OUT" only when mathematically certain (clinched/eliminated), not
+  // just because the simulated % rounds up near 99 or down near 1 -- the
+  // backend already clamps every uncertain team to 1-99%, so a merely
+  // heavy favorite can display "99%" without actually being locked in yet.
+  if (clinched)  return { color: 'var(--green)',     bg: 'rgba(63,185,80,0.15)',  border: 'rgba(63,185,80,0.35)',  label: 'IN' }
+  if (eliminated) return { color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.12)',  border: 'rgba(204,31,46,0.3)',   label: 'OUT' }
+  // 1–99%: color by pct
   if (pct >= 70) return { color: 'var(--green)',     bg: 'rgba(63,185,80,0.12)',  border: 'rgba(63,185,80,0.25)',  label: null }
   if (pct >= 40) return { color: 'var(--gold)',      bg: 'rgba(227,179,65,0.12)', border: 'rgba(227,179,65,0.3)',  label: null }
   return                { color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.1)',   border: 'rgba(204,31,46,0.25)',  label: null }
@@ -246,7 +250,7 @@ export default function PowerRankings({ season }) {
           {sorted.map((r, i) => {
               const rs = rankStyle(i + 1)
               const wl = wlStyle(r.actual_wins, r.actual_losses)
-              const ps = playoffStyle(r.playoff_pct)
+              const ps = playoffStyle(r.playoff_pct, r.clinched, r.eliminated)
               const pts = r.pts_for != null
                 ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                 : '—'

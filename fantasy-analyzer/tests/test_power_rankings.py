@@ -1,8 +1,14 @@
-"""Tests for analysis/power_rankings.py — the roster-quality prior blend."""
+"""Tests for analysis/power_rankings.py — the roster-quality prior blend and
+the mathematical clinch/elimination bound check."""
 
 import pytest
 
-from fantasy_analyzer.analysis.power_rankings import _blended_mean, _MEAN_PRIOR_K
+from fantasy_analyzer.analysis.power_rankings import (
+    _blended_mean,
+    _MEAN_PRIOR_K,
+    _playoff_positions,
+    compute_playoff_certainty,
+)
 
 
 class TestBlendedMean:
@@ -38,3 +44,91 @@ class TestBlendedMean:
         bad_week_score, strong_roster = 90.0, 150.0
         blended = _blended_mean(bad_week_score, games_played=1, prior=strong_roster)
         assert blended > 130.0  # much closer to the roster prior than to the raw score
+
+
+class TestPlayoffPositions:
+    def test_top4_by_wins_wildcard_by_points_among_rest(self):
+        """The 2 wild-card spots go to whoever has the most points among the
+        non-top-4 teams -- NOT whoever has the next-most wins. A lower-win
+        team with more points must be able to leapfrog a higher-win team
+        into a wild-card spot."""
+        uids = ["u1", "u2", "u3", "u4", "u5", "u6", "u7", "u8"]
+        wins = {"u1": 10, "u2": 9, "u3": 8, "u4": 7, "u5": 6, "u6": 6, "u7": 5, "u8": 4}
+        pts  = {"u1": 100, "u2": 100, "u3": 100, "u4": 100,
+                "u5": 1000, "u6": 900, "u7": 1200, "u8": 800}
+
+        top4, playoffs = _playoff_positions(uids, wins, pts)
+        assert top4 == {"u1", "u2", "u3", "u4"}
+        # u7 (5 wins, 1200 pts) and u5 (6 wins, 1000 pts) out-point u6 and u8
+        # for the 2 wild-card spots, despite u7 having fewer wins than u6.
+        assert playoffs == {"u1", "u2", "u3", "u4", "u5", "u7"}
+
+
+class TestComputePlayoffCertainty:
+    """8 synthetic teams -- _TOP_BY_RECORD/_PLAYOFF_SPOTS (4/6) don't depend
+    on a real 12-team league, so a smaller set keeps these readable."""
+
+    UIDS = ["u1", "u2", "u3", "u4", "u5", "u6", "u7", "u8"]
+
+    def test_season_over_matches_final_standing_exactly(self):
+        """With 0 games left for everyone, nothing can change -- clinch and
+        elimination must exactly match the actual final result."""
+        wins = {"u1": 10, "u2": 9, "u3": 8, "u4": 7, "u5": 6, "u6": 6, "u7": 5, "u8": 4}
+        pts  = {"u1": 100, "u2": 100, "u3": 100, "u4": 100,
+                "u5": 1000, "u6": 900, "u7": 1200, "u8": 800}
+        remaining = {u: 0 for u in self.UIDS}
+
+        clinched_top4, clinched_playoffs, eliminated = compute_playoff_certainty(
+            self.UIDS, wins, pts, remaining, ceiling=200.0,
+        )
+        assert clinched_top4 == {"u1", "u2", "u3", "u4"}
+        assert clinched_playoffs == {"u1", "u2", "u3", "u4", "u5", "u7"}
+        assert eliminated == {"u6", "u8"}
+
+    def test_rival_can_mathematically_catch_up_blocks_clinch(self):
+        """Regression: the whole point of this feature. A commanding lead
+        with games still on the schedule must NOT show as clinched if a
+        rival could theoretically still catch up given a maximal run."""
+        uids = ["u1", "u2", "u3", "u4", "u5", "u6"]
+        wins = {"u1": 5, "u2": 1, "u3": 1, "u4": 1, "u5": 1, "u6": 1}
+        pts = {u: 500.0 for u in uids}
+        remaining = {u: 5 for u in uids}  # u2 could reach 1+5=6 > u1's frozen 5
+
+        clinched_top4, _, _ = compute_playoff_certainty(uids, wins, pts, remaining, ceiling=200.0)
+        assert "u1" not in clinched_top4
+
+    def test_unreachable_lead_is_clinched_even_with_games_left(self):
+        uids = ["u1", "u2", "u3", "u4", "u5", "u6"]
+        wins = {"u1": 20, "u2": 1, "u3": 1, "u4": 1, "u5": 1, "u6": 1}
+        pts = {u: 500.0 for u in uids}
+        remaining = {u: 2 for u in uids}  # best case for rivals is only 1+2=3, still << 20
+
+        clinched_top4, clinched_playoffs, _ = compute_playoff_certainty(
+            uids, wins, pts, remaining, ceiling=200.0,
+        )
+        assert "u1" in clinched_top4
+        assert "u1" in clinched_playoffs
+
+    def test_hopeless_record_with_one_game_left_is_eliminated(self):
+        """Even winning out and scoring the ceiling every remaining week,
+        this team can't reach a top-6 spot because too many rivals are
+        already unreachable with zero games credited to them."""
+        uids = self.UIDS
+        wins = {"u1": 10, "u2": 9, "u3": 8, "u4": 7, "u5": 6, "u6": 6, "u7": 1, "u8": 0}
+        pts  = {"u1": 2000, "u2": 2000, "u3": 2000, "u4": 2000,
+                "u5": 1500, "u6": 1400, "u7": 500, "u8": 500}
+        remaining = {u: 1 for u in uids}
+
+        _, _, eliminated = compute_playoff_certainty(uids, wins, pts, remaining, ceiling=200.0)
+        assert "u7" in eliminated
+        assert "u8" in eliminated
+        assert "u1" not in eliminated
+
+    def test_still_alive_with_a_real_path_is_not_eliminated(self):
+        uids = ["u1", "u2", "u3", "u4", "u5", "u6"]
+        wins = {"u1": 5, "u2": 5, "u3": 5, "u4": 5, "u5": 5, "u6": 0}
+        pts = {u: 500.0 for u in uids}
+        remaining = {u: 10 for u in uids}  # u6 winning out reaches 10 wins, well clear
+
+        _, _, eliminated = compute_playoff_certainty(uids, wins, pts, remaining, ceiling=200.0)
+        assert "u6" not in eliminated
