@@ -193,7 +193,14 @@ function StandingsPanel() {
                 </div>
               ),
             },
-            { key: 'owner', label: 'Owner' },
+            {
+              key: 'owner', label: 'Owner',
+              render: v => (
+                <Link to={`/owner/${encodeURIComponent(v)}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }}>
+                  {v}
+                </Link>
+              ),
+            },
             {
               key: 'actual_wins', label: 'W-L', align: 'right',
               render: (_, r) => (
