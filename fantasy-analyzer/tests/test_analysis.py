@@ -376,33 +376,33 @@ class TestGetRaceToBottom:
 
 class TestGetRaceToBottomInProgress:
     """A season still in_season has no real playoff bracket yet -- Sleeper's
-    pre-published playoff-week pairings are placeholders, not real seeding.
-    get_race_to_bottom must fall back to current regular-season standings
-    (top N by record = "playoff", proxy for the real bracket) instead of
-    trusting compute_playoff_results (regression: it used to, and returned
-    only 1 of 6 non-playoff teams for a real live 12-team league)."""
+    pre-published playoff-week pairings are placeholders, not real seeding,
+    and this codebase has no mathematical-elimination logic to say who's
+    really out. get_race_to_bottom must show every team, ranked by optimal
+    PF, until the season actually completes (regression: it used to filter
+    by the fake bracket and could hide the team with the worst roster just
+    because they'd won their week-1 game)."""
 
-    def test_bottom_teams_by_current_record(self, db):
-        _league(db, pws=3, status="in_season")  # small bracket: top 2 of 4 "make it"
+    def test_shows_every_team_ranked_by_optimal_pf(self, db):
+        _league(db, pws=3, status="in_season")
         _owners(db, ("u1", "Alice"), ("u2", "Bob"), ("u3", "Carol"), ("u4", "Dee"))
 
-        # Week 1 regular season: Alice/Bob win, Carol/Dee lose
+        # Week 1: Alice/Bob win despite having the WORSE rosters (low ppts) --
+        # a real scenario this must not hide behind a "made playoffs" filter.
         _matchup(db, "L1", 2024, 1, 1, "u1", 120.0)
         _matchup(db, "L1", 2024, 1, 1, "u3", 100.0)
         _matchup(db, "L1", 2024, 1, 2, "u2", 110.0)
         _matchup(db, "L1", 2024, 1, 2, "u4", 90.0)
 
         for uid, wins, losses, fpts, ppts in [
-            ("u1", 1, 0, 120.0, 130.0), ("u2", 1, 0, 110.0, 125.0),
-            ("u3", 0, 1, 100.0, 115.0), ("u4", 0, 1, 90.0, 105.0),
+            ("u1", 1, 0, 120.0, 115.0), ("u2", 1, 0, 110.0, 125.0),
+            ("u3", 0, 1, 100.0, 130.0), ("u4", 0, 1, 90.0, 140.0),
         ]:
             _season_record(db, "L1", uid, 2024, wins, losses, fpts=fpts, ppts=ppts)
 
-        # Top half by current record (Alice, Bob) = "playoff"; bottom half
-        # (Carol, Dee) = Race to the Bottom candidates.
         results = get_race_to_bottom(db, 2024)
-        names = {r["owner"] for r in results}
-        assert names == {"Carol", "Dee"}
+        assert {r["owner"] for r in results} == {"Alice", "Bob", "Carol", "Dee"}
+        assert results[0]["owner"] == "Alice"  # lowest ppts (115.0) leads despite 1-0 record
 
     def test_unaffected_when_season_complete(self, db):
         """Same shape, but status='complete' — must still use the real bracket."""

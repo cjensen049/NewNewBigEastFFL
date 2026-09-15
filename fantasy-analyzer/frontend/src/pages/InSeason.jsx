@@ -346,23 +346,25 @@ export default function InSeason({ embedded = false }) {
     ]
   }, [snapshotData])
 
-  // Merge eliminated zone rows with RTB optimal_pts data, sorted by optimal_pts asc
+  // RTB rows come straight from the backend (already ranked by optimal_pts
+  // ascending, already excludes real playoff teams once the season's
+  // complete). Deliberately NOT filtered by the win/loss-based "eliminated"
+  // zone above -- that's a live "if it ended today" standings picture, and a
+  // team can easily be sitting on a good record early in the season despite
+  // having the league's worst roster, which is exactly who this page exists
+  // to surface.
   const rtbRows = useMemo(() => {
-    const eliminated = zoneRows.filter(r => r._zoneId === 'eliminated')
-    const rtbByOwner = Object.fromEntries((rtbData?.rows ?? []).map(r => [r.owner, r]))
-    const merged = eliminated.map(r => ({
+    const base = (rtbData?.rows ?? []).map(r => ({
       ...r,
-      optimal_pts: rtbByOwner[r.owner]?.optimal_pts ?? null,
-      draft_pick:  rtbByOwner[r.owner]?.draft_pick  ?? null,
-    })).sort((a, b) => (a.optimal_pts ?? Infinity) - (b.optimal_pts ?? Infinity))
-
-    // Attach _ptsAhead: how many more opt pts vs the leader (null for leader)
-    const base = merged[0]?.optimal_pts ?? null
-    return merged.map((r, i) => ({
-      ...r,
-      _ptsAhead: i === 0 ? null : (r.optimal_pts != null && base != null ? r.optimal_pts - base : null),
+      actual_wins: r.wins,
+      actual_losses: r.losses,
     }))
-  }, [zoneRows, rtbData])
+    const leaderOpt = base[0]?.optimal_pts ?? null
+    return base.map((r, i) => ({
+      ...r,
+      _ptsAhead: i === 0 ? null : (r.optimal_pts != null && leaderOpt != null ? r.optimal_pts - leaderOpt : null),
+    }))
+  }, [rtbData])
 
   if (loadSeasons) return <LoadingSpinner />
 

@@ -1239,6 +1239,12 @@ def get_race_to_bottom(con: sqlite3.Connection, season: int) -> list[dict]:
 
     Lowest ppts = 1st rookie draft pick. Rewards weakest overall roster
     rather than rewarding owners who bench players to lose.
+
+    While a season is still in progress there's no real bracket yet -- Sleeper
+    pre-publishes placeholder playoff-week pairings that don't reflect final
+    standings, and there's no mathematical-elimination logic in this codebase
+    to say who's really out. So every team is shown, ranked by optimal PF,
+    until the season actually completes and the real bracket exists.
     """
     row = con.execute(
         "SELECT league_id, status, playoff_week_start, last_scored_leg FROM leagues WHERE season = ?",
@@ -1248,18 +1254,11 @@ def get_race_to_bottom(con: sqlite3.Connection, season: int) -> list[dict]:
         return []
     league_id, status, pws, last_scored_leg = row
 
+    playoff_uids: set[str] = set()
     if status == "complete":
         last_week = last_scored_leg or (pws + 2)
         playoff_results = compute_playoff_results(con, league_id, season, pws, last_week)
         playoff_uids = {pr.user_id for pr in playoff_results if pr.made_playoffs}
-    else:
-        # Mid-season, the real bracket isn't seeded yet (Sleeper pre-publishes
-        # placeholder playoff-week pairings that don't reflect final standings),
-        # so use current regular-season record as a live "if it ended today"
-        # proxy for the top half of the league taking playoff spots.
-        reg_records = compute_regular_season_records(con, league_id, season, pws)
-        playoff_spots = len(reg_records) // 2
-        playoff_uids = {r.user_id for r in reg_records[:playoff_spots]}
 
     rows = con.execute(
         """
