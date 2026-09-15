@@ -16,6 +16,7 @@ from fantasy_analyzer.analysis.history import (
     get_championship_rosters,
     get_division_order,
     get_league_records,
+    get_playoff_league_records,
     get_season_breakdown,
     get_season_schedule,
     get_standings_history,
@@ -185,13 +186,13 @@ def schedule(year: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
 
 
 @router.get("/records")
-def records(
-    include_playoffs: bool = Query(False),
-    con: sqlite3.Connection = Depends(get_db),
-) -> dict:
-    """League records (single-week highs, streaks, etc.)."""
-    recs = get_league_records(con, include_playoffs=include_playoffs)
-    return {"records": recs}
+def records(con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """League records (single-week highs, streaks, etc.), regular season and
+    playoffs kept separate — never combined into one pool."""
+    return {
+        "regular_season": get_league_records(con),
+        "playoffs": get_playoff_league_records(con),
+    }
 
 
 @router.get("/weekly-scoring")

@@ -11,7 +11,7 @@ import sqlite3
 
 import pytest
 
-from fantasy_analyzer.analysis.history import get_league_records
+from fantasy_analyzer.analysis.history import get_league_records, get_playoff_league_records
 from fantasy_analyzer.db.schema import DDL
 
 
@@ -160,3 +160,56 @@ class TestAllTimeRecordTies:
         # and Notes describes owner count rather than an "achieved N times" event.
         assert rec["Holder"] == "Alice, Bob, Carol"
         assert rec["Notes"] == "3 owners tied"
+
+
+# ---------------------------------------------------------------------------
+# Regular season / playoffs split — the two record sets are never combined
+# ---------------------------------------------------------------------------
+
+class TestRegularSeasonPlayoffSplit:
+    def test_regular_season_records_exclude_playoff_weeks(self, db):
+        _league(db, pws=3, last_week=3)
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 1, 1, "u1", 100.0)
+        _matchup(db, "L1", 2024, 1, 1, "u2", 90.0)
+        # Playoff week scores a much higher single-week value than any
+        # regular-season week -- must not surface in the regular-season record.
+        _matchup(db, "L1", 2024, 3, 1, "u1", 999.0, is_playoff=1)
+        _matchup(db, "L1", 2024, 3, 1, "u2", 50.0, is_playoff=1)
+
+        rec = _by_category(get_league_records(db), "Most Points, Single Week")
+        assert rec["Value"] == "100.00"
+
+    def test_playoff_records_exclude_regular_season_weeks(self, db):
+        _league(db, pws=3, last_week=3)
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 1, 1, "u1", 999.0)
+        _matchup(db, "L1", 2024, 1, 1, "u2", 90.0)
+        _matchup(db, "L1", 2024, 3, 1, "u1", 150.0, is_playoff=1)
+        _matchup(db, "L1", 2024, 3, 1, "u2", 50.0, is_playoff=1)
+
+        rec = _by_category(get_playoff_league_records(db), "Most Points, Single Playoff Week")
+        assert rec["Value"] == "150.00"
+
+    def test_championships_not_in_either_records_list(self, db):
+        """Career playoff stats (championships, appearances, win%) live in
+        get_playoff_records / the Playoff Records tab, not here in either
+        regular-season or single-game playoff records."""
+        _league(db, pws=3, last_week=3)
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 1, 1, "u1", 100.0)
+        _matchup(db, "L1", 2024, 1, 1, "u2", 90.0)
+        _matchup(db, "L1", 2024, 3, 1, "u1", 150.0, is_playoff=1)
+        _matchup(db, "L1", 2024, 3, 1, "u2", 50.0, is_playoff=1)
+
+        categories = {r["Category"] for r in get_league_records(db)} | \
+                     {r["Category"] for r in get_playoff_league_records(db)}
+        assert "Most Championships" not in categories
+
+    def test_playoff_records_empty_when_no_playoff_data(self, db):
+        _league(db)
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 1, 1, "u1", 100.0)
+        _matchup(db, "L1", 2024, 1, 1, "u2", 90.0)
+
+        assert get_playoff_league_records(db) == []

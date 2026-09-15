@@ -477,8 +477,12 @@ def _compute_win_loss_streaks(con: sqlite3.Connection) -> dict[str, dict[str, in
     return streaks
 
 
-def get_league_records(con: sqlite3.Connection, include_playoffs: bool = False) -> list[dict]:
-    """Return notable league records as a list of {Category, Holder, Value, Season, Notes}.
+def _record_context_label(season: int, week: int | None) -> str:
+    return f"{season} Wk{week}" if week is not None else str(season)
+
+
+def _add_event_record(records: list, category: str, value: str, rows: list[tuple[str, int, int | None]]) -> None:
+    """rows: (owner, season, week_or_None) for every occurrence tied at `value`.
 
     Ties are surfaced rather than silently resolved to whichever row a query
     happens to return first:
@@ -488,42 +492,42 @@ def get_league_records(con: sqlite3.Connection, include_playoffs: bool = False) 
         that's been achieved many times — e.g. a 100% lineup-efficiency week,
         which is fairly easy to hit on a thin bye week — doesn't get
         attributed to whoever happened to do it first).
-    "All-Time" aggregate records (career sums, streaks, counts) have no time
-    axis to define "most recent" on, so ties there just list every tied owner.
     """
-    records = []
+    if not rows:
+        return
+    rows = sorted(rows, key=lambda r: (r[1], r[2] if r[2] is not None else -1))
+    n = len(rows)
+    if n <= 2:
+        holder = ", ".join(o for o, _, _ in rows)
+        season = ", ".join(_record_context_label(s, w) for _, s, w in rows)
+        notes = ""
+    else:
+        last_key = (rows[-1][1], rows[-1][2])
+        recent_owners = list(dict.fromkeys(o for o, s, w in rows if (s, w) == last_key))
+        holder = ", ".join(recent_owners)
+        season = _record_context_label(*last_key)
+        notes = f"Achieved {n}×"
+    records.append({"Category": category, "Holder": holder, "Value": value, "Season": season, "Notes": notes})
 
-    def _context_label(season: int, week: int | None) -> str:
-        return f"{season} Wk{week}" if week is not None else str(season)
 
-    def _add_event_record(category: str, value: str, rows: list[tuple[str, int, int | None]]) -> None:
-        """rows: (owner, season, week_or_None) for every occurrence tied at `value`."""
-        if not rows:
-            return
-        rows = sorted(rows, key=lambda r: (r[1], r[2] if r[2] is not None else -1))
-        n = len(rows)
-        if n <= 2:
-            holder = ", ".join(o for o, _, _ in rows)
-            season = ", ".join(_context_label(s, w) for _, s, w in rows)
-            notes = ""
-        else:
-            last_key = (rows[-1][1], rows[-1][2])
-            recent_owners = list(dict.fromkeys(o for o, s, w in rows if (s, w) == last_key))
-            holder = ", ".join(recent_owners)
-            season = _context_label(*last_key)
-            notes = f"Achieved {n}×"
-        records.append({"Category": category, "Holder": holder, "Value": value, "Season": season, "Notes": notes})
+def _add_alltime_record(records: list, category: str, value: str, owners: list[str]) -> None:
+    """owners: every owner tied at `value` — no time axis, so just list them all."""
+    if not owners:
+        return
+    owners = list(dict.fromkeys(owners))
+    notes = f"{len(owners)} owners tied" if len(owners) > 2 else ""
+    records.append({
+        "Category": category, "Holder": ", ".join(owners), "Value": value,
+        "Season": "All-Time", "Notes": notes,
+    })
 
-    def _add_alltime_record(category: str, value: str, owners: list[str]) -> None:
-        """owners: every owner tied at `value` — no time axis, so just list them all."""
-        if not owners:
-            return
-        owners = list(dict.fromkeys(owners))
-        notes = f"{len(owners)} owners tied" if len(owners) > 2 else ""
-        records.append({
-            "Category": category, "Holder": ", ".join(owners), "Value": value,
-            "Season": "All-Time", "Notes": notes,
-        })
+
+def get_league_records(con: sqlite3.Connection) -> list[dict]:
+    """Return notable REGULAR-SEASON-ONLY league records as a list of
+    {Category, Holder, Value, Season, Notes}. See get_playoff_league_records
+    for the playoff-scoped counterpart -- the two are never combined.
+    """
+    records: list[dict] = []
 
     def _tied(sql: str, params: tuple = ()) -> list[tuple]:
         return con.execute(sql, params).fetchall()
@@ -533,138 +537,167 @@ def get_league_records(con: sqlite3.Connection, include_playoffs: bool = False) 
         "SELECT o.canonical_name, sr.season, sr.wins FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "WHERE sr.wins = (SELECT MAX(wins) FROM season_records)"
     )
-    if rows: _add_event_record("Most Wins, Single Season", str(rows[0][2]), [(o, s, None) for o, s, _ in rows])
+    if rows: _add_event_record(records, "Most Wins, Single Season", str(rows[0][2]), [(o, s, None) for o, s, _ in rows])
 
     rows = _tied(
         "SELECT o.canonical_name, sr.season, sr.losses FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "WHERE sr.losses = (SELECT MAX(losses) FROM season_records)"
     )
-    if rows: _add_event_record("Most Losses, Single Season", str(rows[0][2]), [(o, s, None) for o, s, _ in rows])
+    if rows: _add_event_record(records, "Most Losses, Single Season", str(rows[0][2]), [(o, s, None) for o, s, _ in rows])
 
     # All-time regular season
     rows = _tied(
         "SELECT o.canonical_name, SUM(sr.wins) as w FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "GROUP BY sr.user_id HAVING w = (SELECT MAX(t.w) FROM (SELECT SUM(wins) as w FROM season_records GROUP BY user_id) t)"
     )
-    if rows: _add_alltime_record("Most Wins, All-Time", str(int(rows[0][1])), [r[0] for r in rows])
+    if rows: _add_alltime_record(records, "Most Wins, All-Time", str(int(rows[0][1])), [r[0] for r in rows])
 
     rows = _tied(
         "SELECT o.canonical_name, SUM(sr.losses) as l FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "GROUP BY sr.user_id HAVING l = (SELECT MAX(t.l) FROM (SELECT SUM(losses) as l FROM season_records GROUP BY user_id) t)"
     )
-    if rows: _add_alltime_record("Most Losses, All-Time", str(int(rows[0][1])), [r[0] for r in rows])
+    if rows: _add_alltime_record(records, "Most Losses, All-Time", str(int(rows[0][1])), [r[0] for r in rows])
 
-    # Weekly scoring
-    playoff_filter = "" if include_playoffs else "AND m.is_playoff = 0 "
+    # Weekly scoring (regular season only)
     rows = _tied(
-        f"SELECT o.canonical_name, m.season, m.week, m.points FROM matchups m JOIN owners o ON m.user_id=o.user_id "
-        f"WHERE m.points IS NOT NULL {playoff_filter}"
-        f"AND m.points = (SELECT MAX(points) FROM matchups WHERE points IS NOT NULL {playoff_filter.replace('m.', '')})"
+        "SELECT o.canonical_name, m.season, m.week, m.points FROM matchups m JOIN owners o ON m.user_id=o.user_id "
+        "WHERE m.points IS NOT NULL AND m.is_playoff = 0 "
+        "AND m.points = (SELECT MAX(points) FROM matchups WHERE points IS NOT NULL AND is_playoff = 0)"
     )
-    if rows: _add_event_record("Most Points, Single Week", f"{rows[0][3]:,.2f}", [(o, s, w) for o, s, w, _ in rows])
+    if rows: _add_event_record(records, "Most Points, Single Week", f"{rows[0][3]:,.2f}", [(o, s, w) for o, s, w, _ in rows])
 
     rows = _tied(
-        f"SELECT o.canonical_name, m.season, m.week, m.points FROM matchups m JOIN owners o ON m.user_id=o.user_id "
-        f"WHERE m.points IS NOT NULL AND m.points > 0 {playoff_filter}"
-        f"AND m.points = (SELECT MIN(points) FROM matchups WHERE points IS NOT NULL AND points > 0 {playoff_filter.replace('m.', '')})"
+        "SELECT o.canonical_name, m.season, m.week, m.points FROM matchups m JOIN owners o ON m.user_id=o.user_id "
+        "WHERE m.points IS NOT NULL AND m.points > 0 AND m.is_playoff = 0 "
+        "AND m.points = (SELECT MIN(points) FROM matchups WHERE points IS NOT NULL AND points > 0 AND is_playoff = 0)"
     )
-    if rows: _add_event_record("Fewest Points, Single Week", f"{rows[0][3]:,.2f}", [(o, s, w) for o, s, w, _ in rows])
+    if rows: _add_event_record(records, "Fewest Points, Single Week", f"{rows[0][3]:,.2f}", [(o, s, w) for o, s, w, _ in rows])
 
     # Season points
     rows = _tied(
         "SELECT o.canonical_name, sr.season, sr.fpts FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "WHERE sr.fpts = (SELECT MAX(fpts) FROM season_records)"
     )
-    if rows: _add_event_record("Most Points For, Single Season", f"{rows[0][2]:,.2f}", [(o, s, None) for o, s, _ in rows])
+    if rows: _add_event_record(records, "Most Points For, Single Season", f"{rows[0][2]:,.2f}", [(o, s, None) for o, s, _ in rows])
 
     rows = _tied(
         "SELECT o.canonical_name, sr.season, sr.fpts FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "WHERE sr.wins+sr.losses+sr.ties > 0 "
         "AND sr.fpts = (SELECT MIN(fpts) FROM season_records WHERE wins+losses+ties > 0)"
     )
-    if rows: _add_event_record("Fewest Points For, Single Season", f"{rows[0][2]:,.2f}", [(o, s, None) for o, s, _ in rows])
+    if rows: _add_event_record(records, "Fewest Points For, Single Season", f"{rows[0][2]:,.2f}", [(o, s, None) for o, s, _ in rows])
 
     rows = _tied(
         "SELECT o.canonical_name, SUM(sr.fpts) as t FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "GROUP BY sr.user_id HAVING SUM(sr.wins)+SUM(sr.losses) > 0 "
         "AND t = (SELECT MAX(t2.t) FROM (SELECT SUM(fpts) as t FROM season_records GROUP BY user_id HAVING SUM(wins)+SUM(losses) > 0) t2)"
     )
-    if rows: _add_alltime_record("Most Points For, All-Time", f"{rows[0][1]:,.2f}", [r[0] for r in rows])
+    if rows: _add_alltime_record(records, "Most Points For, All-Time", f"{rows[0][1]:,.2f}", [r[0] for r in rows])
 
     rows = _tied(
         "SELECT o.canonical_name, SUM(sr.fpts) as t FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "GROUP BY sr.user_id HAVING SUM(sr.wins)+SUM(sr.losses) > 0 "
         "AND t = (SELECT MIN(t2.t) FROM (SELECT SUM(fpts) as t FROM season_records GROUP BY user_id HAVING SUM(wins)+SUM(losses) > 0) t2)"
     )
-    if rows: _add_alltime_record("Fewest Points For, All-Time", f"{rows[0][1]:,.2f}", [r[0] for r in rows])
+    if rows: _add_alltime_record(records, "Fewest Points For, All-Time", f"{rows[0][1]:,.2f}", [r[0] for r in rows])
 
     rows = _tied(
         "SELECT o.canonical_name, sr.season, sr.fpts_against FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "WHERE sr.fpts_against = (SELECT MAX(fpts_against) FROM season_records)"
     )
-    if rows: _add_event_record("Most Points Against, Single Season", f"{rows[0][2]:,.2f}", [(o, s, None) for o, s, _ in rows])
+    if rows: _add_event_record(records, "Most Points Against, Single Season", f"{rows[0][2]:,.2f}", [(o, s, None) for o, s, _ in rows])
 
     rows = _tied(
         "SELECT o.canonical_name, sr.season, sr.fpts_against FROM season_records sr JOIN owners o ON sr.user_id=o.user_id "
         "WHERE sr.wins+sr.losses+sr.ties > 0 "
         "AND sr.fpts_against = (SELECT MIN(fpts_against) FROM season_records WHERE wins+losses+ties > 0)"
     )
-    if rows: _add_event_record("Fewest Points Against, Single Season", f"{rows[0][2]:,.2f}", [(o, s, None) for o, s, _ in rows])
+    if rows: _add_event_record(records, "Fewest Points Against, Single Season", f"{rows[0][2]:,.2f}", [(o, s, None) for o, s, _ in rows])
 
-    # Streaks
+    # Streaks (regular season only — _compute_win_loss_streaks hardcodes is_playoff=0)
     streaks = _compute_win_loss_streaks(con)
     if streaks:
         owner_names = {r[0]: r[1] for r in con.execute("SELECT user_id, canonical_name FROM owners")}
         max_win = max(v["max_win"] for v in streaks.values())
         owners_tied = [owner_names.get(k, k) for k, v in streaks.items() if v["max_win"] == max_win]
-        _add_alltime_record("Longest Win Streak", str(max_win), owners_tied)
+        _add_alltime_record(records, "Longest Win Streak", str(max_win), owners_tied)
 
         max_loss = max(v["max_loss"] for v in streaks.values())
         owners_tied = [owner_names.get(k, k) for k, v in streaks.items() if v["max_loss"] == max_loss]
-        _add_alltime_record("Longest Losing Streak", str(max_loss), owners_tied)
+        _add_alltime_record(records, "Longest Losing Streak", str(max_loss), owners_tied)
 
-    # Weekly high score king (most weeks with the single highest score)
+    # Weekly high score king (most weeks with the single highest score; regular season only)
     extremes = get_weekly_scoring_extremes(con)
     high_counts = extremes["high_counts"]
     if high_counts:
         mx = max(high_counts.values())
-        _add_alltime_record("Most Weekly High Scores, All-Time", str(mx), [o for o, c in high_counts.items() if c == mx])
+        _add_alltime_record(records, "Most Weekly High Scores, All-Time", str(mx), [o for o, c in high_counts.items() if c == mx])
     low_counts = extremes["low_counts"]
     if low_counts:
         mx = max(low_counts.values())
-        _add_alltime_record("Most Weekly Low Scores, All-Time", str(mx), [o for o, c in low_counts.items() if c == mx])
-
-    # Championships
-    seasons = get_all_seasons(con)
-    champ_counts: dict[str, int] = {}
-    for s in seasons:
-        results = compute_playoff_results(con, s["league_id"], s["season"], s["playoff_week_start"], s["last_week"])
-        for pr in results:
-            if pr.champion:
-                champ_counts[pr.canonical_name] = champ_counts.get(pr.canonical_name, 0) + 1
-    if champ_counts:
-        mx = max(champ_counts.values())
-        _add_alltime_record("Most Championships", str(mx), [o for o, c in champ_counts.items() if c == mx])
+        _add_alltime_record(records, "Most Weekly Low Scores, All-Time", str(mx), [o for o, c in low_counts.items() if c == mx])
 
     # Lineup efficiency (start/sit) — best possible score vs. actual score, per team-week
-    ss_weeks = get_start_sit_weeks(con, include_playoffs=include_playoffs)
+    ss_weeks = get_start_sit_weeks(con, include_playoffs=False)
     if ss_weeks:
         best_pct = max(w["pct"] for w in ss_weeks)
         rows = [(w["owner"], w["season"], w["week"]) for w in ss_weeks if w["pct"] == best_pct]
-        _add_event_record("Best Lineup Efficiency, Single Week", f"{best_pct:.1f}%", rows)
+        _add_event_record(records, "Best Lineup Efficiency, Single Week", f"{best_pct:.1f}%", rows)
 
         worst_pct = min(w["pct"] for w in ss_weeks)
         rows = [(w["owner"], w["season"], w["week"]) for w in ss_weeks if w["pct"] == worst_pct]
-        _add_event_record("Worst Lineup Efficiency, Single Week", f"{worst_pct:.1f}%", rows)
+        _add_event_record(records, "Worst Lineup Efficiency, Single Week", f"{worst_pct:.1f}%", rows)
 
     # Career lineup efficiency — qualify with a minimum sample (~1 season) so a
     # short-tenured owner's small sample can't dominate a rate-based record.
-    ss_board = get_start_sit_leaderboard(con, include_playoffs=include_playoffs)
+    ss_board = get_start_sit_leaderboard(con, include_playoffs=False)
     qualified = [r for r in ss_board if r["weeks"] >= 10]
     if qualified:
         best_avg = max(r["avg_pct"] for r in qualified)
         owners_tied = [r["owner"] for r in qualified if r["avg_pct"] == best_avg]
-        _add_alltime_record("Best Career Lineup Efficiency", f"{best_avg:.1f}%", owners_tied)
+        _add_alltime_record(records, "Best Career Lineup Efficiency", f"{best_avg:.1f}%", owners_tied)
+
+    return records
+
+
+def get_playoff_league_records(con: sqlite3.Connection) -> list[dict]:
+    """Playoff-only counterpart to get_league_records — never combined with it.
+
+    Scoped to categories that make sense for a short 2-3 week bracket
+    (single-week points, single-week lineup efficiency), not season-long or
+    career-spanning categories like win streaks or season point totals, which
+    have no playoff-equivalent shape. Career playoff stats (appearances,
+    championships, playoff win%) already live in get_playoff_records / the
+    Playoff Records tab — not duplicated here.
+    """
+    records: list[dict] = []
+
+    def _tied(sql: str, params: tuple = ()) -> list[tuple]:
+        return con.execute(sql, params).fetchall()
+
+    rows = _tied(
+        "SELECT o.canonical_name, m.season, m.week, m.points FROM matchups m JOIN owners o ON m.user_id=o.user_id "
+        "WHERE m.points IS NOT NULL AND m.is_playoff = 1 "
+        "AND m.points = (SELECT MAX(points) FROM matchups WHERE points IS NOT NULL AND is_playoff = 1)"
+    )
+    if rows: _add_event_record(records, "Most Points, Single Playoff Week", f"{rows[0][3]:,.2f}", [(o, s, w) for o, s, w, _ in rows])
+
+    rows = _tied(
+        "SELECT o.canonical_name, m.season, m.week, m.points FROM matchups m JOIN owners o ON m.user_id=o.user_id "
+        "WHERE m.points IS NOT NULL AND m.points > 0 AND m.is_playoff = 1 "
+        "AND m.points = (SELECT MIN(points) FROM matchups WHERE points IS NOT NULL AND points > 0 AND is_playoff = 1)"
+    )
+    if rows: _add_event_record(records, "Fewest Points, Single Playoff Week", f"{rows[0][3]:,.2f}", [(o, s, w) for o, s, w, _ in rows])
+
+    ss_weeks = [w for w in get_start_sit_weeks(con, include_playoffs=True) if w["is_playoff"]]
+    if ss_weeks:
+        best_pct = max(w["pct"] for w in ss_weeks)
+        rows = [(w["owner"], w["season"], w["week"]) for w in ss_weeks if w["pct"] == best_pct]
+        _add_event_record(records, "Best Lineup Efficiency, Single Playoff Week", f"{best_pct:.1f}%", rows)
+
+        worst_pct = min(w["pct"] for w in ss_weeks)
+        rows = [(w["owner"], w["season"], w["week"]) for w in ss_weeks if w["pct"] == worst_pct]
+        _add_event_record(records, "Worst Lineup Efficiency, Single Playoff Week", f"{worst_pct:.1f}%", rows)
 
     return records
 

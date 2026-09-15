@@ -287,13 +287,28 @@ function SeasonTab() {
 // Records tab
 // ---------------------------------------------------------------------------
 
-function RecordsTab() {
-  const [includePlr, setIncludePlr] = useState(false)
+// Shared column set for both the Regular Season and Playoffs records tables.
+const RECORD_COLUMNS = [
+  { key: 'Category', label: 'Category' },
+  { key: 'Holder',   label: 'Holder' },
+  { key: 'Value',    label: 'Value',  align: 'right' },
+  { key: 'Season',   label: 'Season', align: 'right' },
+  {
+    key: 'Notes', label: 'Notes',
+    render: v => v
+      ? <span style={{ color: 'var(--text-faint)', fontSize: '12px', fontStyle: 'italic' }}>{v}</span>
+      : <span style={{ color: 'var(--text-faint)' }}>—</span>,
+  },
+]
 
+function RecordsTab() {
+  // Regular season and playoff records are always kept separate — a single
+  // week's score, a win streak, etc. mean different things in a 14-week
+  // regular season vs. a 2-3 week playoff bracket, so they're never merged
+  // into one combined pool.
   const { data, isLoading, error } = useQuery({
-    queryKey: ['history-records', includePlr],
-    queryFn: () =>
-      fetch(`/api/history/records?include_playoffs=${includePlr}`).then(r => r.json()),
+    queryKey: ['history-records'],
+    queryFn: () => fetch('/api/history/records').then(r => r.json()),
   })
 
   if (isLoading) return <LoadingSpinner />
@@ -301,43 +316,15 @@ function RecordsTab() {
 
   return (
     <div>
-      {/* Toggle between regular season and all games */}
-      <div className="flex items-center gap-4 mb-5">
-        {['Regular Season', 'All Games (incl. Playoffs)'].map((label, i) => {
-          const active = i === 0 ? !includePlr : includePlr
-          return (
-            <button
-              key={label}
-              onClick={() => setIncludePlr(i === 1)}
-              className={`px-4 py-1.5 text-sm rounded border transition-colors ${
-                active
-                  ? 'bg-emerald-700 border-emerald-600 text-white'
-                  : 'border-gray-600 text-gray-400 hover:border-gray-500'
-              }`}
-            >
-              {label}
-            </button>
-          )
-        })}
-      </div>
+      <h2 className="text-base md:text-lg font-semibold mb-3">Regular Season Records</h2>
+      <DataTable rows={data.regular_season} maxHeight="560px" columns={RECORD_COLUMNS} />
 
-      <h2 className="text-base md:text-lg font-semibold mb-3">League Records</h2>
-      <DataTable
-        rows={data.records}
-        maxHeight="560px"
-        columns={[
-          { key: 'Category', label: 'Category' },
-          { key: 'Holder',   label: 'Holder' },
-          { key: 'Value',    label: 'Value',  align: 'right' },
-          { key: 'Season',   label: 'Season', align: 'right' },
-          {
-            key: 'Notes', label: 'Notes',
-            render: v => v
-              ? <span style={{ color: 'var(--text-faint)', fontSize: '12px', fontStyle: 'italic' }}>{v}</span>
-              : <span style={{ color: 'var(--text-faint)' }}>—</span>,
-          },
-        ]}
-      />
+      <h2 className="text-base md:text-lg font-semibold mb-3 mt-8">Playoff Records</h2>
+      <p className="text-xs text-gray-400 mb-3">
+        Single-game records from the playoff bracket only. For career playoff stats
+        (appearances, championships, win %), see the Playoff Records tab.
+      </p>
+      <DataTable rows={data.playoffs} maxHeight="360px" columns={RECORD_COLUMNS} />
     </div>
   )
 }
