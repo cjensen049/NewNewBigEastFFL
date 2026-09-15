@@ -13,6 +13,14 @@ Phase weights:
 Playoff odds via Monte Carlo simulation (10,000 runs) using NNBE rules:
   - Top 4 by W-L record (ties broken by total pts)
   - Next 2 by total pts (not already in top 4)
+
+Each team's simulated future score is drawn from Normal(mu, sigma), where mu
+is credibility-weighted between their actual scoring average so far and their
+current-week roster-quality projection (see _blended_mean): with few games
+played, a single unusually good or bad week would otherwise swing playoff
+odds to false extremes (e.g. a weak roster at 1-0 simulating to ~100%, or a
+strong roster at 0-1 simulating to ~0%) before the roster prior has a chance
+to be outweighed by real results.
 """
 
 from __future__ import annotations
@@ -63,6 +71,25 @@ _PLAYOFF_SPOTS   = 6
 _TOP_BY_RECORD   = 4
 _N_SIMS_DEFAULT  = 10_000
 _EWA_DECAY       = 0.85
+
+# Credibility weighting for the Monte Carlo mean (see _blended_mean): how many
+# games' worth of trust the roster-quality prior gets before real results
+# start to dominate. k=4 means the prior and empirical average are weighted
+# equally at 4 games played.
+_MEAN_PRIOR_K = 4.0
+
+
+def _blended_mean(empirical_mean: float, games_played: int, prior: float | None) -> float:
+    """Credibility-weight an empirical mean toward a roster-quality prior.
+
+    empirical_weight = n / (n + k), so the prior dominates with few games
+    played and fades out as more real results accumulate. No-op if there's
+    no prior for this team (e.g. no projection data scraped yet).
+    """
+    if prior is None:
+        return empirical_mean
+    w = games_played / (games_played + _MEAN_PRIOR_K)
+    return w * empirical_mean + (1 - w) * prior
 
 
 def _phase(week: int) -> str:
@@ -418,12 +445,13 @@ def compute_power_rankings(
     score_stds:  dict[str, float] = {}
     for uid in uids:
         s = sc_curr.get(uid, [])
+        prior = roster_quality_raw.get(uid)
         if s:
             mu = sum(s) / len(s)
-            score_means[uid] = mu
+            score_means[uid] = _blended_mean(mu, len(s), prior)
             score_stds[uid]  = max(math.sqrt(sum((x - mu) ** 2 for x in s) / len(s)), 10.0) if len(s) >= 2 else 20.0
         else:
-            score_means[uid] = 120.0
+            score_means[uid] = prior if prior is not None else 120.0
             score_stds[uid]  = 20.0
 
     # ── Monte Carlo ───────────────────────────────────────────────────────────
