@@ -310,10 +310,18 @@ def get_all_time_standings(con: sqlite3.Connection) -> list[AllTimeRecord]:
 
 
 def get_season_breakdown(con: sqlite3.Connection, season: int) -> dict:
-    """Return regular season records and playoff results for one season."""
+    """Return regular season records and playoff results for one season.
+
+    The playoff bracket doesn't exist for real until the season completes --
+    Sleeper pre-publishes placeholder playoff-week pairings well before
+    seeding is decided, which compute_playoff_results would otherwise read as
+    a genuine "made the playoffs" result (e.g. crediting a brand-new owner
+    with a playoff appearance after one week). So `playoff` is left empty
+    for a season that isn't complete yet.
+    """
     row = con.execute(
         """
-        SELECT league_id, playoff_week_start,
+        SELECT league_id, status, playoff_week_start,
                COALESCE(last_scored_leg, playoff_week_start + 2)
         FROM leagues WHERE season = ?
         """,
@@ -321,11 +329,13 @@ def get_season_breakdown(con: sqlite3.Connection, season: int) -> dict:
     ).fetchone()
     if not row:
         return {}
-    league_id, pws, last_week = row
+    league_id, status, pws, last_week = row
 
     reg = compute_regular_season_records(con, league_id, season, pws)
-    playoff = compute_playoff_results(con, league_id, season, pws, last_week)
-    playoff_map = {p.user_id: p for p in playoff}
+    playoff_map = {}
+    if status == "complete":
+        playoff = compute_playoff_results(con, league_id, season, pws, last_week)
+        playoff_map = {p.user_id: p for p in playoff}
 
     return {
         "season": season,

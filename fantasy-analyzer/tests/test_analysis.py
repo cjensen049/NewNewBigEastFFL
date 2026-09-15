@@ -10,6 +10,7 @@ from fantasy_analyzer.analysis.history import (
     compute_playoff_results,
     compute_luck_scores,
     get_race_to_bottom,
+    get_season_breakdown,
     get_standings_history,
     get_standings_snapshot,
     _compute_win_loss_streaks,
@@ -467,6 +468,44 @@ class TestGetRaceToBottomInProgress:
 
         results = get_race_to_bottom(db, 2024)
         assert results == []  # both teams made the (2-team) playoff bracket
+
+
+# ---------------------------------------------------------------------------
+# get_season_breakdown
+# ---------------------------------------------------------------------------
+
+class TestGetSeasonBreakdown:
+    def test_in_progress_season_has_no_playoff_data(self, db):
+        """Sleeper pre-publishes placeholder playoff-week pairings well before
+        the regular season decides real seeding. Regression: a brand-new
+        owner one week into their first season was showing a playoff
+        appearance and a top-6 finish because of that placeholder bracket."""
+        _league(db, pws=3, status="in_season")
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 1, 1, "u1", 120.0)
+        _matchup(db, "L1", 2024, 1, 1, "u2", 100.0)
+        # Placeholder playoff-week pairing Sleeper already published, pre-decided
+        _matchup(db, "L1", 2024, 3, 1, "u1", 0.0, is_playoff=1)
+        _matchup(db, "L1", 2024, 3, 1, "u2", 0.0, is_playoff=1)
+
+        data = get_season_breakdown(db, 2024)
+        assert data["playoff"] == {}
+        assert len(data["regular_season"]) == 2  # regular-season data still present
+
+    def test_complete_season_still_has_real_playoff_data(self, db):
+        _league(db, pws=3, last_week=3, status="complete")
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 1, 1, "u1", 120.0)
+        _matchup(db, "L1", 2024, 1, 1, "u2", 100.0)
+        _matchup(db, "L1", 2024, 3, 1, "u1", 130.0, is_playoff=1)
+        _matchup(db, "L1", 2024, 3, 1, "u2", 110.0, is_playoff=1)
+
+        data = get_season_breakdown(db, 2024)
+        assert data["playoff"]["u1"].made_playoffs is True
+        assert data["playoff"]["u1"].champion is True
+
+    def test_unknown_season_returns_empty(self, db):
+        assert get_season_breakdown(db, 9999) == {}
 
 
 # ---------------------------------------------------------------------------
