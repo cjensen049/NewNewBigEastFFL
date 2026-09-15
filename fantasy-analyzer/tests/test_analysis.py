@@ -127,6 +127,24 @@ class TestComputeRegularSeasonRecords:
         assert by_name["Alice"].ties == 1 and by_name["Alice"].wins == 0
         assert by_name["Bob"].ties == 1
 
+    def test_prepublished_future_week_not_counted_as_tie(self, db):
+        """Sleeper publishes the whole season's pairings up front with points=0.0
+        (not NULL) for unplayed weeks. A real 0-0 game is essentially impossible
+        in fantasy football, so 0-0 must mean "not played yet" and be skipped
+        entirely -- not counted as a tie for both teams (regression: it used to)."""
+        _league(db)
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 1, 1, "u1", 120.0)
+        _matchup(db, "L1", 2024, 1, 1, "u2", 100.0)
+        for week in range(2, 15):
+            _matchup(db, "L1", 2024, week, 1, "u1", 0.0)
+            _matchup(db, "L1", 2024, week, 1, "u2", 0.0)
+
+        by_name = {r.canonical_name: r for r in compute_regular_season_records(db, "L1", 2024, 15)}
+        assert by_name["Alice"].games == 1
+        assert by_name["Alice"].ties == 0
+        assert by_name["Alice"].wins == 1
+
     def test_points_accumulation(self, db):
         _league(db)
         _owners(db, ("u1", "Alice"), ("u2", "Bob"))
@@ -354,6 +372,49 @@ class TestGetRaceToBottom:
 
     def test_unknown_season_returns_empty(self, db):
         assert get_race_to_bottom(db, 9999) == []
+
+
+class TestGetRaceToBottomInProgress:
+    """A season still in_season has no real playoff bracket yet -- Sleeper's
+    pre-published playoff-week pairings are placeholders, not real seeding.
+    get_race_to_bottom must fall back to current regular-season standings
+    (top N by record = "playoff", proxy for the real bracket) instead of
+    trusting compute_playoff_results (regression: it used to, and returned
+    only 1 of 6 non-playoff teams for a real live 12-team league)."""
+
+    def test_bottom_teams_by_current_record(self, db):
+        _league(db, pws=3, status="in_season")  # small bracket: top 2 of 4 "make it"
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"), ("u3", "Carol"), ("u4", "Dee"))
+
+        # Week 1 regular season: Alice/Bob win, Carol/Dee lose
+        _matchup(db, "L1", 2024, 1, 1, "u1", 120.0)
+        _matchup(db, "L1", 2024, 1, 1, "u3", 100.0)
+        _matchup(db, "L1", 2024, 1, 2, "u2", 110.0)
+        _matchup(db, "L1", 2024, 1, 2, "u4", 90.0)
+
+        for uid, wins, losses, fpts, ppts in [
+            ("u1", 1, 0, 120.0, 130.0), ("u2", 1, 0, 110.0, 125.0),
+            ("u3", 0, 1, 100.0, 115.0), ("u4", 0, 1, 90.0, 105.0),
+        ]:
+            _season_record(db, "L1", uid, 2024, wins, losses, fpts=fpts, ppts=ppts)
+
+        # Top half by current record (Alice, Bob) = "playoff"; bottom half
+        # (Carol, Dee) = Race to the Bottom candidates.
+        results = get_race_to_bottom(db, 2024)
+        names = {r["owner"] for r in results}
+        assert names == {"Carol", "Dee"}
+
+    def test_unaffected_when_season_complete(self, db):
+        """Same shape, but status='complete' — must still use the real bracket."""
+        _league(db, pws=3, status="complete")
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 3, 1, "u1", 120.0, is_playoff=1)
+        _matchup(db, "L1", 2024, 3, 1, "u2", 100.0, is_playoff=1)
+        _season_record(db, "L1", "u1", 2024, 9, 5, fpts=1500.0, ppts=1800.0)
+        _season_record(db, "L1", "u2", 2024, 8, 6, fpts=1400.0, ppts=1700.0)
+
+        results = get_race_to_bottom(db, 2024)
+        assert results == []  # both teams made the (2-team) playoff bracket
 
 
 # ---------------------------------------------------------------------------
