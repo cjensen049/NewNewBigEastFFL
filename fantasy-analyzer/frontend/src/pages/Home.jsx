@@ -181,7 +181,7 @@ function StandingsPanel() {
       ) : (
         <DataTable
           rows={rows}
-          maxHeight="460px"
+          maxHeight="none"
           minWidth="340px"
           bordered={false}
           columns={[
