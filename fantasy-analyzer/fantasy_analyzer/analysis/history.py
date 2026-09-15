@@ -441,8 +441,8 @@ def _compute_win_loss_streaks(con: sqlite3.Connection) -> dict[str, dict[str, in
          AND m1.matchup_id = m2.matchup_id
          AND m1.user_id   != m2.user_id
         WHERE m1.is_playoff = 0
-          AND m1.points IS NOT NULL
-          AND m2.points IS NOT NULL
+          AND m1.points IS NOT NULL AND m1.points > 0
+          AND m2.points IS NOT NULL AND m2.points > 0
         ORDER BY m1.season, m1.week
         """
     ).fetchall()
@@ -1016,7 +1016,7 @@ def compute_luck_scores(
         FROM matchups m
         JOIN owners o ON m.user_id = o.user_id
         WHERE m.league_id = ? AND m.week < ?
-          AND m.points IS NOT NULL
+          AND m.points IS NOT NULL AND m.points > 0
         ORDER BY m.week
         """,
         (league_id, playoff_week_start),

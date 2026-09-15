@@ -12,6 +12,7 @@ from fantasy_analyzer.analysis.history import (
     get_race_to_bottom,
     get_standings_history,
     get_standings_snapshot,
+    _compute_win_loss_streaks,
 )
 from fantasy_analyzer.db.schema import DDL
 
@@ -313,9 +314,60 @@ class TestComputeLuckScores:
         lucks = [r["luck_diff"] for r in results]
         assert lucks == sorted(lucks, reverse=True)
 
+    def test_prepublished_future_weeks_not_counted(self):
+        """Sleeper publishes the whole season's pairings up front with points=0.0
+        for unplayed weeks. Those must not inflate actual_ties/sim_ties or dilute
+        sim_win_pct with fake all-play ties (regression: it used to)."""
+        for week in range(2, 15):
+            _matchup(self.db, "L1", 2024, week, 1, "ua", 0.0)
+            _matchup(self.db, "L1", 2024, week, 1, "ub", 0.0)
+            _matchup(self.db, "L1", 2024, week, 2, "uc", 0.0)
+            _matchup(self.db, "L1", 2024, week, 2, "ud", 0.0)
+
+        by_name = self._by_name()
+        assert by_name["Alpha"]["actual_ties"] == 0
+        assert by_name["Alpha"]["sim_ties"] == 0
+        assert by_name["Alpha"]["sim_wins"] == 3  # unchanged from the week-1-only case
+
     def test_empty_season_returns_empty(self, db):
         _league(db, league_id="L2", season=2023)
         assert compute_luck_scores(db, "L2", 2023, 15) == []
+
+
+# ---------------------------------------------------------------------------
+# _compute_win_loss_streaks
+# ---------------------------------------------------------------------------
+
+class TestComputeWinLossStreaks:
+    def test_basic_streak(self, db):
+        _league(db)
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        # Alice: W, W, W, L (max win streak 3), Bob gets the mirror image
+        _matchup(db, "L1", 2024, 1, 1, "u1", 120.0); _matchup(db, "L1", 2024, 1, 1, "u2", 100.0)
+        _matchup(db, "L1", 2024, 2, 1, "u1", 120.0); _matchup(db, "L1", 2024, 2, 1, "u2", 100.0)
+        _matchup(db, "L1", 2024, 3, 1, "u1", 120.0); _matchup(db, "L1", 2024, 3, 1, "u2", 100.0)
+        _matchup(db, "L1", 2024, 4, 1, "u1", 90.0);  _matchup(db, "L1", 2024, 4, 1, "u2", 100.0)
+
+        streaks = _compute_win_loss_streaks(db)
+        assert streaks["u1"] == {"max_win": 3, "max_loss": 1}
+        assert streaks["u2"] == {"max_win": 1, "max_loss": 3}
+
+    def test_prepublished_future_weeks_not_counted_as_losses(self, db):
+        """Sleeper publishes the whole season's pairings up front with points=0.0
+        for unplayed weeks. Those must not register as a loss (0 > 0 is False)
+        for every team, corrupting streaks for a season still in progress
+        (regression: it used to)."""
+        _league(db, status="in_season")
+        _owners(db, ("u1", "Alice"), ("u2", "Bob"))
+        _matchup(db, "L1", 2024, 1, 1, "u1", 120.0)  # Alice wins her only real game
+        _matchup(db, "L1", 2024, 1, 1, "u2", 100.0)
+        for week in range(2, 15):
+            _matchup(db, "L1", 2024, week, 1, "u1", 0.0)
+            _matchup(db, "L1", 2024, week, 1, "u2", 0.0)
+
+        streaks = _compute_win_loss_streaks(db)
+        assert streaks["u1"] == {"max_win": 1, "max_loss": 0}
+        assert streaks["u2"] == {"max_win": 0, "max_loss": 1}
 
 
 # ---------------------------------------------------------------------------
