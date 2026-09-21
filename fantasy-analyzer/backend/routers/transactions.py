@@ -28,6 +28,8 @@ def _serialize_tree_node(node: TreeNode) -> dict:
     return {
         "asset_name": node.asset_name,
         "asset_type": node.asset_type,
+        "player_id": node.player_id,
+        "transaction_id": node.transaction_id,
         "from_owner": node.from_owner,
         "to_owner": node.to_owner,
         "season": node.season,

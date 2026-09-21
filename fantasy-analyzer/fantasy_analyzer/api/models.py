@@ -151,7 +151,8 @@ class DraftSlot(BaseModel):
     player_id: str | None = None
     round: int
     pick_no: int
-    draft_slot: int | None = None  # original slot owner (1-N); maps to original_roster_id in pick trades
+    draft_slot: int | None = None  # column position (1-N) this pick was made from; resolve to the
+                                    # ORIGINAL roster via Draft.slot_to_roster_id, not roster_id directly
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -162,6 +163,7 @@ class Draft(BaseModel):
     type: str
     status: str
     settings: dict[str, Any] = Field(default_factory=dict)
+    slot_to_roster_id: dict[str, int] = Field(default_factory=dict)  # draft slot (1-N) -> ORIGINAL roster_id
 
 
 class NFLPlayer(BaseModel):

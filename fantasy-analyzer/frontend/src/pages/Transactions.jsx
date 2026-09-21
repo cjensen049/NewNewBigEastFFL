@@ -54,23 +54,22 @@ const TABS = [
 // Trade Tree — visual node graph
 // ---------------------------------------------------------------------------
 
-// Color scheme matching the original Streamlit Graphviz visualization
 const NODE_STYLES = {
   root:   { background: '#1a472a', border: '2px solid #2d6a4f' },
   player: { background: '#154360', border: '2px solid #1a6090' },
   pick:   { background: '#6e2c00', border: '2px solid #a04000' },
-  draft:  { background: '#7d5a00', border: '2px solid #a67c00' },
 }
 
-// Custom ReactFlow node — a colored rounded box with optional expand/collapse button
+// Custom ReactFlow node -- a colored rounded box with optional expand/collapse button.
+// Handles are Top/Bottom (not Left/Right) since the tree flows top-down.
 function TradeNode({ data }) {
   const style = NODE_STYLES[data.nodeType] ?? NODE_STYLES.player
   return (
     <div
       style={style}
-      className="rounded-lg px-3 py-2 text-white text-xs min-w-[170px] max-w-[240px]"
+      className="rounded-lg px-3 py-2 text-white text-xs min-w-[150px] max-w-[220px] text-center"
     >
-      <Handle type="target" position={Position.Left} style={{ background: '#6b7280' }} />
+      <Handle type="target" position={Position.Top} style={{ background: '#6b7280' }} />
       <div className="whitespace-pre-line leading-snug">{data.label}</div>
       {/* Expand/collapse button shown only on nodes with hidden or shown sub-trades */}
       {data.expandable && (
@@ -78,105 +77,153 @@ function TradeNode({ data }) {
           onClick={(e) => { e.stopPropagation(); data.onToggle() }}
           className="mt-1.5 w-full text-center text-gray-300 hover:text-white text-xs bg-black/30 hover:bg-black/50 rounded px-1 py-0.5 cursor-pointer transition-colors"
         >
-          {data.expanded ? '▲ collapse' : `▶ ${data.childCount} more`}
+          {data.expanded ? '▲ collapse' : ('▶ ' + data.childCount + ' more')}
         </button>
       )}
-      <Handle type="source" position={Position.Right} style={{ background: '#6b7280' }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: '#6b7280' }} />
     </div>
   )
 }
 
-// Register the custom node type with ReactFlow
-const nodeTypes = { tradeNode: TradeNode }
+// A small pill labelling "everything below this belongs to owner X" -- sits between a
+// trade and the assets that owner received from it.
+function OwnerNode({ data }) {
+  return (
+    <div
+      className="rounded-full px-3 py-1 text-white text-xs font-semibold whitespace-nowrap"
+      style={{ background: '#374151', border: '1px solid #6b7280' }}
+    >
+      <Handle type="target" position={Position.Top} style={{ background: '#6b7280' }} />
+      {data.label}
+      <Handle type="source" position={Position.Bottom} style={{ background: '#6b7280' }} />
+    </div>
+  )
+}
+
+// Register the custom node types with ReactFlow
+const nodeTypes = { tradeNode: TradeNode, ownerNode: OwnerNode }
 
 /**
  * Convert the API's recursive tree into ReactFlow's flat nodes + edges arrays.
  *
- * Layout: Graphviz-style left-to-right centering (leaves claim sequential y slots,
- * internal nodes center between their outermost children).
+ * Layout: top-down. The focal player sits at the top; each trade fans out into one
+ * "owner" pill per receiving team, and that owner's players/picks hang below their
+ * pill. A pick that resolved to a draft pick shows the drafted player inline
+ * ("2025 R1 (Chris) -> Marvin Harrison Jr") rather than as its own node -- only a
+ * REAL subsequent trade of an asset opens a new row of owner pills below it.
  *
- * Depth expansion:
- *   - Depth ≤ 2 always renders (root → trade → counter-assets → direct results).
- *   - Depth 3+ only renders if the parent path is in expandedPaths.
- *   - Collapsed nodes show an expand button with the hidden child count.
+ * Depth expansion ("hop" = one trade past the previous asset):
+ *   - hop 0 (the focal trade's own counter-assets) always renders.
+ *   - hop 1+ (an asset's own later trade) only renders if the parent path is in
+ *     expandedPaths.
  */
 function buildGraph(playerName, tradeNode, expandedPaths, onToggle) {
   const nodes = []
   const edges = []
-  let leafIndex = 0
-  const X_GAP = 280
-  const Y_GAP = 110
+  let leafSlot = 0
+  let maxHopSeen = 0
+  const COL_GAP = 190
+  const LABEL_GAP = 60
+  const ROW_GAP = 100
+  const BAND = LABEL_GAP + ROW_GAP
+  const headerY = hop => hop * BAND + LABEL_GAP
+  const assetY = hop => (hop + 1) * BAND
 
-  function makeLabel(apiNode) {
-    if (apiNode.asset_type === 'player') {
-      return `S${apiNode.season} Wk${apiNode.week}\n${apiNode.from_owner} → ${apiNode.to_owner}\n${apiNode.asset_name}`
-    } else if (apiNode.asset_type === 'pick') {
-      const draftedCount = (apiNode.children ?? []).filter(c => c.asset_type === 'draft').length
-      let lbl = `${apiNode.asset_name}\n${apiNode.from_owner} → ${apiNode.to_owner}`
-      return lbl + (draftedCount ? `\n(${draftedCount} drafted)` : '\n(future / no data)')
-    } else {
-      return `Drafted: ${apiNode.asset_name}\n${apiNode.to_owner} (${apiNode.season})`
-    }
+  function edge(source, target) {
+    return { id: 'e-' + source + '-' + target, source, target, type: 'smoothstep', style: { stroke: '#6b7280', strokeWidth: 1.5 } }
   }
 
-  // path is a stable string key for this node used for expansion state (e.g. "trade_0_2_1")
-  function traverse(apiNode, parentId, depth, path) {
-    const children = apiNode.children ?? []
-    const autoExpand = depth <= 2          // always show depths 1-3 (relative to root=0)
-    const userExpanded = expandedPaths.has(path)
-    const showChildren = children.length > 0 && (autoExpand || userExpanded)
-
-    let y
-    if (showChildren) {
-      const childYs = children.map((child, i) =>
-        traverse(child, path, depth + 1, `${path}_${i}`)
-      )
-      y = (childYs[0] + childYs[childYs.length - 1]) / 2
-    } else {
-      y = leafIndex++ * Y_GAP
+  // A pick whose slot has resolved to a real player: show that player inline instead
+  // of as a separate node, and treat the DRAFTED PLAYER's own future trades as this
+  // pick's children (contracting the API's pick -> draft -> [trades] chain by one hop).
+  function draftedInto(apiNode) {
+    if (apiNode.asset_type !== 'pick') return null
+    return (apiNode.children ?? []).find(c => c.asset_type === 'draft') ?? null
+  }
+  function assetChildren(apiNode) {
+    const drafted = draftedInto(apiNode)
+    if (drafted) return drafted.children ?? []
+    return apiNode.asset_type === 'pick' ? [] : (apiNode.children ?? [])
+  }
+  function assetLabel(apiNode) {
+    if (apiNode.asset_type === 'pick') {
+      const drafted = draftedInto(apiNode)
+      return drafted
+        ? apiNode.asset_name + '\n→ ' + drafted.asset_name + ' (' + drafted.season + ')'
+        : apiNode.asset_name + '\n(future / no pick yet)'
     }
+    return apiNode.asset_name + '\nS' + apiNode.season + ' Wk' + apiNode.week
+  }
 
-    // Only nodes at depth > 2 with children get an expand toggle
-    const expandable = children.length > 0 && !autoExpand
-    const capturedPath = path
+  // One asset card (player or pick). Recurses into a new owner-pill row below it
+  // if this asset was itself later traded. Returns this node's x-center.
+  function layoutAsset(apiNode, parentId, hop, path) {
+    maxHopSeen = Math.max(maxHopSeen, hop)
+    const kids = assetChildren(apiNode)
+    const autoExpand = hop <= 0
+    const userExpanded = expandedPaths.has(path)
+    const showKids = kids.length > 0 && (autoExpand || userExpanded)
 
+    const cx = showKids
+      ? layoutOwnerGroups(kids, path, hop + 1, path)
+      : (leafSlot++) * COL_GAP
+
+    const expandable = kids.length > 0 && !autoExpand
     nodes.push({
       id: path,
       type: 'tradeNode',
-      position: { x: depth * X_GAP, y },
+      position: { x: cx, y: assetY(hop) },
       data: {
-        label: makeLabel(apiNode),
+        label: assetLabel(apiNode),
         nodeType: apiNode.asset_type,
         expandable,
         expanded: userExpanded,
-        childCount: children.length,
-        onToggle: expandable ? () => onToggle(capturedPath) : undefined,
+        childCount: kids.length,
+        onToggle: expandable ? () => onToggle(path) : undefined,
       },
     })
-
-    if (parentId) {
-      edges.push({
-        id: `e-${parentId}-${path}`,
-        source: parentId,
-        target: path,
-        type: 'smoothstep',
-        style: { stroke: '#6b7280', strokeWidth: 1.5 },
-      })
-    }
-
-    return y
+    edges.push(edge(parentId, path))
+    return cx
   }
 
-  const rootY = traverse(tradeNode, 'root', 1, 'trade')
+  // Group sibling assets by who received them; one owner pill + one asset row per group.
+  // Returns the x-center of the whole group's span, for the parent to center itself on.
+  function layoutOwnerGroups(children, parentId, hop, pathPrefix) {
+    const groups = new Map()
+    for (const c of children) {
+      const key = c.to_owner || '?'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(c)
+    }
+
+    const headerXs = []
+    for (const [owner, items] of groups) {
+      const headerId = pathPrefix + '_hdr_' + owner
+      const itemXs = items.map((item, i) => layoutAsset(item, headerId, hop, pathPrefix + '_' + owner + '_' + i))
+      const hx = (itemXs[0] + itemXs[itemXs.length - 1]) / 2
+      nodes.push({
+        id: headerId,
+        type: 'ownerNode',
+        position: { x: hx, y: headerY(hop) },
+        data: { label: '→ ' + owner },
+      })
+      edges.push(edge(parentId, headerId))
+      headerXs.push(hx)
+    }
+    return (headerXs[0] + headerXs[headerXs.length - 1]) / 2
+  }
+
+  const rootChildren = tradeNode.children ?? []
+  const rootX = rootChildren.length > 0 ? layoutOwnerGroups(rootChildren, 'root', 0, 'n') : 0
 
   nodes.push({
     id: 'root',
     type: 'tradeNode',
-    position: { x: 0, y: rootY },
+    position: { x: rootX, y: 0 },
     data: { label: playerName, nodeType: 'root', expandable: false },
   })
 
-  return { nodes, edges, leafCount: leafIndex }
+  return { nodes, edges, leafCount: leafSlot, maxHop: maxHopSeen }
 }
 
 function TradeTreeTab() {
@@ -257,9 +304,9 @@ function TradeTreeTab() {
   const trades = treeData?.trades ?? []
   const activeTrade = trades[selectedTradeIdx] ?? null
 
-  const { nodes, edges, leafCount = 1 } = activeTrade
+  const { nodes, edges, maxHop = 0 } = activeTrade
     ? buildGraph(treeData.player, activeTrade, expandedPaths, togglePath)
-    : { nodes: [], edges: [], leafCount: 1 }
+    : { nodes: [], edges: [], maxHop: 0 }
 
   return (
     <div>
@@ -399,10 +446,10 @@ function TradeTreeTab() {
                 </div>
               )}
 
-              {/* ReactFlow graph — height scales with leaf count (leaves drive vertical space) */}
+              {/* ReactFlow graph — top-down; height scales with how many trade-hops deep it goes */}
               <div
                 className="rounded border border-gray-700 bg-gray-950"
-                style={{ height: Math.max(320, Math.min(680, leafCount * 110 + 120)) }}
+                style={{ height: Math.max(320, Math.min(680, (maxHop + 1) * 160 + 140)) }}
               >
                 <ReactFlow
                   nodes={nodes}

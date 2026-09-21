@@ -145,6 +145,11 @@ class SleeperClient:
         data = await self._get(f"/league/{league_id}/drafts")
         return [Draft.model_validate(d) for d in (data or [])]
 
+    async def get_draft(self, draft_id: str) -> Draft:
+        """Fetch full draft detail, including slot_to_roster_id (the league drafts list omits it)."""
+        data = await self._get(f"/draft/{draft_id}")
+        return Draft.model_validate(data)
+
     async def get_draft_picks(self, draft_id: str) -> list[DraftSlot]:
         """Fetch all picks in a completed draft."""
         data = await self._get(f"/draft/{draft_id}/picks")

@@ -88,20 +88,13 @@ CREATE TABLE IF NOT EXISTS transaction_draft_picks (
     UNIQUE(transaction_id, season, round, original_roster_id)
 );
 
-CREATE TABLE IF NOT EXISTS trade_tree_edges (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_transaction_id TEXT REFERENCES transactions(transaction_id),
-    to_transaction_id   TEXT NOT NULL REFERENCES transactions(transaction_id),
-    asset_id            TEXT NOT NULL,
-    asset_type          TEXT NOT NULL  -- 'player' or 'pick'
-);
-
 CREATE TABLE IF NOT EXISTS drafts (
     draft_id    TEXT PRIMARY KEY,
     league_id   TEXT NOT NULL REFERENCES leagues(league_id),
     season      INTEGER NOT NULL,
     type        TEXT,
-    status      TEXT
+    status      TEXT,
+    slot_to_roster_id_json TEXT  -- {"1": roster_id, ...} original slot ownership, from Sleeper's draft object
 );
 
 CREATE TABLE IF NOT EXISTS draft_picks (
@@ -218,6 +211,12 @@ async def apply_migrations(db_path: str) -> None:
 
         try:
             await db.execute("ALTER TABLE matchups ADD COLUMN players_points_json TEXT")
+            await db.commit()
+        except Exception:
+            pass  # column already exists
+
+        try:
+            await db.execute("ALTER TABLE drafts ADD COLUMN slot_to_roster_id_json TEXT")
             await db.commit()
         except Exception:
             pass  # column already exists
