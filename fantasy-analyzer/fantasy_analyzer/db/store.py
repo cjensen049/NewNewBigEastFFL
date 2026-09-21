@@ -281,14 +281,23 @@ async def upsert_transactions(
 # ---------------------------------------------------------------------------
 
 async def upsert_draft(db: aiosqlite.Connection, draft: Draft) -> None:
-    """Write draft metadata."""
+    """Write draft metadata, including original slot ownership for pick resolution."""
     await db.execute(
         """
-        INSERT INTO drafts (draft_id, league_id, season, type, status)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(draft_id) DO UPDATE SET status = excluded.status
+        INSERT INTO drafts (draft_id, league_id, season, type, status, slot_to_roster_id_json)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(draft_id) DO UPDATE SET
+            status = excluded.status,
+            slot_to_roster_id_json = COALESCE(excluded.slot_to_roster_id_json, slot_to_roster_id_json)
         """,
-        (draft.draft_id, draft.league_id, int(draft.season), draft.type, draft.status),
+        (
+            draft.draft_id,
+            draft.league_id,
+            int(draft.season),
+            draft.type,
+            draft.status,
+            json.dumps(draft.slot_to_roster_id) if draft.slot_to_roster_id else None,
+        ),
     )
 
 

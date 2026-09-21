@@ -156,7 +156,8 @@ async def _ingest_league(
 
     # --- Drafts ---
     drafts = await client.get_drafts(league_id)
-    for draft in drafts:
+    for draft_summary in drafts:
+        draft = await client.get_draft(draft_summary.draft_id)  # full detail has slot_to_roster_id
         await store.upsert_draft(db, draft)
         await db.commit()
         if draft.status == "complete":

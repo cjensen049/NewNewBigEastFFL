@@ -728,8 +728,7 @@ def build_deep_trade_tree(
     player_id, player_full_name = (exact or matches)[0]
 
     # {(season, round, draft_slot): (player_id, player_name)}
-    # draft_slot is the original pick slot number (= original_roster_id in trade pick records).
-    # This gives a 1:1 mapping: each traded pick slot resolves to exactly one drafted player.
+    # draft_slot is the column position (1-N) a pick was made from, NOT a roster_id.
     pick_drafted: dict[tuple, list] = {}
     for r in con.execute(
         "SELECT season, round, draft_slot, player_id, player_name FROM draft_picks "
@@ -738,12 +737,21 @@ def build_deep_trade_tree(
         key = (int(r[0]), int(r[1]), int(r[2]))
         pick_drafted.setdefault(key, []).append((r[3], r[4]))
 
-    visited_txns: set[str] = set()
+    # {(season, original_roster_id): draft_slot} — inverse of each draft's slot_to_roster_id,
+    # needed because a traded pick's original_roster_id is NOT the same number as draft_slot
+    # (slot assignment is a separate per-season lottery/standings order).
+    roster_to_slot: dict[tuple, int] = {}
+    for season_row, slot_json in con.execute(
+        "SELECT season, slot_to_roster_id_json FROM drafts WHERE slot_to_roster_id_json IS NOT NULL"
+    ).fetchall():
+        for slot, rid in json.loads(slot_json).items():
+            roster_to_slot[(int(season_row), int(rid))] = int(slot)
 
     def _follow(
         pid: str,
         depth: int,
         after: tuple[int, int] = (0, 0),
+        visited: frozenset[str] = frozenset(),
     ) -> list[TreeNode]:
         """Follow a player's trades, optionally restricted to those after (after_season, after_week)."""
         if depth > max_depth:
@@ -763,9 +771,9 @@ def build_deep_trade_tree(
 
         nodes: list[TreeNode] = []
         for txn_id, league_id, season, week, adds_raw, drops_raw in rows:
-            if txn_id in visited_txns:
+            if txn_id in visited:
                 continue
-            visited_txns.add(txn_id)
+            branch_visited = visited | {txn_id}
 
             adds = json.loads(adds_raw) if adds_raw else {}
             drops = json.loads(drops_raw) if drops_raw else {}
@@ -805,7 +813,7 @@ def build_deep_trade_tree(
                     week=week,
                     transaction_id=txn_id,
                 )
-                counter.children = _follow(other_pid, depth + 1, after=(season, week or 0))
+                counter.children = _follow(other_pid, depth + 1, after=(season, week or 0), visited=branch_visited)
                 node.children.append(counter)
 
             # Draft picks in this trade
@@ -833,8 +841,10 @@ def build_deep_trade_tree(
                     week=week,
                     transaction_id=txn_id,
                 )
-                # draft_slot == original_roster_id: each pick slot maps to exactly one player.
-                candidates = pick_drafted.get((int(pick_season), int(round_), int(orig_rid)), [])
+                # Resolve original_roster_id -> the actual draft_slot it landed in that season,
+                # then find whoever was drafted from that slot.
+                slot = roster_to_slot.get((int(pick_season), int(orig_rid)))
+                candidates = pick_drafted.get((int(pick_season), int(round_), slot), []) if slot is not None else []
                 for drafted_pid, drafted_name in candidates:
                     draft_node = TreeNode(
                         asset_type="draft",
@@ -847,7 +857,7 @@ def build_deep_trade_tree(
                         transaction_id=None,
                     )
                     # Drafted player's sub-trades: only from the draft year onwards
-                    draft_node.children = _follow(drafted_pid, depth + 1, after=(int(pick_season), 0))
+                    draft_node.children = _follow(drafted_pid, depth + 1, after=(int(pick_season), 0), visited=branch_visited)
                     pick_node.children.append(draft_node)
                 node.children.append(pick_node)
 
