@@ -145,14 +145,18 @@ function buildGraph(playerName, tradeNode, expandedPaths, onToggle) {
     if (drafted) return drafted.children ?? []
     return apiNode.asset_type === 'pick' ? [] : (apiNode.children ?? [])
   }
-  function assetLabel(apiNode) {
+  function assetLabel(apiNode, hop) {
     if (apiNode.asset_type === 'pick') {
       const drafted = draftedInto(apiNode)
       return drafted
         ? apiNode.asset_name + '\n→ ' + drafted.asset_name + ' (' + drafted.season + ')'
         : apiNode.asset_name + '\n(future / no pick yet)'
     }
-    return apiNode.asset_name + '\nS' + apiNode.season + ' Wk' + apiNode.week
+    // At hop 0 the date is identical to the selected trade (already shown above the
+    // graph) — only show it once it's genuinely new info, i.e. a later re-trade.
+    return hop > 0
+      ? apiNode.asset_name + '\nS' + apiNode.season + ' Wk' + apiNode.week
+      : apiNode.asset_name
   }
 
   // One asset card (player or pick). Recurses into a new owner-pill row below it
@@ -174,7 +178,7 @@ function buildGraph(playerName, tradeNode, expandedPaths, onToggle) {
       type: 'tradeNode',
       position: { x: cx, y: assetY(hop) },
       data: {
-        label: assetLabel(apiNode),
+        label: assetLabel(apiNode, hop),
         nodeType: apiNode.asset_type,
         expandable,
         expanded: userExpanded,
@@ -213,8 +217,19 @@ function buildGraph(playerName, tradeNode, expandedPaths, onToggle) {
     return (headerXs[0] + headerXs[headerXs.length - 1]) / 2
   }
 
-  const rootChildren = tradeNode.children ?? []
-  const rootX = rootChildren.length > 0 ? layoutOwnerGroups(rootChildren, 'root', 0, 'n') : 0
+  // The focal player is itself an asset of this trade — show it alongside whatever
+  // else its new owner received, instead of only floating above as a disconnected title.
+  const focalAsAsset = {
+    asset_type: 'player',
+    asset_name: playerName,
+    from_owner: tradeNode.from_owner,
+    to_owner: tradeNode.to_owner,
+    season: tradeNode.season,
+    week: tradeNode.week,
+    children: [],
+  }
+  const rootChildren = [focalAsAsset, ...(tradeNode.children ?? [])]
+  const rootX = layoutOwnerGroups(rootChildren, 'root', 0, 'n')
 
   nodes.push({
     id: 'root',
