@@ -35,7 +35,7 @@ import numpy as np
 # Phase configuration
 # ---------------------------------------------------------------------------
 
-# Weights when roster quality data IS available (FantasyPros projections scraped)
+# Weights when roster quality data IS available (Sleeper season-long projections scraped)
 PHASES: dict[str, dict] = {
     "early": {
         "label": "Early Season",

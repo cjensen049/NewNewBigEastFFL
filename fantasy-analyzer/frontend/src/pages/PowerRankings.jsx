@@ -257,10 +257,10 @@ export default function PowerRankings({ season }) {
               const isExpanded = expandedRank === r.rank
 
               const scoreItems = [
-                { key: 'scoring', label: 'Scoring',         value: r.scoring_score ?? 0, active: true },
-                { key: 'record',  label: 'All-play Record', value: r.record_score  ?? 0, active: true },
-                { key: 'sos',     label: 'Schedule',        value: r.sos_score     ?? 0, active: true },
-                { key: 'roster',  label: 'Roster Quality',  value: r.roster_score  ?? 0, active: r.roster_score != null },
+                { key: 'scoring', label: 'Scoring (Weighted)', value: r.scoring_score ?? 0, active: true },
+                { key: 'record',  label: 'All-play Record',    value: r.record_score  ?? 0, active: true },
+                { key: 'sos',     label: 'Remaining Schedule', value: r.sos_score     ?? 0, active: true },
+                { key: 'roster',  label: 'Roster Quality',     value: r.roster_score  ?? 0, active: r.roster_score != null },
               ]
 
               return (
@@ -341,7 +341,7 @@ export default function PowerRankings({ season }) {
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '9px' }}>
                             {scoreItems.map(item => (
                               <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '11px', fontWeight: 600, color: item.active ? SCORE_COLORS[item.key] : 'var(--text-faint)', width: '112px', flexShrink: 0 }}>
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: item.active ? SCORE_COLORS[item.key] : 'var(--text-faint)', width: '128px', flexShrink: 0 }}>
                                   {item.label}
                                 </span>
                                 <div style={{ flex: 1, height: '7px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
