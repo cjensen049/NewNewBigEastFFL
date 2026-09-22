@@ -21,7 +21,7 @@ const COMPONENT_CARDS = [
   {
     id:    'scoring',
     icon:  '📈',
-    label: 'Scoring',
+    label: 'Scoring (Weighted)',
     badge: 'Recent weeks favored',
     desc:  'Exponentially weighted average of weekly scores (decay = 0.85). Last week counts nearly twice as much as three weeks ago.',
   },
@@ -35,7 +35,7 @@ const COMPONENT_CARDS = [
   {
     id:    'sos',
     icon:  '🗓️',
-    label: 'Schedule Strength',
+    label: 'Remaining Schedule',
     badge: 'Early season only',
     desc:  "Average win% of remaining opponents, inverted — an easier remaining schedule scores higher. Weight fades as weeks accumulate.",
   },
@@ -44,11 +44,11 @@ const COMPONENT_CARDS = [
     icon:  '🏈',
     label: 'Roster Quality',
     badge: 'Auto-updated',
-    desc:  "FantasyPros projected optimal lineup score, scraped weekly. Carries heavy weight early before game results tell the story.",
+    desc:  "Sleeper's season-long projected optimal lineup score, refreshed weekly. Carries heavy weight early before game results tell the story.",
   },
 ]
 
-// Intended steady-state weights (when FantasyPros data is available)
+// Intended steady-state weights (when Sleeper projection data is available)
 const PHASES = [
   { label: 'Early', weeks: 'Wks 1–4',   scoring: 15, record: 10, sos: 25, roster: 50 },
   { label: 'Mid',   weeks: 'Wks 5–10',  scoring: 35, record: 30, sos: 10, roster: 25 },
@@ -88,9 +88,9 @@ function MiniBar({ value, color }) {
 
 function FormulaRow() {
   const pills = [
-    { id: 'scoring', label: 'Scoring' },
+    { id: 'scoring', label: 'Scoring (Weighted)' },
     { id: 'record',  label: 'All-play Record' },
-    { id: 'sos',     label: 'Schedule' },
+    { id: 'sos',     label: 'Remaining Schedule' },
     { id: 'roster',  label: 'Roster Quality' },
   ]
 
@@ -185,10 +185,10 @@ function ComponentCards() {
 
 function PhaseTable() {
   const cols = [
-    { id: 'scoring', label: 'Scoring' },
-    { id: 'record',  label: 'Record'  },
-    { id: 'sos',     label: 'Schedule' },
-    { id: 'roster',  label: 'Roster'  },
+    { id: 'scoring', label: 'Scoring (Weighted)' },
+    { id: 'record',  label: 'All-play Record'  },
+    { id: 'sos',     label: 'Remaining Schedule' },
+    { id: 'roster',  label: 'Roster Quality'  },
   ]
 
   const TH = ({ children, color }) => (
@@ -239,7 +239,7 @@ function PhaseTable() {
         </div>
         <div style={{ padding: '7px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-page)' }}>
           <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
-            When FantasyPros projections are unavailable, Roster weight redistributes proportionally to Schedule Strength.
+            When Sleeper's projections are unavailable, Roster weight redistributes proportionally to Remaining Schedule.
           </p>
         </div>
       </div>
