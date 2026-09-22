@@ -1,8 +1,8 @@
 """Roster quality scoring for NNBE power rankings.
 
-Computes each owner's optimal projected lineup score for a given week,
-using FantasyPros projected points stored in player_projections and
-the current roster snapshot in current_rosters.
+Computes each owner's optimal projected lineup score using Sleeper's
+rest-of-season projections (player_season_projections) and the current
+roster snapshot in current_rosters.
 
 NNBE lineup: QB  RB  WR  WR  TE  FLEX  FLEX  FLEX  SFLEX  (9 starters)
   FLEX  eligible: RB, WR, TE
@@ -77,24 +77,28 @@ def _optimal_lineup_pts(players: list[dict]) -> float:
 # Per-owner roster quality
 # ---------------------------------------------------------------------------
 
+# Below this many matched players, there isn't enough real data to fill even
+# the locked slots (QB, RB, WR×2, TE) -- treat it as no data rather than let
+# a handful of stray matches masquerade as a real "worst roster" signal.
+_MIN_MATCHED_PLAYERS = 5
+
+
 def compute_roster_quality(
     con: sqlite3.Connection,
     league_id: str,
     season: int,
 ) -> dict[str, float | None]:
-    """Return {user_id: optimal_projected_pts} for the most recent scraped week.
+    """Return {user_id: optimal_projected_pts} using season-long projections.
 
     Returns {} if no projection data exists at all.
-    Returns None for a specific owner if they have no players with projections.
+    Returns None for a specific owner if too few of their rostered players
+    matched a projection to trust the result (see _MIN_MATCHED_PLAYERS).
     """
-    # Use the most recently scraped week's projections
-    row = con.execute(
-        "SELECT MAX(week) FROM player_projections WHERE season = ?",
+    has_data = con.execute(
+        "SELECT 1 FROM player_season_projections WHERE season = ? LIMIT 1",
         (season,),
     ).fetchone()
-    proj_week = row[0] if row else None
-
-    if not proj_week:
+    if not has_data:
         return {}
 
     # Owner → roster_id mapping for this league
@@ -112,19 +116,18 @@ def compute_roster_quality(
 
     for user_id, roster_id in owner_rows:
         players = con.execute(
-            """SELECT pp.position, pp.projected_pts
+            """SELECT sp.position, sp.projected_pts
                FROM current_rosters cr
-               JOIN player_projections pp
-                 ON cr.player_id = pp.player_id
-                AND pp.season    = ?
-                AND pp.week      = ?
+               JOIN player_season_projections sp
+                 ON cr.player_id = sp.player_id
+                AND sp.season    = ?
                WHERE cr.league_id = ?
                  AND cr.roster_id = ?
-                 AND pp.projected_pts > 0""",
-            (season, proj_week, league_id, roster_id),
+                 AND sp.projected_pts > 0""",
+            (season, league_id, roster_id),
         ).fetchall()
 
-        if not players:
+        if len(players) < _MIN_MATCHED_PLAYERS:
             result[user_id] = None
             continue
 
