@@ -129,6 +129,19 @@ CREATE TABLE IF NOT EXISTS player_projections (
     PRIMARY KEY (season, week, player_id)
 );
 
+-- Sleeper's own rest-of-season projection per player (undocumented endpoint).
+-- FantasyPros' free weekly projections page only exposes the top 10 players
+-- per position, which can't cover a full dynasty roster -- this has no such
+-- cap and is what roster-quality scoring is based on instead.
+CREATE TABLE IF NOT EXISTS player_season_projections (
+    season          INTEGER NOT NULL,
+    player_id       TEXT    NOT NULL,
+    position        TEXT,
+    projected_pts   REAL    NOT NULL,
+    scraped_at      TEXT    NOT NULL,
+    PRIMARY KEY (season, player_id)
+);
+
 CREATE TABLE IF NOT EXISTS current_rosters (
     league_id   TEXT    NOT NULL,
     roster_id   INTEGER NOT NULL,
@@ -220,6 +233,18 @@ async def apply_migrations(db_path: str) -> None:
             await db.commit()
         except Exception:
             pass  # column already exists
+
+        await db.execute(
+            """CREATE TABLE IF NOT EXISTS player_season_projections (
+                   season          INTEGER NOT NULL,
+                   player_id       TEXT    NOT NULL,
+                   position        TEXT,
+                   projected_pts   REAL    NOT NULL,
+                   scraped_at      TEXT    NOT NULL,
+                   PRIMARY KEY (season, player_id)
+               )"""
+        )
+        await db.commit()
 
         try:
             await db.execute("ALTER TABLE season_records ADD COLUMN ppts REAL NOT NULL DEFAULT 0")
