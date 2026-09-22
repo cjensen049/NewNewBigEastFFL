@@ -471,12 +471,17 @@ def compute_power_rankings(
     scoring_norm_curr = _normalize(ewa_curr)
     scoring_norm_prev = _normalize(ewa_prev)
 
-    # ── Record component (sim win%) ───────────────────────────────────────────
+    # ── Record component (all-play win%) ──────────────────────────────────────
+    # Unlike Scoring/SoS/Roster (unbounded raw values that need percentile
+    # normalization to become a 0-100 score), all-play win% is already a real,
+    # absolute 0-100% number -- min-max normalizing it would stretch whoever's
+    # merely the best THIS week up to a misleading "100", as if they were
+    # undefeated in every all-play matchup. Use it as-is.
     swp_curr = _sim_win_pcts(con, league_id, pws, current_week)
     swp_prev = _sim_win_pcts(con, league_id, pws, prev_week)
 
-    record_norm_curr = _normalize(swp_curr)
-    record_norm_prev = _normalize(swp_prev)
+    record_norm_curr = {uid: swp_curr.get(uid, 0.0) * 100 for uid in uids}
+    record_norm_prev = {uid: swp_prev.get(uid, 0.0) * 100 for uid in uids}
 
     # ── SoS component (remaining schedule, inverted) ──────────────────────────
     win_pct_by_uid = {uid: swp_curr.get(uid, 0.5) for uid in uids}

@@ -1,6 +1,8 @@
 """Tests for analysis/power_rankings.py — the roster-quality prior blend and
 the mathematical clinch/elimination bound check."""
 
+import sqlite3
+
 import pytest
 
 from fantasy_analyzer.analysis.power_rankings import (
@@ -8,7 +10,9 @@ from fantasy_analyzer.analysis.power_rankings import (
     _MEAN_PRIOR_K,
     _playoff_positions,
     compute_playoff_certainty,
+    compute_power_rankings,
 )
+from fantasy_analyzer.db.schema import DDL
 
 
 class TestBlendedMean:
@@ -132,3 +136,50 @@ class TestComputePlayoffCertainty:
 
         _, _, eliminated = compute_playoff_certainty(uids, wins, pts, remaining, ceiling=200.0)
         assert "u6" not in eliminated
+
+
+class TestRecordScoreIsTrueAllPlayPercentage:
+    """Regression: the all-play win% is already a real 0-100% number, so the
+    league's best team must show its true win%, never a min-max-stretched
+    100 just for being relatively best among the other 11 teams."""
+
+    @pytest.fixture
+    def db(self):
+        con = sqlite3.connect(":memory:")
+        con.executescript(DDL)
+        con.commit()
+        return con
+
+    def _setup(self, con):
+        con.execute(
+            "INSERT INTO leagues (league_id, season, name, status, total_rosters, playoff_week_start) "
+            "VALUES ('L1', 2026, 'Test', 'in_season', 3, 15)"
+        )
+        for uid, name in [("u1", "Alice"), ("u2", "Bob"), ("u3", "Carl")]:
+            con.execute("INSERT INTO owners (user_id, canonical_name) VALUES (?,?)", (uid, name))
+            con.execute("INSERT INTO league_owners (league_id, user_id, roster_id) VALUES ('L1', ?, ?)",
+                        (uid, int(uid[1])))
+
+        # Week 1: Alice 100, Bob 90, Carl 80 -- Alice sweeps all-play (2-0), Bob 1-1, Carl 0-2
+        # Week 2: Bob 90, Alice 85, Carl 70 -- Bob sweeps (2-0), Alice 1-1, Carl 0-2
+        # Totals: Alice 3/4 = 75%, Bob 3/4 = 75% (tied best), Carl 0/4 = 0%
+        weeks = {1: {"u1": 100.0, "u2": 90.0, "u3": 80.0}, 2: {"u1": 85.0, "u2": 90.0, "u3": 70.0}}
+        rid = 1
+        for week, scores in weeks.items():
+            for uid, pts in scores.items():
+                con.execute(
+                    "INSERT INTO matchups (league_id, season, week, matchup_id, roster_id, user_id, points, is_playoff) "
+                    "VALUES ('L1', 2026, ?, ?, ?, ?, ?, 0)",
+                    (week, rid, rid, uid, pts),
+                )
+                rid += 1
+        con.commit()
+
+    def test_tied_leaders_show_true_win_pct_not_100(self, db):
+        self._setup(db)
+        result = compute_power_rankings(db, "L1", 2026, pws=15)
+        by_owner = {r["owner"]: r for r in result["rows"]}
+
+        assert by_owner["Alice"]["record_score"] == pytest.approx(75.0)
+        assert by_owner["Bob"]["record_score"] == pytest.approx(75.0)
+        assert by_owner["Carl"]["record_score"] == pytest.approx(0.0)
