@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -367,24 +368,38 @@ function PanelHeader({ title, badge }) {
   )
 }
 
-function MatchupRow({ left, right, leftTag, rightTag, winner }) {
+function MatchupRow({ left, right, leftTag, rightTag, winner, narrative }) {
+  const [open, setOpen] = useState(false)
   const sideStyle = owner => ({
     fontWeight: winner === owner ? 700 : 500,
     color: winner === owner ? 'var(--text-primary)' : 'var(--text-muted)',
   })
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 16px', fontSize: '13px', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', textAlign: 'right' }}>
-        <span style={sideStyle(left.owner)}>{left.owner}</span>
-        {leftTag}
-        <span style={{ ...sideStyle(left.owner), fontVariantNumeric: 'tabular-nums', width: '48px' }}>{left.value}</span>
+    <div style={{ borderBottom: '1px solid var(--border)' }}>
+      <div
+        onClick={narrative ? () => setOpen(v => !v) : undefined}
+        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 16px', fontSize: '13px', cursor: narrative ? 'pointer' : 'default' }}
+      >
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', textAlign: 'right' }}>
+          <span style={sideStyle(left.owner)}>{left.owner}</span>
+          {leftTag}
+          <span style={{ ...sideStyle(left.owner), fontVariantNumeric: 'tabular-nums', width: '48px' }}>{left.value}</span>
+        </div>
+        <span style={{ color: 'var(--text-faint)', fontSize: '11px' }}>vs</span>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ ...sideStyle(right.owner), fontVariantNumeric: 'tabular-nums', width: '48px' }}>{right.value}</span>
+          {rightTag}
+          <span style={sideStyle(right.owner)}>{right.owner}</span>
+        </div>
+        {narrative && (
+          <span style={{ fontSize: '10px', color: 'var(--text-faint)', flexShrink: 0, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+        )}
       </div>
-      <span style={{ color: 'var(--text-faint)', fontSize: '11px' }}>vs</span>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span style={{ ...sideStyle(right.owner), fontVariantNumeric: 'tabular-nums', width: '48px' }}>{right.value}</span>
-        {rightTag}
-        <span style={sideStyle(right.owner)}>{right.owner}</span>
-      </div>
+      {open && narrative && (
+        <p className="fs-body" style={{ margin: 0, padding: '0 16px 12px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          {narrative}
+        </p>
+      )}
     </div>
   )
 }
@@ -413,6 +428,7 @@ function WeeklyRecapPanel({ season }) {
           left={{ owner: m.a.owner, value: m.a.points }}
           right={{ owner: m.b.owner, value: m.b.points }}
           winner={m.winner}
+          narrative={m.narrative}
           leftTag={i === 0 ? <span title="Closest game">🔥</span> : i === recap.matchups.length - 1 ? <span title="Biggest blowout">💥</span> : null}
         />
       ))}
@@ -458,6 +474,7 @@ function WeeklyPreviewPanel({ season }) {
             key={i}
             left={{ owner: m.a.owner, value: m.a.projected ?? '—' }}
             right={{ owner: m.b.owner, value: m.b.projected ?? '—' }}
+            narrative={m.narrative}
             leftTag={<>{byeTag(m.a)}{isClosest && <span title="Closest projected matchup">🎯</span>}</>}
             rightTag={byeTag(m.b)}
           />

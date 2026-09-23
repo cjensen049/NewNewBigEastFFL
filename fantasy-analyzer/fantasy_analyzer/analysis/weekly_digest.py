@@ -20,7 +20,7 @@ from fantasy_analyzer.analysis.roster_quality import optimal_lineup_pts
 _MIN_MATCHED_PLAYERS = 5
 
 
-def _last_completed_week(con: sqlite3.Connection, league_id: str) -> int:
+def last_completed_week(con: sqlite3.Connection, league_id: str) -> int:
     row = con.execute(
         "SELECT MAX(week) FROM matchups WHERE league_id=? AND is_playoff=0 "
         "AND points IS NOT NULL AND points > 0",
@@ -32,7 +32,7 @@ def _last_completed_week(con: sqlite3.Connection, league_id: str) -> int:
 def get_weekly_recap(con: sqlite3.Connection, league_id: str) -> dict | None:
     """Final scores, closest game, biggest blowout, and top performer for the
     most recently completed regular-season week. None if no week is complete yet."""
-    week = _last_completed_week(con, league_id)
+    week = last_completed_week(con, league_id)
     if week == 0:
         return None
 
@@ -49,13 +49,13 @@ def get_weekly_recap(con: sqlite3.Connection, league_id: str) -> dict | None:
         by_matchup[mid].append({"owner": name, "points": round(pts, 1)})
 
     matchups = []
-    for sides in by_matchup.values():
+    for mid, sides in by_matchup.items():
         if len(sides) != 2:
             continue
         a, b = sides
         winner = a["owner"] if a["points"] > b["points"] else b["owner"]
         margin = round(abs(a["points"] - b["points"]), 1)
-        matchups.append({"a": a, "b": b, "winner": winner, "margin": margin})
+        matchups.append({"matchup_id": mid, "a": a, "b": b, "winner": winner, "margin": margin})
     matchups.sort(key=lambda m: m["margin"])
 
     # Top-scoring player league-wide this week (from actual starters only)
@@ -131,7 +131,7 @@ def _bye_player_count(con: sqlite3.Connection, league_id: str, roster_id: int, s
 def get_weekly_preview(con: sqlite3.Connection, league_id: str, season: int, pws: int) -> dict | None:
     """Upcoming week's matchups with naive projected totals and bye-week flags.
     None once the regular season is over (playoffs have a different structure)."""
-    week = _last_completed_week(con, league_id) + 1
+    week = last_completed_week(con, league_id) + 1
     if week >= pws:
         return None
 
@@ -156,7 +156,7 @@ def get_weekly_preview(con: sqlite3.Connection, league_id: str, season: int, pws
         })
 
     matchups = []
-    for sides in by_matchup.values():
+    for mid, sides in by_matchup.items():
         if len(sides) != 2:
             continue
         a, b = sides
@@ -165,7 +165,7 @@ def get_weekly_preview(con: sqlite3.Connection, league_id: str, season: int, pws
             if a["projected"] is not None and b["projected"] is not None
             else None
         )
-        matchups.append({"a": a, "b": b, "proj_gap": proj_gap})
+        matchups.append({"matchup_id": mid, "a": a, "b": b, "proj_gap": proj_gap})
     matchups.sort(key=lambda m: (m["proj_gap"] is None, m["proj_gap"]))
 
     closest_projected = next((m for m in matchups if m["proj_gap"] is not None), None)

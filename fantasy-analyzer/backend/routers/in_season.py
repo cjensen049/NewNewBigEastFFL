@@ -56,13 +56,28 @@ def standings_snapshot(season: int, con: sqlite3.Connection = Depends(get_db)) -
     return result if result else {"season": season, "current_week": 0, "next_week": None, "rows": []}
 
 
+def _attach_narratives(con: sqlite3.Connection, league_id: str, season: int, week: int, kind: str, matchups: list[dict]) -> None:
+    """Mutate each matchup dict in place, adding a `narrative` field (None if not generated yet)."""
+    texts = {
+        r[0]: r[1] for r in con.execute(
+            "SELECT matchup_id, text FROM weekly_narratives WHERE league_id=? AND season=? AND week=? AND kind=?",
+            (league_id, season, week, kind),
+        )
+    }
+    for m in matchups:
+        m["narrative"] = texts.get(m["matchup_id"])
+
+
 @router.get("/weekly-recap/{season}")
 def weekly_recap(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
     """Last completed week's results, closest game, blowout, and top performer."""
     row = con.execute("SELECT league_id FROM leagues WHERE season = ?", (season,)).fetchone()
     if not row:
         return {"season": season, "recap": None}
-    return {"season": season, "recap": get_weekly_recap(con, row[0])}
+    recap = get_weekly_recap(con, row[0])
+    if recap:
+        _attach_narratives(con, row[0], season, recap["week"], "recap", recap["matchups"])
+    return {"season": season, "recap": recap}
 
 
 @router.get("/weekly-preview/{season}")
@@ -74,7 +89,10 @@ def weekly_preview(season: int, con: sqlite3.Connection = Depends(get_db)) -> di
     if not row:
         return {"season": season, "preview": None}
     league_id, pws = row
-    return {"season": season, "preview": get_weekly_preview(con, league_id, season, pws)}
+    preview = get_weekly_preview(con, league_id, season, pws)
+    if preview:
+        _attach_narratives(con, league_id, season, preview["week"], "preview", preview["matchups"])
+    return {"season": season, "preview": preview}
 
 
 @router.get("/luck/all-time")
