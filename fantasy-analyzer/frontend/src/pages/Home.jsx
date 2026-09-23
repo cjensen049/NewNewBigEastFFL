@@ -462,6 +462,10 @@ function WeeklyRecapPanel({ season }) {
           <SuperlativeChip icon="👑" label="Highest Score" title="Highest team total this week"
             detail={`${recap.highest_score.owner} (${fmt1(recap.highest_score.points)})`} />
         )}
+        {recap.top_player && (
+          <SuperlativeChip icon="⭐" label="Top Performer" title="Highest-scoring individual player this week (starters only)"
+            detail={`${recap.top_player.name}${recap.top_player.position ? ` (${recap.top_player.position})` : ''} — ${fmt1(recap.top_player.points)}, ${recap.top_player.owner}`} />
+        )}
         {recap.most_efficient && (
           <SuperlativeChip icon="💯" label="Most Efficient" title="Actual score as a % of best possible lineup"
             detail={`${recap.most_efficient.owner} (${recap.most_efficient.pct.toFixed(0)}%)`} />
@@ -497,17 +501,6 @@ function WeeklyRecapPanel({ season }) {
           narrative={m.narrative}
         />
       ))}
-
-      {recap.top_player && (
-        <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '16px' }}>⭐</span>
-          <span className="fs-body" style={{ color: 'var(--text-muted)' }}>
-            Top performer: <strong style={{ color: 'var(--text-primary)' }}>{recap.top_player.name}</strong>
-            {recap.top_player.position && ` (${recap.top_player.position})`} —{' '}
-            <strong style={{ color: 'var(--text-primary)' }}>{fmt1(recap.top_player.points)}</strong> pts for {recap.top_player.owner}
-          </span>
-        </div>
-      )}
     </div>
   )
 }
