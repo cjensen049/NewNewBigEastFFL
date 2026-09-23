@@ -368,6 +368,42 @@ function PanelHeader({ title, badge }) {
   )
 }
 
+// Always show one decimal place (backend rounds to 1dp, but a whole-number
+// value like 160.0 can arrive as a bare int through the JSON round-trip and
+// render as "160" without this).
+function fmt1(n) {
+  return n != null ? Number(n).toFixed(1) : '—'
+}
+
+function SuperlativeChip({ icon, label, detail, title }) {
+  return (
+    <div title={title} style={{
+      display: 'flex', alignItems: 'center', gap: '8px',
+      background: 'var(--bg-page)', border: '1px solid var(--border)', borderRadius: '8px',
+      padding: '8px 10px', minWidth: 0,
+    }}>
+      <span style={{ fontSize: '18px', flexShrink: 0, lineHeight: 1 }}>{icon}</span>
+      <div style={{ minWidth: 0 }}>
+        <div className="fs-label" style={{ color: 'var(--text-faint)', marginBottom: '1px', whiteSpace: 'nowrap' }}>{label}</div>
+        <div className="fs-body" style={{ color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {detail}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SuperlativeGrid({ children }) {
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px',
+      padding: '12px 16px', borderBottom: '1px solid var(--border)',
+    }}>
+      {children}
+    </div>
+  )
+}
+
 function MatchupRow({ left, right, leftTag, rightTag, winner, narrative }) {
   const [open, setOpen] = useState(false)
   const sideStyle = owner => ({
@@ -415,21 +451,50 @@ function WeeklyRecapPanel({ season }) {
   if (isLoading) return <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '20px' }}><LoadingSpinner /></div>
   if (!recap) return null
 
+  const oppositeOwner = (m, owner) => (m.a.owner === owner ? m.b.owner : m.a.owner)
+
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       <PanelHeader title="Week Recap" badge={`Wk ${recap.week}`} />
 
-      {/* Backend sorts matchups by margin ascending, so index 0 is the closest
-          game and the last index is the biggest blowout -- compared by position,
-          not object identity, since these are separate objects after the JSON round-trip. */}
+      <SuperlativeGrid>
+        {recap.highest_score && (
+          <SuperlativeChip icon="👑" label="Highest Score" title="Highest team total this week"
+            detail={`${recap.highest_score.owner} (${fmt1(recap.highest_score.points)})`} />
+        )}
+        {recap.most_efficient && (
+          <SuperlativeChip icon="💯" label="Most Efficient" title="Actual score as a % of best possible lineup"
+            detail={`${recap.most_efficient.owner} (${recap.most_efficient.pct.toFixed(0)}%)`} />
+        )}
+        {recap.closest && (
+          <SuperlativeChip icon="😅" label="Nailbiter" title="Narrowest margin of victory"
+            detail={`${recap.closest.a.owner} / ${recap.closest.b.owner} (${fmt1(recap.closest.margin)})`} />
+        )}
+        {recap.blowout && (
+          <SuperlativeChip icon="🪖" label="Blowout" title="Biggest margin of victory"
+            detail={`${recap.blowout.winner} over ${oppositeOwner(recap.blowout, recap.blowout.winner)} (${fmt1(recap.blowout.margin)})`} />
+        )}
+        {recap.overachiever && (
+          <SuperlativeChip icon="🍎" label="Overachiever" title="Beat their own pre-game projection by the most"
+            detail={`${recap.overachiever.owner} (+${fmt1(recap.overachiever.diff)})`} />
+        )}
+        {recap.underachiever && (
+          <SuperlativeChip icon="🤡" label="Underachiever" title="Missed their own pre-game projection by the most"
+            detail={`${recap.underachiever.owner} (${fmt1(recap.underachiever.diff)})`} />
+        )}
+        {recap.lowest_score && (
+          <SuperlativeChip icon="🥶" label="Ice Cold" title="Lowest team total this week"
+            detail={`${recap.lowest_score.owner} (${fmt1(recap.lowest_score.points)})`} />
+        )}
+      </SuperlativeGrid>
+
       {recap.matchups.map((m, i) => (
         <MatchupRow
           key={i}
-          left={{ owner: m.a.owner, value: m.a.points }}
-          right={{ owner: m.b.owner, value: m.b.points }}
+          left={{ owner: m.a.owner, value: fmt1(m.a.points) }}
+          right={{ owner: m.b.owner, value: fmt1(m.b.points) }}
           winner={m.winner}
           narrative={m.narrative}
-          leftTag={i === 0 ? <span title="Closest game">🔥</span> : i === recap.matchups.length - 1 ? <span title="Biggest blowout">💥</span> : null}
         />
       ))}
 
@@ -439,7 +504,7 @@ function WeeklyRecapPanel({ season }) {
           <span className="fs-body" style={{ color: 'var(--text-muted)' }}>
             Top performer: <strong style={{ color: 'var(--text-primary)' }}>{recap.top_player.name}</strong>
             {recap.top_player.position && ` (${recap.top_player.position})`} —{' '}
-            <strong style={{ color: 'var(--text-primary)' }}>{recap.top_player.points}</strong> pts for {recap.top_player.owner}
+            <strong style={{ color: 'var(--text-primary)' }}>{fmt1(recap.top_player.points)}</strong> pts for {recap.top_player.owner}
           </span>
         </div>
       )}
@@ -462,27 +527,39 @@ function WeeklyPreviewPanel({ season }) {
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
       <PanelHeader title="Week Preview" badge={`Wk ${preview.week}`} />
 
-      {/* Backend sorts matchups with a real proj_gap first, closest gap first,
-          so index 0 is the closest projected matchup whenever one exists. */}
+      <SuperlativeGrid>
+        {preview.highest_projected && (
+          <SuperlativeChip icon="🎆" label="Highest Projected" title="Highest projected team total this week"
+            detail={`${preview.highest_projected.owner} (${fmt1(preview.highest_projected.projected)})`} />
+        )}
+        {preview.matchup_of_the_week && (
+          <SuperlativeChip icon="🚨" label="Matchup of the Week" title="Closest game among the highest-projected matchups"
+            detail={`${preview.matchup_of_the_week.a.owner} vs ${preview.matchup_of_the_week.b.owner}`} />
+        )}
+        {preview.lowest_combined_matchup && (
+          <SuperlativeChip icon="🛏️" label="Pillow Fight" title="Lowest combined projected total"
+            detail={`${preview.lowest_combined_matchup.a.owner} vs ${preview.lowest_combined_matchup.b.owner}`} />
+        )}
+      </SuperlativeGrid>
+
       {preview.matchups.map((m, i) => {
         const byeTag = owner => owner.bye_count > 0
           ? <span title={`${owner.bye_count} rostered player(s) on bye`} style={{ fontSize: '11px', color: 'var(--gold)' }}>⚠️{owner.bye_count}</span>
           : null
-        const isClosest = i === 0 && m.proj_gap != null
         return (
           <MatchupRow
             key={i}
-            left={{ owner: m.a.owner, value: m.a.projected ?? '—' }}
-            right={{ owner: m.b.owner, value: m.b.projected ?? '—' }}
+            left={{ owner: m.a.owner, value: fmt1(m.a.projected) }}
+            right={{ owner: m.b.owner, value: fmt1(m.b.projected) }}
             narrative={m.narrative}
-            leftTag={<>{byeTag(m.a)}{isClosest && <span title="Closest projected matchup">🎯</span>}</>}
+            leftTag={byeTag(m.a)}
             rightTag={byeTag(m.b)}
           />
         )
       })}
 
       <p className="fs-label" style={{ padding: '10px 16px 12px', color: 'var(--text-faint)', margin: 0 }}>
-        Projections are each team's optimal lineup at season-long per-game pace — not a guess at actual starters.
+        Projections are each team's optimal lineup using Sleeper's own per-week projection — not a guess at actual starters.
       </p>
     </div>
   )
@@ -498,7 +575,7 @@ function ThisWeekSection() {
   return (
     <div style={{ paddingBottom: '32px' }}>
       <SectionLabel>This Week</SectionLabel>
-      <div className="home-season-grid">
+      <div className="home-week-grid">
         <WeeklyRecapPanel season={currentSeason} />
         <WeeklyPreviewPanel season={currentSeason} />
       </div>

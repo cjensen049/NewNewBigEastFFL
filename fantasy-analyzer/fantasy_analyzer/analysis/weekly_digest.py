@@ -1,10 +1,13 @@
 """Weekly recap + look-ahead digest for the homepage.
 
-Recap covers the most recently completed week (final scores, closest game,
-biggest blowout, top-scoring player league-wide). Preview covers the
-upcoming week (naive projected totals from each roster's optimal lineup
-at Sleeper's season-long per-game rate, the closest projected matchup,
-and bye-week flags).
+Recap covers the most recently completed week: final scores, closest game,
+biggest blowout, top-scoring player league-wide, and superlatives (highest/
+lowest score, most efficient lineup, biggest over/underachiever vs. that
+week's own projection). Preview covers the upcoming week: each roster's
+optimal-lineup projected total at Sleeper's per-week projection, bye-week
+flags, the week's highest projected team, "matchup of the week" (closest
+game among the highest-projected matchups), and the lowest-combined
+"pillow fight" matchup.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ import sqlite3
 from collections import defaultdict
 
 from fantasy_analyzer.analysis.roster_quality import optimal_lineup_pts
+from fantasy_analyzer.analysis.start_sit import get_start_sit_weeks
 
 # Below this many matched players, a projected total isn't trustworthy
 # enough to show -- same threshold roster_quality.py uses for the same reason.
@@ -29,9 +33,43 @@ def last_completed_week(con: sqlite3.Connection, league_id: str) -> int:
     return row[0] or 0
 
 
-def get_weekly_recap(con: sqlite3.Connection, league_id: str) -> dict | None:
-    """Final scores, closest game, biggest blowout, and top performer for the
-    most recently completed regular-season week. None if no week is complete yet."""
+def _team_actual_vs_projected(con: sqlite3.Connection, league_id: str, season: int, week: int) -> dict[str, dict]:
+    """Return {owner: {actual, projected, diff}} -- each team's real score vs.
+    the sum of their actual starters' own pre-game weekly projections. A team
+    with no projection data for any starter is omitted (diff would be meaningless)."""
+    rows = con.execute(
+        """SELECT o.canonical_name, m.points, m.starters_json
+           FROM matchups m JOIN owners o ON o.user_id = m.user_id
+           WHERE m.league_id=? AND m.week=? AND m.is_playoff=0 AND m.starters_json IS NOT NULL""",
+        (league_id, week),
+    ).fetchall()
+
+    result: dict[str, dict] = {}
+    for name, points, starters_raw in rows:
+        starters = json.loads(starters_raw)
+        if not starters:
+            continue
+        placeholders = ",".join("?" * len(starters))
+        proj_rows = con.execute(
+            f"SELECT projected_pts FROM player_projections WHERE season=? AND week=? AND player_id IN ({placeholders})",
+            (season, week, *starters),
+        ).fetchall()
+        if not proj_rows:
+            continue
+        team_projected = sum(r[0] for r in proj_rows)
+        result[name] = {
+            "actual": round(points, 1),
+            "projected": round(team_projected, 1),
+            "diff": round(points - team_projected, 1),
+        }
+    return result
+
+
+def get_weekly_recap(con: sqlite3.Connection, league_id: str, season: int) -> dict | None:
+    """Final scores, closest game, biggest blowout, top performer, and
+    superlatives (highest/lowest score, most efficient lineup, biggest
+    over/underachiever vs. that week's own projection) for the most recently
+    completed regular-season week. None if no week is complete yet."""
     week = last_completed_week(con, league_id)
     if week == 0:
         return None
@@ -45,8 +83,11 @@ def get_weekly_recap(con: sqlite3.Connection, league_id: str) -> dict | None:
     ).fetchall()
 
     by_matchup: dict[int, list] = defaultdict(list)
+    all_scores: list[dict] = []
     for mid, name, pts in rows:
-        by_matchup[mid].append({"owner": name, "points": round(pts, 1)})
+        entry = {"owner": name, "points": round(pts, 1)}
+        by_matchup[mid].append(entry)
+        all_scores.append(entry)
 
     matchups = []
     for mid, sides in by_matchup.items():
@@ -92,12 +133,35 @@ def get_weekly_recap(con: sqlite3.Connection, league_id: str) -> dict | None:
                 "owner": owner_by_uid.get(best_uid, "?"),
             }
 
+    highest_score = max(all_scores, key=lambda s: s["points"]) if all_scores else None
+    lowest_score = min(all_scores, key=lambda s: s["points"]) if all_scores else None
+
+    most_efficient = None
+    week_efficiency = [r for r in get_start_sit_weeks(con, season=season, include_playoffs=False) if r["week"] == week]
+    if week_efficiency:
+        best = max(week_efficiency, key=lambda r: r["pct"])
+        most_efficient = {"owner": best["owner"], "pct": best["pct"]}
+
+    overachiever = None
+    underachiever = None
+    team_perf = _team_actual_vs_projected(con, league_id, season, week)
+    if team_perf:
+        best_name = max(team_perf, key=lambda n: team_perf[n]["diff"])
+        worst_name = min(team_perf, key=lambda n: team_perf[n]["diff"])
+        overachiever = {"owner": best_name, **team_perf[best_name]}
+        underachiever = {"owner": worst_name, **team_perf[worst_name]}
+
     return {
         "week": week,
         "matchups": matchups,
         "closest": matchups[0] if matchups else None,
         "blowout": matchups[-1] if matchups else None,
         "top_player": top_player,
+        "highest_score": highest_score,
+        "lowest_score": lowest_score,
+        "most_efficient": most_efficient,
+        "overachiever": overachiever,
+        "underachiever": underachiever,
     }
 
 
@@ -149,30 +213,42 @@ def get_weekly_preview(con: sqlite3.Connection, league_id: str, season: int, pws
         return None
 
     by_matchup: dict[int, list] = defaultdict(list)
+    all_projected: list[dict] = []
     for mid, name, roster_id in rows:
-        by_matchup[mid].append({
+        entry = {
             "owner": name,
             "projected": _projected_lineup_total(con, league_id, roster_id, season, week),
             "bye_count": _bye_player_count(con, league_id, roster_id, season, week),
-        })
+        }
+        by_matchup[mid].append(entry)
+        if entry["projected"] is not None:
+            all_projected.append(entry)
 
     matchups = []
     for mid, sides in by_matchup.items():
         if len(sides) != 2:
             continue
         a, b = sides
-        proj_gap = (
-            round(abs(a["projected"] - b["projected"]), 1)
-            if a["projected"] is not None and b["projected"] is not None
-            else None
-        )
-        matchups.append({"matchup_id": mid, "a": a, "b": b, "proj_gap": proj_gap})
+        has_both = a["projected"] is not None and b["projected"] is not None
+        proj_gap = round(abs(a["projected"] - b["projected"]), 1) if has_both else None
+        combined = round(a["projected"] + b["projected"], 1) if has_both else None
+        matchups.append({"matchup_id": mid, "a": a, "b": b, "proj_gap": proj_gap, "combined": combined})
     matchups.sort(key=lambda m: (m["proj_gap"] is None, m["proj_gap"]))
 
-    closest_projected = next((m for m in matchups if m["proj_gap"] is not None), None)
+    # "Matchup of the week": the closest game AMONG the highest-projected
+    # matchups, so a 140-150 nail-biter gets featured over a 92-97 pillow
+    # fight that's technically closer in raw gap but far lower-scoring.
+    ranked = [m for m in matchups if m["combined"] is not None]
+    ranked.sort(key=lambda m: -m["combined"])
+    top_half = ranked[: max(1, -(-len(ranked) // 2))]  # ceil(n/2), at least 1
+    matchup_of_the_week = min(top_half, key=lambda m: m["proj_gap"]) if top_half else None
+    lowest_combined_matchup = min(ranked, key=lambda m: m["combined"]) if ranked else None
+    highest_projected = max(all_projected, key=lambda s: s["projected"]) if all_projected else None
 
     return {
         "week": week,
         "matchups": matchups,
-        "closest_projected": closest_projected,
+        "matchup_of_the_week": matchup_of_the_week,
+        "lowest_combined_matchup": lowest_combined_matchup,
+        "highest_projected": highest_projected,
     }

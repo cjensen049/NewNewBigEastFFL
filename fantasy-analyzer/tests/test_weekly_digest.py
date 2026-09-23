@@ -77,7 +77,7 @@ def _week_proj(con, season, week, projections):
 class TestGetWeeklyRecap:
     def test_no_completed_week_returns_none(self, db):
         _league(db)
-        assert get_weekly_recap(db, "L1") is None
+        assert get_weekly_recap(db, "L1", 2026) is None
 
     def test_finds_closest_and_blowout(self, db):
         _league(db)
@@ -91,7 +91,7 @@ class TestGetWeeklyRecap:
         _matchup(db, "L1", 1, 2, "u3", 150.0)
         _matchup(db, "L1", 1, 2, "u4", 50.0)
 
-        recap = get_weekly_recap(db, "L1")
+        recap = get_weekly_recap(db, "L1", 2026)
         assert recap["week"] == 1
         assert recap["closest"]["margin"] == pytest.approx(2.0)
         assert recap["blowout"]["margin"] == pytest.approx(100.0)
@@ -110,10 +110,62 @@ class TestGetWeeklyRecap:
         )
         _matchup(db, "L1", 1, 1, "u2", 90.0, starters=[], players_points={})
 
-        recap = get_weekly_recap(db, "L1")
+        recap = get_weekly_recap(db, "L1", 2026)
         assert recap["top_player"]["name"] == "Starter Guy"
         assert recap["top_player"]["points"] == pytest.approx(30.0)
         assert recap["top_player"]["owner"] == "Alice"
+
+    def test_highest_and_lowest_score(self, db):
+        _league(db)
+        _owner(db, "L1", "u1", 1, "Alice")
+        _owner(db, "L1", "u2", 2, "Bob")
+        _owner(db, "L1", "u3", 3, "Carl")
+        _owner(db, "L1", "u4", 4, "Dana")
+        _matchup(db, "L1", 1, 1, "u1", 200.0)
+        _matchup(db, "L1", 1, 1, "u2", 90.0)
+        _matchup(db, "L1", 1, 2, "u3", 100.0)
+        _matchup(db, "L1", 1, 2, "u4", 30.0)
+
+        recap = get_weekly_recap(db, "L1", 2026)
+        assert recap["highest_score"] == {"owner": "Alice", "points": 200.0}
+        assert recap["lowest_score"] == {"owner": "Dana", "points": 30.0}
+
+    def test_overachiever_and_underachiever_vs_weekly_projection(self, db):
+        _league(db)
+        _owner(db, "L1", "u1", 1, "Alice")
+        _owner(db, "L1", "u2", 2, "Bob")
+        _player(db, "a1", "Alice Starter", "WR")
+        _player(db, "b1", "Bob Starter", "WR")
+        _week_proj(db, 2026, 1, {"a1": ("WR", 10.0), "b1": ("WR", 30.0)})
+        # Alice massively outscored her team's projection; Bob massively missed his.
+        _matchup(db, "L1", 1, 1, "u1", 150.0, starters=["a1"], players_points={"a1": 150.0})
+        _matchup(db, "L1", 1, 1, "u2", 5.0, starters=["b1"], players_points={"b1": 5.0})
+
+        recap = get_weekly_recap(db, "L1", 2026)
+        assert recap["overachiever"]["owner"] == "Alice"
+        assert recap["overachiever"]["diff"] == pytest.approx(140.0)
+        assert recap["underachiever"]["owner"] == "Bob"
+        assert recap["underachiever"]["diff"] == pytest.approx(-25.0)
+
+    def test_most_efficient_manager(self, db):
+        _league(db)
+        _owner(db, "L1", "u1", 1, "Alice")
+        _owner(db, "L1", "u2", 2, "Bob")
+        _player(db, "a1", "Alice Starter", "WR")
+        _player(db, "b1", "Bob Starter", "WR")
+        _player(db, "b2", "Bob Bench Bomb", "WR")
+        # Alice started her only player and scored exactly the optimal (100%).
+        _matchup(db, "L1", 1, 1, "u1", 20.0, starters=["a1"], players_points={"a1": 20.0})
+        # Bob left a much bigger scorer on the bench -- lower efficiency.
+        _matchup(
+            db, "L1", 1, 1, "u2", 10.0,
+            starters=["b1"],
+            players_points={"b1": 10.0, "b2": 50.0},
+        )
+
+        recap = get_weekly_recap(db, "L1", 2026)
+        assert recap["most_efficient"]["owner"] == "Alice"
+        assert recap["most_efficient"]["pct"] == pytest.approx(100.0)
 
 
 class TestGetWeeklyPreview:
@@ -176,7 +228,46 @@ class TestGetWeeklyPreview:
 
         # Alice/Bob (5.0 gap) is closer than Carl (0 gap would be self, but here proj_gap
         # is None for Carl/Dana), so Alice/Bob must be the closest known projected matchup
-        assert preview["closest_projected"]["proj_gap"] == pytest.approx(5.0)
+        assert preview["matchup_of_the_week"]["proj_gap"] == pytest.approx(5.0)
+
+    def test_matchup_of_the_week_avoids_low_scoring_pillow_fight(self, db):
+        """Regression: the closest RAW gap can be a low-scoring 'pillow fight'.
+        Matchup of the week must instead pick the closest game among the
+        highest-combined-projected matchups, per the user's explicit ask."""
+        _league(db)
+        for i, name in enumerate(["Eve", "Finn", "Gia", "Hal"], start=1):
+            _owner(db, "L1", f"u{i}", i, name)
+        _matchup(db, "L1", 1, 1, "u1", 100.0)
+        _matchup(db, "L1", 1, 1, "u2", 90.0)
+        _matchup(db, "L1", 2, 1, "u1", 0.0)
+        _matchup(db, "L1", 2, 1, "u2", 0.0)
+        _matchup(db, "L1", 2, 2, "u3", 0.0)
+        _matchup(db, "L1", 2, 2, "u4", 0.0)
+
+        # High-scoring matchup, 5-point gap: 145 vs 140.
+        rosters = {
+            1: [("e_qb", "QB", 30.0), ("e_rb", "RB", 30.0), ("e_wr1", "WR", 30.0), ("e_wr2", "WR", 30.0), ("e_te", "TE", 25.0)],
+            2: [("f_qb", "QB", 29.0), ("f_rb", "RB", 29.0), ("f_wr1", "WR", 29.0), ("f_wr2", "WR", 29.0), ("f_te", "TE", 24.0)],
+            # Low-scoring "pillow fight", only a 1-point gap: 92 vs 93.
+            3: [("g_qb", "QB", 20.0), ("g_rb", "RB", 20.0), ("g_wr1", "WR", 20.0), ("g_wr2", "WR", 17.0), ("g_te", "TE", 15.0)],
+            4: [("h_qb", "QB", 20.0), ("h_rb", "RB", 20.0), ("h_wr1", "WR", 20.0), ("h_wr2", "WR", 18.0), ("h_te", "TE", 15.0)],
+        }
+        for roster_id, players in rosters.items():
+            for pid, pos, _ in players:
+                _player(db, pid, pid, pos)
+            _roster(db, "L1", roster_id, [pid for pid, _, _ in players])
+            _week_proj(db, 2026, 2, {pid: (pos, pts) for pid, pos, pts in players})
+
+        preview = get_weekly_preview(db, "L1", 2026, 15)
+        motw = preview["matchup_of_the_week"]
+        assert {motw["a"]["owner"], motw["b"]["owner"]} == {"Eve", "Finn"}
+        assert motw["proj_gap"] == pytest.approx(5.0)
+
+        pillow = preview["lowest_combined_matchup"]
+        assert {pillow["a"]["owner"], pillow["b"]["owner"]} == {"Gia", "Hal"}
+
+        assert preview["highest_projected"]["owner"] == "Eve"
+        assert preview["highest_projected"]["projected"] == pytest.approx(145.0)
 
     def test_too_few_matched_players_gives_null_projection(self, db):
         _league(db)

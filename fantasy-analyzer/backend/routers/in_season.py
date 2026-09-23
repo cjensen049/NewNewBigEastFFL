@@ -74,7 +74,7 @@ def weekly_recap(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict
     row = con.execute("SELECT league_id FROM leagues WHERE season = ?", (season,)).fetchone()
     if not row:
         return {"season": season, "recap": None}
-    recap = get_weekly_recap(con, row[0])
+    recap = get_weekly_recap(con, row[0], season)
     if recap:
         _attach_narratives(con, row[0], season, recap["week"], "recap", recap["matchups"])
     return {"season": season, "recap": recap}
