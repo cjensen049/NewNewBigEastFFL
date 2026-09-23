@@ -22,6 +22,8 @@ from fantasy_analyzer.analysis.dynasty_rankings import (
     compute_dynasty_rankings,
     compute_dynasty_rankings_overall,
     get_available_dynasty_sources,
+    get_dynasty_rankings_checkpoints,
+    get_dynasty_rankings_snapshot,
 )
 from fantasy_analyzer.analysis.weekly_digest import get_weekly_preview, get_weekly_recap
 
@@ -166,12 +168,17 @@ def luck_by_season(season: int, con: sqlite3.Connection = Depends(get_db)) -> di
 
 @router.get("/dynasty-rankings/{season}")
 def dynasty_rankings(
-    season: int, source: str = "overall", con: sqlite3.Connection = Depends(get_db)
+    season: int,
+    source: str = "overall",
+    checkpoint: str = "current",
+    con: sqlite3.Connection = Depends(get_db),
 ) -> dict:
     """Dynasty power rankings: roster value + draft capital + age curve.
 
     `source` is one of the available valuation sources (e.g. "dynastyprocess",
     "fantasycalc") or "overall" to blend the composite across all of them.
+    `checkpoint` is "current" (live, recomputed from today's data) or one of
+    the frozen checkpoints returned by /dynasty-rankings-checkpoints/{season}.
     """
     available_sources = get_available_dynasty_sources(con)
 
@@ -179,14 +186,24 @@ def dynasty_rankings(
         "SELECT league_id FROM leagues WHERE season = ?", (season,)
     ).fetchone()
     if not row:
-        return {"season": season, "data_date": None, "source": source, "available_sources": available_sources, "rows": []}
+        return {
+            "season": season, "data_date": None, "source": source, "checkpoint": checkpoint,
+            "available_sources": available_sources, "available_checkpoints": [], "rows": [],
+        }
+    league_id = row[0]
+    checkpoints = get_dynasty_rankings_checkpoints(con, league_id, season)
 
-    if source == "overall":
-        result = compute_dynasty_rankings_overall(con, row[0], season)
+    if checkpoint != "current":
+        result = get_dynasty_rankings_snapshot(con, league_id, season, checkpoint, source)
+    elif source == "overall":
+        result = compute_dynasty_rankings_overall(con, league_id, season)
     else:
-        result = compute_dynasty_rankings(con, row[0], season, source)
+        result = compute_dynasty_rankings(con, league_id, season, source)
 
-    return {**result, "source": source, "available_sources": available_sources}
+    return {
+        **result, "source": source, "checkpoint": checkpoint,
+        "available_sources": available_sources, "available_checkpoints": checkpoints,
+    }
 
 
 @router.get("/power-rankings/{season}")

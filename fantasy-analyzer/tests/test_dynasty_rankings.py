@@ -12,6 +12,9 @@ from fantasy_analyzer.analysis.dynasty_rankings import (
     compute_dynasty_rankings,
     compute_dynasty_rankings_overall,
     get_available_dynasty_sources,
+    get_dynasty_rankings_checkpoints,
+    get_dynasty_rankings_snapshot,
+    snapshot_dynasty_rankings,
 )
 from fantasy_analyzer.db.schema import DDL
 
@@ -286,3 +289,49 @@ class TestDraftCapital:
 
         capital = _draft_capital_values(db, "L1", 2026, "dynastyprocess")
         assert capital.get("u1", 0) > 0  # u1 received u2's traded pick
+
+
+class TestCheckpointSnapshots:
+    def test_unknown_checkpoint_rejected(self, db):
+        with pytest.raises(ValueError):
+            snapshot_dynasty_rankings(db, "L1", 2026, "not_a_real_checkpoint")
+
+    def test_snapshot_freezes_rows_independent_of_later_changes(self, db):
+        _add_player_value(db, "dynastyprocess", "p1", 9000)
+        _add_player_value(db, "dynastyprocess", "p2", 1000)
+
+        snapshot_dynasty_rankings(db, "L1", 2026, "week1")
+
+        # Live data moves after the snapshot was taken...
+        db.execute("UPDATE player_dynasty_values SET value = 100 WHERE player_id = 'p1'")
+        db.commit()
+        live = compute_dynasty_rankings(db, "L1", 2026, "dynastyprocess")
+
+        # ...but the frozen snapshot still reflects what it looked like at week1.
+        snap = get_dynasty_rankings_snapshot(db, "L1", 2026, "week1", "dynastyprocess")
+        assert snap["rows"][0]["owner"] == "Alice"
+        assert live["rows"][0]["owner"] == "Bob"
+
+    def test_rerunning_same_checkpoint_overwrites_not_duplicates(self, db):
+        _add_player_value(db, "dynastyprocess", "p1", 9000)
+        snapshot_dynasty_rankings(db, "L1", 2026, "week1")
+        snapshot_dynasty_rankings(db, "L1", 2026, "week1")
+
+        # One row per source stored ("overall" + "dynastyprocess") -- running
+        # the same checkpoint twice must not double these up.
+        count = db.execute(
+            "SELECT COUNT(*) FROM dynasty_rankings_snapshots WHERE checkpoint = 'week1'"
+        ).fetchone()[0]
+        assert count == 2
+
+    def test_missing_snapshot_returns_empty_rows(self, db):
+        result = get_dynasty_rankings_snapshot(db, "L1", 2026, "championship", "dynastyprocess")
+        assert result["rows"] == []
+
+    def test_checkpoints_listed_in_calendar_order(self, db):
+        _add_player_value(db, "dynastyprocess", "p1", 9000)
+        snapshot_dynasty_rankings(db, "L1", 2026, "trade_deadline")
+        snapshot_dynasty_rankings(db, "L1", 2026, "week1")
+
+        checkpoints = get_dynasty_rankings_checkpoints(db, "L1", 2026)
+        assert [c["checkpoint"] for c in checkpoints] == ["week1", "trade_deadline"]

@@ -70,6 +70,14 @@ def main() -> None:
     )
     dynasty_src_p.add_argument("--season", type=int, default=None, help="Season year (default: most recent)")
 
+    # snapshot-dynasty
+    from fantasy_analyzer.analysis.dynasty_rankings import CHECKPOINTS
+    snapshot_p = sub.add_parser(
+        "snapshot-dynasty",
+        help="Freeze the current dynasty rankings under a named checkpoint for later comparison",
+    )
+    snapshot_p.add_argument("--checkpoint", required=True, choices=CHECKPOINTS)
+
     # report
     report_p = sub.add_parser("report", help="Show analysis reports")
     report_sub = report_p.add_subparsers(dest="report_type", required=True)
@@ -123,6 +131,9 @@ def main() -> None:
 
     elif args.command == "scrape-dynasty-sources":
         _run_scrape_dynasty_sources(args, db_path, cfg)
+
+    elif args.command == "snapshot-dynasty":
+        _run_snapshot_dynasty(args, db_path)
 
     elif args.command == "report":
         con = sqlite3.connect(db_path)
@@ -334,6 +345,26 @@ def _run_scrape_dynasty_sources(args: argparse.Namespace, db_path: str, cfg: dic
             name = name_map.get(uid, uid)
             value = r["owner_values"].get(uid, 0)
             print(f"    {rank:2}. {name:<12} {value:,.0f}")
+
+
+def _run_snapshot_dynasty(args: argparse.Namespace, db_path: str) -> None:
+    """Freeze the current dynasty rankings under a named checkpoint."""
+    from fantasy_analyzer.analysis.dynasty_rankings import snapshot_dynasty_rankings
+
+    con = sqlite3.connect(db_path)
+    try:
+        row = con.execute(
+            "SELECT league_id, season FROM leagues ORDER BY season DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            print("No league found", file=sys.stderr)
+            sys.exit(1)
+        league_id, season = row
+
+        snapshot_dynasty_rankings(con, league_id, season, args.checkpoint)
+        print(f"  Snapshotted dynasty rankings: {args.checkpoint} ({season})")
+    finally:
+        con.close()
 
 
 def _run_report(args: argparse.Namespace, con: sqlite3.Connection) -> None:

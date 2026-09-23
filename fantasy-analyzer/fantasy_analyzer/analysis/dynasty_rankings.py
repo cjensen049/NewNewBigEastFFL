@@ -39,8 +39,10 @@ Returns {} when no dynasty value data has been scraped yet.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections import defaultdict
+from datetime import datetime, timezone
 
 
 _TAXI_DISCOUNT   = 0.80   # taxi players counted at 80% of value
@@ -57,6 +59,16 @@ _AUTHORITATIVE_OWNERSHIP_SOURCE = "ktc"
 _W_ROSTER  = 0.60
 _W_CAPITAL = 0.35
 _W_AGE     = 0.05
+
+# The 4 checkpoints dynasty-refresh.yml is manually run at each year, in
+# calendar order -- also the order shown in the frontend's checkpoint picker.
+CHECKPOINTS = ["post_draft", "week1", "trade_deadline", "championship"]
+CHECKPOINT_LABELS = {
+    "post_draft":     "Post Rookie Draft",
+    "week1":          "Week 1",
+    "trade_deadline": "Trade Deadline",
+    "championship":   "Championship",
+}
 
 
 def _zscore(values: dict[str, float]) -> dict[str, float]:
@@ -510,3 +522,68 @@ def compute_dynasty_rankings_overall(
         })
 
     return {"season": season, "data_date": data_date, "rows": rows}
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint snapshots
+# ---------------------------------------------------------------------------
+
+def snapshot_dynasty_rankings(
+    con: sqlite3.Connection, league_id: str, season: int, checkpoint: str
+) -> None:
+    """Freeze the current dynasty rankings (overall + every scraped source)
+    under a named checkpoint (see CHECKPOINTS), so the frontend can show
+    "Week 1" / "Trade Deadline" / etc. later even after values keep moving.
+
+    Re-running the same checkpoint (e.g. to fix a bad scrape) overwrites it
+    rather than duplicating, since (league_id, season, checkpoint, source) is
+    the primary key.
+    """
+    if checkpoint not in CHECKPOINTS:
+        raise ValueError(f"Unknown checkpoint {checkpoint!r}, expected one of {CHECKPOINTS}")
+
+    now = datetime.now(timezone.utc).isoformat()
+    to_store = [("overall", compute_dynasty_rankings_overall(con, league_id, season))]
+    for source in get_available_dynasty_sources(con):
+        to_store.append((source, compute_dynasty_rankings(con, league_id, season, source)))
+
+    for source, result in to_store:
+        if not result["rows"]:
+            continue
+        con.execute(
+            """INSERT OR REPLACE INTO dynasty_rankings_snapshots
+               (league_id, season, checkpoint, source, data_date, rows_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (league_id, season, checkpoint, source, result["data_date"], json.dumps(result["rows"]), now),
+        )
+    con.commit()
+
+
+def get_dynasty_rankings_checkpoints(con: sqlite3.Connection, league_id: str, season: int) -> list[dict]:
+    """Return available checkpoints for this league/season, in CHECKPOINTS order."""
+    rows = con.execute(
+        """SELECT DISTINCT checkpoint, data_date FROM dynasty_rankings_snapshots
+           WHERE league_id = ? AND season = ?""",
+        (league_id, season),
+    ).fetchall()
+    by_checkpoint = {r[0]: r[1] for r in rows}
+    return [
+        {"checkpoint": cp, "label": CHECKPOINT_LABELS[cp], "data_date": by_checkpoint[cp]}
+        for cp in CHECKPOINTS
+        if cp in by_checkpoint
+    ]
+
+
+def get_dynasty_rankings_snapshot(
+    con: sqlite3.Connection, league_id: str, season: int, checkpoint: str, source: str
+) -> dict:
+    """Return a frozen checkpoint snapshot, or {} rows if that checkpoint/source
+    combination was never captured (e.g. a source came online after week1)."""
+    row = con.execute(
+        """SELECT data_date, rows_json FROM dynasty_rankings_snapshots
+           WHERE league_id = ? AND season = ? AND checkpoint = ? AND source = ?""",
+        (league_id, season, checkpoint, source),
+    ).fetchone()
+    if not row:
+        return {"season": season, "data_date": None, "rows": []}
+    return {"season": season, "data_date": row[0], "rows": json.loads(row[1])}
