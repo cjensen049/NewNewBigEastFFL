@@ -101,15 +101,16 @@ def get_weekly_recap(con: sqlite3.Connection, league_id: str) -> dict | None:
     }
 
 
-def _projected_lineup_total(con: sqlite3.Connection, league_id: str, roster_id: int, season: int) -> float | None:
-    """A roster's optimal-lineup total at Sleeper's season-long per-game rate.
-    None if too few of its players matched a projection to trust the result."""
+def _projected_lineup_total(con: sqlite3.Connection, league_id: str, roster_id: int, season: int, week: int) -> float | None:
+    """A roster's optimal-lineup total at Sleeper's this-week projections (so an
+    injured/doubtful player correctly drops out instead of showing a healthy
+    season average). None if too few of its players matched a projection."""
     players = con.execute(
-        """SELECT sp.position, sp.projected_pts
+        """SELECT wp.position, wp.projected_pts
            FROM current_rosters cr
-           JOIN player_season_projections sp ON sp.player_id = cr.player_id AND sp.season = ?
-           WHERE cr.league_id=? AND cr.roster_id=? AND sp.projected_pts > 0""",
-        (season, league_id, roster_id),
+           JOIN player_projections wp ON wp.player_id = cr.player_id AND wp.season = ? AND wp.week = ?
+           WHERE cr.league_id=? AND cr.roster_id=? AND wp.projected_pts > 0""",
+        (season, week, league_id, roster_id),
     ).fetchall()
     if len(players) < _MIN_MATCHED_PLAYERS:
         return None
@@ -151,7 +152,7 @@ def get_weekly_preview(con: sqlite3.Connection, league_id: str, season: int, pws
     for mid, name, roster_id in rows:
         by_matchup[mid].append({
             "owner": name,
-            "projected": _projected_lineup_total(con, league_id, roster_id, season),
+            "projected": _projected_lineup_total(con, league_id, roster_id, season, week),
             "bye_count": _bye_player_count(con, league_id, roster_id, season, week),
         })
 

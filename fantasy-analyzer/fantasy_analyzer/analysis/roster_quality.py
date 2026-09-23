@@ -19,21 +19,25 @@ from collections import defaultdict
 # Optimal lineup calculator
 # ---------------------------------------------------------------------------
 
-def optimal_lineup_pts(players: list[dict]) -> float:
-    """Return the maximum projected points achievable from a player pool.
+def select_optimal_lineup(players: list[dict]) -> list[dict]:
+    """Return the subset of `players` that make up the optimal lineup.
 
     Args:
-        players: list of {"position": str, "projected_pts": float}
+        players: list of dicts, each with at least "position" and
+            "projected_pts" -- any other keys (player_id, name, ...) pass
+            through untouched, so callers can identify who actually starts.
 
     Slots filled: QB(1), RB(1), WR(2), TE(1), FLEX×3, SFLEX×1 = 9 total.
+    FLEX eligible: RB, WR, TE. SFLEX eligible: QB, RB, WR, TE (at most 1 QB
+    in the flex pool, since only one SFLEX slot exists).
     """
-    by_pos: dict[str, list[float]] = defaultdict(list)
+    by_pos: dict[str, list[dict]] = defaultdict(list)
     for p in players:
-        by_pos[p["position"]].append(p["projected_pts"])
+        by_pos[p["position"]].append(p)
     for pos in by_pos:
-        by_pos[pos].sort(reverse=True)
+        by_pos[pos].sort(key=lambda p: -p["projected_pts"])
 
-    total = 0.0
+    selected: list[dict] = []
     used: dict[str, int] = defaultdict(int)
 
     # ── Locked single-position slots ─────────────────────────────────────────
@@ -42,15 +46,15 @@ def optimal_lineup_pts(players: list[dict]) -> float:
         pool = by_pos.get(pos, [])
         for i in range(count):
             if i < len(pool):
-                total += pool[i]
+                selected.append(pool[i])
                 used[pos] += 1
 
     # ── Flex pool: 4 remaining slots (FLEX×3 + SFLEX) ─────────────────────
     # Build pool of remaining players.
-    non_qb: list[float] = []
+    non_qb: list[dict] = []
     for pos in ("RB", "WR", "TE"):
         non_qb.extend(by_pos.get(pos, [])[used[pos]:])
-    non_qb.sort(reverse=True)
+    non_qb.sort(key=lambda p: -p["projected_pts"])
 
     # Best remaining QB (if any) — can only fill SFLEX (at most 1 QB in pool)
     qb_pool = by_pos.get("QB", [])[used["QB"]:]
@@ -61,16 +65,22 @@ def optimal_lineup_pts(players: list[dict]) -> float:
 
     if best_qb is not None:
         # Include QB if it beats the worst of the top-4 non-QB (or fills an empty slot)
-        if len(top4_non_qb) < 4 or best_qb > top4_non_qb[-1]:
+        if len(top4_non_qb) < 4 or best_qb["projected_pts"] > top4_non_qb[-1]["projected_pts"]:
             cutoff_idx = 3 if len(top4_non_qb) >= 4 else len(top4_non_qb)
-            flex_pts = sum(top4_non_qb[:cutoff_idx]) + best_qb
+            selected.extend(top4_non_qb[:cutoff_idx])
+            selected.append(best_qb)
         else:
-            flex_pts = sum(top4_non_qb)
+            selected.extend(top4_non_qb)
     else:
-        flex_pts = sum(top4_non_qb)
+        selected.extend(top4_non_qb)
 
-    total += flex_pts
-    return total
+    return selected
+
+
+def optimal_lineup_pts(players: list[dict]) -> float:
+    """Return the maximum projected points achievable from a player pool.
+    See select_optimal_lineup for the lineup shape and player dict format."""
+    return sum(p["projected_pts"] for p in select_optimal_lineup(players))
 
 
 # ---------------------------------------------------------------------------

@@ -68,11 +68,14 @@ def _player(con, player_id, name, position, team=None):
     con.commit()
 
 
-def _season_proj(con, season, projections):
+def _week_proj(con, season, week, projections):
+    """projections: {player_id: (position, projected_pts)} -- that week's own
+    projection, since standout/bust and key-player picks now compare against
+    the pre-game expectation for that specific week, not a season average."""
     con.executemany(
-        "INSERT INTO player_season_projections (season, player_id, position, projected_pts, scraped_at) "
-        "VALUES (?,?,?,?,?)",
-        [(season, pid, pos, pts, "2026-01-01") for pid, (pos, pts) in projections.items()],
+        "INSERT INTO player_projections (season, week, player_id, position, projected_pts, scraped_at) "
+        "VALUES (?,?,?,?,?,?)",
+        [(season, week, pid, pos, pts, "2026-01-01") for pid, (pos, pts) in projections.items()],
     )
     con.commit()
 
@@ -89,7 +92,7 @@ class TestBuildRecapFacts:
         _owner(db, "L1", "u2", 2, "Bob")
         _player(db, "hot", "Hot Guy", "WR", team="BUF")
         _player(db, "cold", "Cold Guy", "RB", team="MIA")
-        _season_proj(db, 2026, {"hot": ("WR", 10.0), "cold": ("RB", 15.0)})
+        _week_proj(db, 2026, 1, {"hot": ("WR", 10.0), "cold": ("RB", 15.0)})
         _slot(db, 2026, 1, "BUF", "Monday Night")
 
         _matchup(
@@ -134,7 +137,7 @@ class TestBuildPreviewFacts:
             "VALUES ('L1', 1, 'byeguy', 'active', '2026-01-01')"
         )
         db.commit()
-        _season_proj(db, 2026, {"star": ("QB", 22.0)})
+        _week_proj(db, 2026, 2, {"star": ("QB", 22.0)})
         _slot(db, 2026, 2, "KC", "Sunday Night")
         db.execute("INSERT INTO nfl_byes (season, week, team) VALUES (2026, 2, 'DAL')")
         db.commit()
@@ -149,6 +152,36 @@ class TestBuildPreviewFacts:
     def test_no_upcoming_week_returns_none(self, db):
         _league(db)
         assert _build_preview_facts(db, "L1", 2026, 15) is None
+
+    def test_key_players_respects_lineup_slots_not_raw_top_n(self, db):
+        """Regression: picking key players by raw top-N points across the whole
+        roster could surface e.g. 3 QBs on a 2QB/superflex roster, as if all
+        three start, when the lineup only has room for 2 (1 locked + 1 SFLEX).
+        Key players must come from the actual optimal lineup selection."""
+        _league(db)
+        _owner(db, "L1", "u1", 1, "Alice")
+        _owner(db, "L1", "u2", 2, "Bob")
+        _matchup(db, "L1", 1, 1, "u1", 100.0)
+        _matchup(db, "L1", 1, 1, "u2", 90.0)
+        _matchup(db, "L1", 2, 1, "u1", 0.0)
+        _matchup(db, "L1", 2, 1, "u2", 0.0)
+
+        for pid, name in [("qb1", "QB One"), ("qb2", "QB Two"), ("qb3", "QB Three")]:
+            _player(db, pid, name, "QB")
+            db.execute(
+                "INSERT INTO current_rosters (league_id, roster_id, player_id, status, updated_at) "
+                "VALUES ('L1', 1, ?, 'active', '2026-01-01')", (pid,),
+            )
+        db.commit()
+        # Roster has only QBs (no RB/WR/TE), so the 3rd-best QB has nowhere to
+        # start: 1 locked QB slot + 1 SFLEX slot (QB-eligible) = 2 max.
+        _week_proj(db, 2026, 2, {"qb1": ("QB", 30.0), "qb2": ("QB", 25.0), "qb3": ("QB", 20.0)})
+
+        week, facts = _build_preview_facts(db, "L1", 2026, 15)
+        alice = facts[0]["a"] if facts[0]["a"]["owner"] == "Alice" else facts[0]["b"]
+        names = {p["name"] for p in alice["key_players"]}
+        assert names == {"QB One", "QB Two"}
+        assert "QB Three" not in names
 
 
 class TestStoreNarratives:

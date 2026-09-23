@@ -63,11 +63,13 @@ def _roster(con, league_id, roster_id, player_ids):
     con.commit()
 
 
-def _season_proj(con, season, projections):
+def _week_proj(con, season, week, projections):
+    """projections: {player_id: (position, projected_pts)} -- weekly (not season-long)
+    projections, since that's what the Weekly Preview panel is now sourced from."""
     con.executemany(
-        "INSERT INTO player_season_projections (season, player_id, position, projected_pts, scraped_at) "
-        "VALUES (?,?,?,?,?)",
-        [(season, pid, pos, pts, "2026-01-01") for pid, (pos, pts) in projections.items()],
+        "INSERT INTO player_projections (season, week, player_id, position, projected_pts, scraped_at) "
+        "VALUES (?,?,?,?,?,?)",
+        [(season, week, pid, pos, pts, "2026-01-01") for pid, (pos, pts) in projections.items()],
     )
     con.commit()
 
@@ -152,7 +154,7 @@ class TestGetWeeklyPreview:
             for pid, pos, _ in roster:
                 _player(db, pid, pid, pos)
             _roster(db, "L1", roster_id, [pid for pid, _, _ in roster])
-            _season_proj(db, 2026, {pid: (pos, pts) for pid, pos, pts in roster})
+            _week_proj(db, 2026, 2, {pid: (pos, pts) for pid, pos, pts in roster})
         # u4 (Dana) intentionally left with no projections at all -> null projected total
 
         preview = get_weekly_preview(db, "L1", 2026, 15)
@@ -188,7 +190,7 @@ class TestGetWeeklyPreview:
         _player(db, "p1", "P1", "QB")
         _player(db, "p2", "P2", "RB")
         _roster(db, "L1", 1, ["p1", "p2"])  # only 2 players matched -- below the minimum
-        _season_proj(db, 2026, {"p1": ("QB", 20.0), "p2": ("RB", 15.0)})
+        _week_proj(db, 2026, 2, {"p1": ("QB", 20.0), "p2": ("RB", 15.0)})
 
         preview = get_weekly_preview(db, "L1", 2026, 15)
         alice = next(s for m in preview["matchups"] for s in (m["a"], m["b"]) if s["owner"] == "Alice")
