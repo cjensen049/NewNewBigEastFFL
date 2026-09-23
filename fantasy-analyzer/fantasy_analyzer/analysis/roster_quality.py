@@ -19,7 +19,7 @@ from collections import defaultdict
 # Optimal lineup calculator
 # ---------------------------------------------------------------------------
 
-def _optimal_lineup_pts(players: list[dict]) -> float:
+def optimal_lineup_pts(players: list[dict]) -> float:
     """Return the maximum projected points achievable from a player pool.
 
     Args:
@@ -132,6 +132,6 @@ def compute_roster_quality(
             continue
 
         player_dicts = [{"position": pos, "projected_pts": float(pts)} for pos, pts in players]
-        result[user_id] = _optimal_lineup_pts(player_dicts)
+        result[user_id] = optimal_lineup_pts(player_dicts)
 
     return result

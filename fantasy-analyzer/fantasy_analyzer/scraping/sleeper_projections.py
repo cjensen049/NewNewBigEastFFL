@@ -19,6 +19,7 @@ import httpx
 log = logging.getLogger(__name__)
 
 _URL = "https://api.sleeper.app/projections/nfl/{season}?season_type=regular"
+_WEEK_URL = "https://api.sleeper.app/projections/nfl/{season}/{week}?season_type=regular"
 
 
 def fetch_season_projections(season: int) -> list[dict]:
@@ -75,4 +76,58 @@ def run_season_projections_scrape(con: sqlite3.Connection, season: int) -> int:
     projections = fetch_season_projections(season)
     stored = store_season_projections(con, projections, season)
     log.info("Stored %d season-long projections for %d", stored, season)
+    return stored
+
+
+def fetch_bye_teams(con: sqlite3.Connection, season: int, week: int) -> list[str]:
+    """Return NFL team abbreviations on a bye for one week.
+
+    Sleeper doesn't publish a bye-week list directly, but a bye team's
+    players are omitted entirely from that week's projections payload
+    (not present with a null opponent) -- so this is "which of the known
+    32 teams didn't show up this week" instead.
+    """
+    all_teams = {r[0] for r in con.execute("SELECT DISTINCT team FROM players WHERE team IS NOT NULL")}
+    if not all_teams:
+        return []
+
+    try:
+        resp = httpx.get(_WEEK_URL.format(season=season, week=week), timeout=30.0, verify=False)
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        log.warning("Sleeper week %d projections fetch failed for bye detection: %s", week, e)
+        return []
+
+    teams_seen = set()
+    for rec in resp.json() or []:
+        # Skip fantasy-irrelevant players (O-linemen, inactive/practice-squad
+        # names with no real projection) -- Sleeper sometimes carries stale
+        # team tags for these that would otherwise look like a false signal.
+        if (rec.get("stats") or {}).get("pts_ppr") is None:
+            continue
+        team = rec.get("team")
+        if team:
+            teams_seen.add(team)
+
+    return sorted(all_teams - teams_seen)
+
+
+def store_bye_teams(con: sqlite3.Connection, teams: list[str], season: int, week: int) -> int:
+    """Upsert into nfl_byes. Returns count stored."""
+    if not teams:
+        return 0
+    con.executemany(
+        "INSERT OR REPLACE INTO nfl_byes (season, week, team) VALUES (?, ?, ?)",
+        [(season, week, team) for team in teams],
+    )
+    con.commit()
+    return len(teams)
+
+
+def run_bye_week_scrape(con: sqlite3.Connection, season: int, week: int) -> int:
+    """Fetch and store which NFL teams are on a bye for one week. Returns count stored."""
+    log.info("Detecting bye-week teams for %d week %d", season, week)
+    teams = fetch_bye_teams(con, season, week)
+    stored = store_bye_teams(con, teams, season, week)
+    log.info("Stored %d bye teams for %d week %d: %s", stored, season, week, teams)
     return stored

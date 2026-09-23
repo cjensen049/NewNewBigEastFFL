@@ -142,6 +142,15 @@ CREATE TABLE IF NOT EXISTS player_season_projections (
     PRIMARY KEY (season, player_id)
 );
 
+-- Which NFL teams are on a bye a given week, derived from Sleeper's weekly
+-- projections (a team with every player showing a null opponent that week).
+CREATE TABLE IF NOT EXISTS nfl_byes (
+    season  INTEGER NOT NULL,
+    week    INTEGER NOT NULL,
+    team    TEXT    NOT NULL,
+    PRIMARY KEY (season, week, team)
+);
+
 CREATE TABLE IF NOT EXISTS current_rosters (
     league_id   TEXT    NOT NULL,
     roster_id   INTEGER NOT NULL,
@@ -242,6 +251,16 @@ async def apply_migrations(db_path: str) -> None:
                    projected_pts   REAL    NOT NULL,
                    scraped_at      TEXT    NOT NULL,
                    PRIMARY KEY (season, player_id)
+               )"""
+        )
+        await db.commit()
+
+        await db.execute(
+            """CREATE TABLE IF NOT EXISTS nfl_byes (
+                   season  INTEGER NOT NULL,
+                   week    INTEGER NOT NULL,
+                   team    TEXT    NOT NULL,
+                   PRIMARY KEY (season, week, team)
                )"""
         )
         await db.commit()

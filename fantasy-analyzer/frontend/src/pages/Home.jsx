@@ -352,6 +352,143 @@ function ResourcesSection() {
   )
 }
 
+// ─── This Week section ────────────────────────────────────────────────────────
+
+function PanelHeader({ title, badge }) {
+  return (
+    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{title}</span>
+      {badge != null && (
+        <span className="fs-label" style={{ background: 'rgba(26,58,107,0.3)', color: '#5b8dd9', border: '1px solid rgba(91,141,217,0.2)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
+          {badge}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function MatchupRow({ left, right, leftTag, rightTag, winner }) {
+  const sideStyle = owner => ({
+    fontWeight: winner === owner ? 700 : 500,
+    color: winner === owner ? 'var(--text-primary)' : 'var(--text-muted)',
+  })
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 16px', fontSize: '13px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', textAlign: 'right' }}>
+        <span style={sideStyle(left.owner)}>{left.owner}</span>
+        {leftTag}
+        <span style={{ ...sideStyle(left.owner), fontVariantNumeric: 'tabular-nums', width: '48px' }}>{left.value}</span>
+      </div>
+      <span style={{ color: 'var(--text-faint)', fontSize: '11px' }}>vs</span>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span style={{ ...sideStyle(right.owner), fontVariantNumeric: 'tabular-nums', width: '48px' }}>{right.value}</span>
+        {rightTag}
+        <span style={sideStyle(right.owner)}>{right.owner}</span>
+      </div>
+    </div>
+  )
+}
+
+function WeeklyRecapPanel({ season }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['weekly-recap', season],
+    queryFn: () => fetch(`/api/in-season/weekly-recap/${season}`).then(r => r.json()),
+    enabled: !!season,
+  })
+
+  const recap = data?.recap
+  if (isLoading) return <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '20px' }}><LoadingSpinner /></div>
+  if (!recap) return null
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+      <PanelHeader title="Week Recap" badge={`Wk ${recap.week}`} />
+
+      {/* Backend sorts matchups by margin ascending, so index 0 is the closest
+          game and the last index is the biggest blowout -- compared by position,
+          not object identity, since these are separate objects after the JSON round-trip. */}
+      {recap.matchups.map((m, i) => (
+        <MatchupRow
+          key={i}
+          left={{ owner: m.a.owner, value: m.a.points }}
+          right={{ owner: m.b.owner, value: m.b.points }}
+          winner={m.winner}
+          leftTag={i === 0 ? <span title="Closest game">🔥</span> : i === recap.matchups.length - 1 ? <span title="Biggest blowout">💥</span> : null}
+        />
+      ))}
+
+      {recap.top_player && (
+        <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px' }}>⭐</span>
+          <span className="fs-body" style={{ color: 'var(--text-muted)' }}>
+            Top performer: <strong style={{ color: 'var(--text-primary)' }}>{recap.top_player.name}</strong>
+            {recap.top_player.position && ` (${recap.top_player.position})`} —{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>{recap.top_player.points}</strong> pts for {recap.top_player.owner}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WeeklyPreviewPanel({ season }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['weekly-preview', season],
+    queryFn: () => fetch(`/api/in-season/weekly-preview/${season}`).then(r => r.json()),
+    enabled: !!season,
+  })
+
+  const preview = data?.preview
+  if (isLoading) return <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '20px' }}><LoadingSpinner /></div>
+  if (!preview) return null
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+      <PanelHeader title="Week Preview" badge={`Wk ${preview.week}`} />
+
+      {/* Backend sorts matchups with a real proj_gap first, closest gap first,
+          so index 0 is the closest projected matchup whenever one exists. */}
+      {preview.matchups.map((m, i) => {
+        const byeTag = owner => owner.bye_count > 0
+          ? <span title={`${owner.bye_count} rostered player(s) on bye`} style={{ fontSize: '11px', color: 'var(--gold)' }}>⚠️{owner.bye_count}</span>
+          : null
+        const isClosest = i === 0 && m.proj_gap != null
+        return (
+          <MatchupRow
+            key={i}
+            left={{ owner: m.a.owner, value: m.a.projected ?? '—' }}
+            right={{ owner: m.b.owner, value: m.b.projected ?? '—' }}
+            leftTag={<>{byeTag(m.a)}{isClosest && <span title="Closest projected matchup">🎯</span>}</>}
+            rightTag={byeTag(m.b)}
+          />
+        )
+      })}
+
+      <p className="fs-label" style={{ padding: '10px 16px 12px', color: 'var(--text-faint)', margin: 0 }}>
+        Projections are each team's optimal lineup at season-long per-game pace — not a guess at actual starters.
+      </p>
+    </div>
+  )
+}
+
+function ThisWeekSection() {
+  const { data: seasonsData } = useQuery({
+    queryKey: ['inseason-seasons'],
+    queryFn: () => fetch('/api/in-season/seasons').then(r => r.json()),
+  })
+  const currentSeason = seasonsData?.seasons?.[0]
+
+  return (
+    <div style={{ paddingBottom: '32px' }}>
+      <SectionLabel>This Week</SectionLabel>
+      <div className="home-season-grid">
+        <WeeklyRecapPanel season={currentSeason} />
+        <WeeklyPreviewPanel season={currentSeason} />
+      </div>
+    </div>
+  )
+}
+
 // ─── This Season section ──────────────────────────────────────────────────────
 
 function ThisSeasonSection() {
@@ -374,6 +511,7 @@ export default function Home() {
       <Hero />
       <div style={CONTAINER}>
         <ExploreSection />
+        <ThisWeekSection />
         <ThisSeasonSection />
         <ResourcesSection />
       </div>

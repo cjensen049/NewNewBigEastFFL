@@ -23,6 +23,7 @@ from fantasy_analyzer.analysis.dynasty_rankings import (
     compute_dynasty_rankings_overall,
     get_available_dynasty_sources,
 )
+from fantasy_analyzer.analysis.weekly_digest import get_weekly_preview, get_weekly_recap
 
 router = APIRouter()
 
@@ -53,6 +54,27 @@ def standings_snapshot(season: int, con: sqlite3.Connection = Depends(get_db)) -
         return {"season": season, "current_week": 0, "next_week": None, "rows": []}
     result = get_standings_snapshot(con, row[0], season, row[1])
     return result if result else {"season": season, "current_week": 0, "next_week": None, "rows": []}
+
+
+@router.get("/weekly-recap/{season}")
+def weekly_recap(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Last completed week's results, closest game, blowout, and top performer."""
+    row = con.execute("SELECT league_id FROM leagues WHERE season = ?", (season,)).fetchone()
+    if not row:
+        return {"season": season, "recap": None}
+    return {"season": season, "recap": get_weekly_recap(con, row[0])}
+
+
+@router.get("/weekly-preview/{season}")
+def weekly_preview(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Upcoming week's matchups with naive projected totals and bye-week flags."""
+    row = con.execute(
+        "SELECT league_id, playoff_week_start FROM leagues WHERE season = ?", (season,)
+    ).fetchone()
+    if not row:
+        return {"season": season, "preview": None}
+    league_id, pws = row
+    return {"season": season, "preview": get_weekly_preview(con, league_id, season, pws)}
 
 
 @router.get("/luck/all-time")
