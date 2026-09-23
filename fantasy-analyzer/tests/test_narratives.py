@@ -15,6 +15,7 @@ from fantasy_analyzer.scraping.narratives import (
     _build_recap_facts,
     _call_claude,
     _store_narratives,
+    _strip_code_fence,
     run_preview_narratives,
     run_recap_narratives,
 )
@@ -193,7 +194,10 @@ class TestCallClaudeParsing:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
 
         class FakeContent:
-            text = json.dumps([{"matchup_id": 5, "text": "Great game."}, {"matchup_id": 7, "text": "Blowout."}])
+            # _call_claude prefills the assistant turn with "[", so a real completion
+            # continues from there rather than repeating the opening bracket.
+            full_array = json.dumps([{"matchup_id": 5, "text": "Great game."}, {"matchup_id": 7, "text": "Blowout."}])
+            text = full_array[1:]
 
         class FakeResponse:
             content = [FakeContent()]
@@ -212,3 +216,38 @@ class TestCallClaudeParsing:
 
         result = _call_claude("system", [{"matchup_id": 5}, {"matchup_id": 7}])
         assert result == {5: "Great game.", 7: "Blowout."}
+
+    def test_recovers_from_trailing_code_fence(self, db, monkeypatch):
+        """Regression: Claude sometimes appends a closing ``` even when the
+        assistant turn is prefilled with '[', which used to break json.loads
+        outright and silently drop every narrative for the week."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+
+        class FakeContent:
+            full_array = json.dumps([{"matchup_id": 1, "text": "Close one."}])
+            text = full_array[1:] + "\n```"
+
+        class FakeResponse:
+            content = [FakeContent()]
+
+        class FakeMessages:
+            def create(self, **kwargs):
+                return FakeResponse()
+
+        class FakeClient:
+            def __init__(self, api_key):
+                self.messages = FakeMessages()
+
+        import anthropic
+        monkeypatch.setattr(anthropic, "Anthropic", FakeClient)
+
+        result = _call_claude("system", [{"matchup_id": 1}])
+        assert result == {1: "Close one."}
+
+
+class TestStripCodeFence:
+    def test_strips_trailing_fence(self):
+        assert _strip_code_fence('[{"a": 1}]\n```') == '[{"a": 1}]'
+
+    def test_leaves_unfenced_text_unchanged(self):
+        assert _strip_code_fence('[{"a": 1}]') == '[{"a": 1}]'

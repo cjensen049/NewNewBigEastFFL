@@ -171,13 +171,29 @@ def _call_claude(system: str, facts: list[dict]) -> dict[int, str]:
             model=_MODEL,
             max_tokens=2048,
             system=system,
-            messages=[{"role": "user", "content": json.dumps(facts)}],
+            messages=[
+                {"role": "user", "content": json.dumps(facts)},
+                # Prefilling the assistant turn with "[" strongly discourages Claude from
+                # wrapping the reply in a ```json code fence despite the system prompt.
+                {"role": "assistant", "content": "["},
+            ],
         )
-        parsed = json.loads(resp.content[0].text)
+        raw = "[" + resp.content[0].text
+        parsed = json.loads(_strip_code_fence(raw))
         return {int(item["matchup_id"]): item["text"] for item in parsed}
     except Exception as e:
-        log.warning("Claude narrative generation failed: %s", e)
+        log.warning("Claude narrative generation failed: %s; raw response: %.500s", e, locals().get("raw", "<no response>"))
         return {}
+
+
+def _strip_code_fence(text: str) -> str:
+    """Remove a leading ```json / trailing ``` fence, if Claude added one anyway."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
 
 
 def _store_narratives(con: sqlite3.Connection, league_id: str, season: int, week: int, kind: str, texts: dict[int, str]) -> int:
