@@ -77,7 +77,7 @@ def _player_perf(con: sqlite3.Connection, player_id: str, actual_pts: float, sea
 
 
 def _build_recap_facts(con: sqlite3.Connection, league_id: str, season: int) -> tuple[int, list[dict]] | None:
-    recap = get_weekly_recap(con, league_id)
+    recap = get_weekly_recap(con, league_id, season)
     if not recap:
         return None
     week = recap["week"]

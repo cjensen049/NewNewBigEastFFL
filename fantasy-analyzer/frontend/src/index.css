@@ -146,6 +146,12 @@ body {
   gap: 10px;
 }
 
+.home-week-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .stat-cards-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -164,6 +170,9 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
   .home-season-grid {
+    grid-template-columns: 1fr;
+  }
+  .home-week-grid {
     grid-template-columns: 1fr;
   }
   .stat-cards-grid {
