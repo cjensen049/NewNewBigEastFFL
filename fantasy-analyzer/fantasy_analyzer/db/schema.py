@@ -119,6 +119,9 @@ CREATE TABLE IF NOT EXISTS players (
     team        TEXT
 );
 
+-- Per-week player projections. Originally FantasyPros-sourced; now Sleeper's
+-- own per-week endpoint (see sleeper_projections.py), since FantasyPros'
+-- free page only exposes the top 10 players per position.
 CREATE TABLE IF NOT EXISTS player_projections (
     season          INTEGER NOT NULL,
     week            INTEGER NOT NULL,

@@ -1,11 +1,17 @@
-"""Sleeper's undocumented rest-of-season player projections.
+"""Sleeper's undocumented player projections -- season-long and per-week.
 
-Used as the roster-quality prior in power rankings. FantasyPros' free
-weekly projections page only exposes the top 10 players per position (the
-rest requires their paid MVP tier), which can't cover a full ~25-man
-dynasty roster. Sleeper's own season-long projection -- the same data
-their app shows -- has no such cap and already covers essentially every
+FantasyPros' free weekly projections page only exposes the top 10 players
+per position (the rest requires their paid MVP tier), which can't cover a
+full ~25-man dynasty roster. Sleeper's own projections -- the same data
+their app shows -- have no such cap and already cover essentially every
 rostered player, with no extra scraping/auth needed.
+
+Season-long (rest-of-season, divided to a per-game rate) is used as the
+roster-quality prior in power rankings -- a stable long-run team-strength
+signal. Per-week is used for anything that needs THIS week's reality (an
+injured/doubtful player has no `pts_ppr` at all that week, rather than a
+healthy season average) -- the Weekly Preview panel's projected matchup
+totals and bye-week detection.
 """
 
 from __future__ import annotations
@@ -130,4 +136,62 @@ def run_bye_week_scrape(con: sqlite3.Connection, season: int, week: int) -> int:
     teams = fetch_bye_teams(con, season, week)
     stored = store_bye_teams(con, teams, season, week)
     log.info("Stored %d bye teams for %d week %d: %s", stored, season, week, teams)
+    return stored
+
+
+def fetch_week_projections(season: int, week: int) -> list[dict]:
+    """Return [{player_id, position, projected_pts}] for this specific week.
+
+    Unlike the season-long projection, this reflects THIS week's reality --
+    a player ruled out or doubtful with an injury has no `pts_ppr` at all
+    (rather than a healthy season average), so hurt players correctly drop
+    out of a "who's projected to start" or "projected matchup total" view.
+    """
+    try:
+        resp = httpx.get(_WEEK_URL.format(season=season, week=week), timeout=30.0, verify=False)
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        log.warning("Sleeper week %d projections fetch failed for %d: %s", week, season, e)
+        return []
+
+    results = []
+    for rec in resp.json() or []:
+        pid = rec.get("player_id")
+        pts = (rec.get("stats") or {}).get("pts_ppr")
+        position = (rec.get("player") or {}).get("position")
+        if not pid or pts is None or not position:
+            continue
+        results.append({
+            "player_id": pid,
+            "position": position,
+            "projected_pts": float(pts),
+        })
+    return results
+
+
+def store_week_projections(con: sqlite3.Connection, projections: list[dict], season: int, week: int) -> int:
+    """Upsert into player_projections. Returns count stored."""
+    if not projections:
+        return 0
+
+    now = datetime.now(timezone.utc).isoformat()
+    con.executemany(
+        """INSERT INTO player_projections (season, week, player_id, position, projected_pts, scraped_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(season, week, player_id) DO UPDATE SET
+               position      = excluded.position,
+               projected_pts = excluded.projected_pts,
+               scraped_at    = excluded.scraped_at""",
+        [(season, week, p["player_id"], p["position"], p["projected_pts"], now) for p in projections],
+    )
+    con.commit()
+    return len(projections)
+
+
+def run_week_projections_scrape(con: sqlite3.Connection, season: int, week: int) -> int:
+    """Fetch and store Sleeper's this-week projections. Returns count stored."""
+    log.info("Fetching Sleeper week %d projections for %d", week, season)
+    projections = fetch_week_projections(season, week)
+    stored = store_week_projections(con, projections, season, week)
+    log.info("Stored %d week %d projections for %d", stored, week, season)
     return stored

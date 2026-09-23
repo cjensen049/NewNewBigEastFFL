@@ -133,10 +133,13 @@ def main() -> None:
 
 
 def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
-    """Refresh current rosters, weekly FantasyPros projections, and Sleeper's
-    season-long projections (the roster-quality prior)."""
-    from fantasy_analyzer.scraping.fantasypros import run_projections_scrape, update_current_rosters
-    from fantasy_analyzer.scraping.sleeper_projections import run_season_projections_scrape, run_bye_week_scrape
+    """Refresh current rosters and Sleeper's projections: season-long (the
+    roster-quality prior) and per-week (this-week-accurate matchup previews
+    and recap comparisons, replacing FantasyPros' paywall-limited scrape)."""
+    from fantasy_analyzer.scraping.fantasypros import update_current_rosters
+    from fantasy_analyzer.scraping.sleeper_projections import (
+        run_season_projections_scrape, run_week_projections_scrape, run_bye_week_scrape,
+    )
     from fantasy_analyzer.scraping.nfl_schedule import run_schedule_scrape
     from fantasy_analyzer.scraping.narratives import run_recap_narratives, run_preview_narratives
 
@@ -178,19 +181,18 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
         roster_count = update_current_rosters(con, league_id)
         print(f"  Rosters: {roster_count} player-roster entries updated")
 
-        proj_count = run_projections_scrape(con, season, week)
-        print(f"  Projections: {proj_count} players stored for week {week}")
-
         season_proj_count = run_season_projections_scrape(con, season)
         print(f"  Season-long projections: {season_proj_count} players stored (roster quality prior)")
 
         bye_count = run_bye_week_scrape(con, season, week)
         print(f"  Bye weeks: {bye_count} teams on bye in week {week}")
 
-        # Schedule slots for both the just-completed week (recap narratives)
-        # and the upcoming week (preview narratives).
+        # Per-week projections and schedule slots for both the just-completed
+        # week (recap narratives) and the upcoming week (preview narratives).
         for wk in {week - 1, week}:
             if wk >= 1:
+                wk_proj_count = run_week_projections_scrape(con, season, wk)
+                print(f"  Week {wk} projections: {wk_proj_count} players stored")
                 slot_count = run_schedule_scrape(con, season, wk)
                 print(f"  Schedule slots: {slot_count} teams for week {wk}")
 
