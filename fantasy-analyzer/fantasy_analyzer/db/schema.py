@@ -226,6 +226,17 @@ CREATE TABLE IF NOT EXISTS team_totals (
     PRIMARY KEY (source, league_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS dynasty_rankings_snapshots (
+    league_id   TEXT    NOT NULL,
+    season      INTEGER NOT NULL,
+    checkpoint  TEXT    NOT NULL,
+    source      TEXT    NOT NULL,
+    data_date   TEXT,
+    rows_json   TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL,
+    PRIMARY KEY (league_id, season, checkpoint, source)
+);
+
 CREATE INDEX IF NOT EXISTS idx_pick_ownership_source ON pick_ownership(source, league_id);
 CREATE INDEX IF NOT EXISTS idx_matchups_league_week ON matchups(league_id, week);
 CREATE INDEX IF NOT EXISTS idx_matchups_user ON matchups(user_id);
@@ -497,6 +508,25 @@ async def apply_migrations(db_path: str) -> None:
                 total       REAL    NOT NULL,
                 scraped_at  TEXT    NOT NULL,
                 PRIMARY KEY (source, league_id, user_id)
+            )
+        """)
+        await db.commit()
+
+        # Frozen dynasty rankings output at named checkpoints (preseason,
+        # week1, trade_deadline, championship) -- rows_json is the exact
+        # {season, data_date, rows} dict compute_dynasty_rankings(_overall)
+        # returned at snapshot time, so historical views never shift under a
+        # later formula change.
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS dynasty_rankings_snapshots (
+                league_id   TEXT    NOT NULL,
+                season      INTEGER NOT NULL,
+                checkpoint  TEXT    NOT NULL,
+                source      TEXT    NOT NULL,
+                data_date   TEXT,
+                rows_json   TEXT    NOT NULL,
+                created_at  TEXT    NOT NULL,
+                PRIMARY KEY (league_id, season, checkpoint, source)
             )
         """)
         await db.commit()

@@ -22,7 +22,10 @@
  * — useful for seeing who's #1 in a single category rather than the blended
  * composite. The "#" rank badge always reflects the current sort order.
  * Refreshed 4× per year: post rookie draft, Week 1, post trade deadline,
- * and post championship.
+ * and post championship. The checkpoint dropdown lets you view a frozen
+ * snapshot from any past checkpoint instead of the live "Current" data —
+ * snapshots are captured server-side when that refresh is run, so a
+ * checkpoint with no snapshot yet just shows an empty state.
  *
  * Props:
  *   season  {number} — active season year
@@ -221,6 +224,7 @@ function SortableTH({ children, sortKeyName, activeSortKey, sortDir, onSort, ali
 
 export default function DynastyRankings({ season }) {
   const [source, setSource] = useState('overall')
+  const [checkpoint, setCheckpoint] = useState('current')
   const [sortKey, setSortKey] = useState('composite')
   const [sortDir, setSortDir] = useState('desc')
 
@@ -234,17 +238,18 @@ export default function DynastyRankings({ season }) {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dynasty-rankings', season, source],
-    queryFn: () => fetch(`/api/in-season/dynasty-rankings/${season}?source=${source}`).then(r => r.json()),
+    queryKey: ['dynasty-rankings', season, source, checkpoint],
+    queryFn: () => fetch(`/api/in-season/dynasty-rankings/${season}?source=${source}&checkpoint=${checkpoint}`).then(r => r.json()),
     enabled: !!season,
   })
 
   if (isLoading) return <div style={{ padding: '20px 0' }}><LoadingSpinner /></div>
 
-  const rows             = data?.rows ?? []
-  const dataDate         = data?.data_date ?? null
-  const availableSources = data?.available_sources ?? []
-  const isOverall         = source === 'overall'
+  const rows                = data?.rows ?? []
+  const dataDate            = data?.data_date ?? null
+  const availableSources    = data?.available_sources ?? []
+  const availableCheckpoints = data?.available_checkpoints ?? []
+  const isOverall            = source === 'overall'
 
   const sortedRows = [...rows].sort((a, b) => {
     const cmp = sortKey === 'owner'
@@ -263,6 +268,23 @@ export default function DynastyRankings({ season }) {
     </div>
   )
 
+  const CheckpointSelect = (
+    <select
+      value={checkpoint}
+      onChange={e => setCheckpoint(e.target.value)}
+      style={{
+        padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 600,
+        background: 'var(--border)', color: 'var(--text-muted)', border: '1px solid var(--border-mid)',
+        cursor: 'pointer',
+      }}
+    >
+      <option value="current">Current</option>
+      {availableCheckpoints.map(cp => (
+        <option key={cp.checkpoint} value={cp.checkpoint}>{cp.label} {season}</option>
+      ))}
+    </select>
+  )
+
   if (rows.length === 0) {
     return (
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', maxWidth: '700px' }}>
@@ -271,10 +293,13 @@ export default function DynastyRankings({ season }) {
           <span className="fs-label" style={{ background: 'rgba(227,179,65,0.12)', color: 'var(--gold)', border: '1px solid rgba(227,179,65,0.25)', borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>
             {sourceLabel(source)}
           </span>
+          {CheckpointSelect}
         </div>
         {SourceToggle}
         <p className="fs-body" style={{ padding: '24px 16px', color: 'var(--text-faint)', fontStyle: 'italic', textAlign: 'center' }}>
-          Dynasty rankings refreshed 4× per year: post rookie draft, Week 1, post trade deadline, and post championship.
+          {checkpoint === 'current'
+            ? 'Dynasty rankings refreshed 4× per year: post rookie draft, Week 1, post trade deadline, and post championship.'
+            : `No ${sourceLabel(source)} snapshot was captured at this checkpoint.`}
         </p>
         <FormulaFooter source={source} />
       </div>
@@ -307,6 +332,7 @@ export default function DynastyRankings({ season }) {
             {dataDate}
           </span>
         )}
+        {CheckpointSelect}
         <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-faint)' }}>
           Roster 60% · Capital 35% · Age 5%
         </span>

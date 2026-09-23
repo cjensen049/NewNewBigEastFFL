@@ -7,6 +7,16 @@ name: Dynasty Rankings Refresh
 #   4. Post championship      (mid January)
 on:
   workflow_dispatch:
+    inputs:
+      checkpoint:
+        description: 'Which checkpoint is this refresh for?'
+        required: true
+        type: choice
+        options:
+          - post_draft
+          - week1
+          - trade_deadline
+          - championship
 
 permissions:
   contents: write
@@ -40,6 +50,9 @@ jobs:
 
       - name: Refresh KeepTradeCut values
         run: python -m fantasy_analyzer.cli scrape-ktc
+
+      - name: Snapshot dynasty rankings under this checkpoint
+        run: python -m fantasy_analyzer.cli snapshot-dynasty --checkpoint ${{ inputs.checkpoint }}
 
       - name: Commit updated DB
         run: |
