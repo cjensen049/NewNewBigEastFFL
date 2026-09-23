@@ -22,10 +22,11 @@
  * — useful for seeing who's #1 in a single category rather than the blended
  * composite. The "#" rank badge always reflects the current sort order.
  * Refreshed 4× per year: post rookie draft, Week 1, post trade deadline,
- * and post championship. The checkpoint dropdown lets you view a frozen
- * snapshot from any past checkpoint instead of the live "Current" data —
- * snapshots are captured server-side when that refresh is run, so a
- * checkpoint with no snapshot yet just shows an empty state.
+ * and post championship. The page defaults to live data (a plain "Live"
+ * caption, not a selectable option); the checkpoint dropdown only lists
+ * past checkpoints and, once one is picked, a "Back to live" link appears
+ * in its place. Snapshots are captured server-side when that refresh is
+ * run, so a checkpoint with no snapshot yet just shows an empty state.
  *
  * Props:
  *   season  {number} — active season year
@@ -268,21 +269,37 @@ export default function DynastyRankings({ season }) {
     </div>
   )
 
-  const CheckpointSelect = (
-    <select
-      value={checkpoint}
-      onChange={e => setCheckpoint(e.target.value)}
-      style={{
-        padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 600,
-        background: 'var(--border)', color: 'var(--text-muted)', border: '1px solid var(--border-mid)',
-        cursor: 'pointer',
-      }}
-    >
-      <option value="current">Current</option>
-      {availableCheckpoints.map(cp => (
-        <option key={cp.checkpoint} value={cp.checkpoint}>{cp.label} {season}</option>
-      ))}
-    </select>
+  const isLive = checkpoint === 'current'
+
+  const CheckpointSelect = availableCheckpoints.length > 0 && (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      {isLive ? (
+        <span style={{ fontSize: '11px', color: 'var(--text-faint)', fontStyle: 'italic' }}>
+          Live — updated at every dynasty scrape
+        </span>
+      ) : (
+        <button
+          onClick={() => setCheckpoint('current')}
+          style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-faint)', fontSize: '11px', textDecoration: 'underline', cursor: 'pointer' }}
+        >
+          ← Back to live
+        </button>
+      )}
+      <select
+        value={isLive ? '' : checkpoint}
+        onChange={e => setCheckpoint(e.target.value || 'current')}
+        style={{
+          padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 600,
+          background: 'var(--border)', color: 'var(--text-muted)', border: '1px solid var(--border-mid)',
+          cursor: 'pointer',
+        }}
+      >
+        <option value="" disabled hidden>View a past checkpoint…</option>
+        {availableCheckpoints.map(cp => (
+          <option key={cp.checkpoint} value={cp.checkpoint}>{cp.label} {season}</option>
+        ))}
+      </select>
+    </div>
   )
 
   if (rows.length === 0) {
