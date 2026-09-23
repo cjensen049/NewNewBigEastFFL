@@ -151,6 +151,30 @@ CREATE TABLE IF NOT EXISTS nfl_byes (
     PRIMARY KEY (season, week, team)
 );
 
+-- Kickoff-time slot (Thursday Night / Sunday Early / ... / Monday Night) per
+-- NFL team per week, from ESPN's public scoreboard. Sleeper's own data only
+-- has day-level precision, not kickoff time.
+CREATE TABLE IF NOT EXISTS game_slots (
+    season  INTEGER NOT NULL,
+    week    INTEGER NOT NULL,
+    team    TEXT    NOT NULL,
+    slot    TEXT    NOT NULL,
+    PRIMARY KEY (season, week, team)
+);
+
+-- AI-generated recap/preview paragraphs per matchup, cached weekly so pages
+-- never call the LLM at request time. kind is 'recap' or 'preview'.
+CREATE TABLE IF NOT EXISTS weekly_narratives (
+    league_id     TEXT    NOT NULL,
+    season        INTEGER NOT NULL,
+    week          INTEGER NOT NULL,
+    kind          TEXT    NOT NULL,
+    matchup_id    INTEGER NOT NULL,
+    text          TEXT    NOT NULL,
+    generated_at  TEXT    NOT NULL,
+    PRIMARY KEY (league_id, season, week, kind, matchup_id)
+);
+
 CREATE TABLE IF NOT EXISTS current_rosters (
     league_id   TEXT    NOT NULL,
     roster_id   INTEGER NOT NULL,
@@ -261,6 +285,31 @@ async def apply_migrations(db_path: str) -> None:
                    week    INTEGER NOT NULL,
                    team    TEXT    NOT NULL,
                    PRIMARY KEY (season, week, team)
+               )"""
+        )
+        await db.commit()
+
+        await db.execute(
+            """CREATE TABLE IF NOT EXISTS game_slots (
+                   season  INTEGER NOT NULL,
+                   week    INTEGER NOT NULL,
+                   team    TEXT    NOT NULL,
+                   slot    TEXT    NOT NULL,
+                   PRIMARY KEY (season, week, team)
+               )"""
+        )
+        await db.commit()
+
+        await db.execute(
+            """CREATE TABLE IF NOT EXISTS weekly_narratives (
+                   league_id     TEXT    NOT NULL,
+                   season        INTEGER NOT NULL,
+                   week          INTEGER NOT NULL,
+                   kind          TEXT    NOT NULL,
+                   matchup_id    INTEGER NOT NULL,
+                   text          TEXT    NOT NULL,
+                   generated_at  TEXT    NOT NULL,
+                   PRIMARY KEY (league_id, season, week, kind, matchup_id)
                )"""
         )
         await db.commit()

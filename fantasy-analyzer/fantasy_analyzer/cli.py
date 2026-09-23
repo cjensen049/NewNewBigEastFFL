@@ -137,6 +137,8 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
     season-long projections (the roster-quality prior)."""
     from fantasy_analyzer.scraping.fantasypros import run_projections_scrape, update_current_rosters
     from fantasy_analyzer.scraping.sleeper_projections import run_season_projections_scrape, run_bye_week_scrape
+    from fantasy_analyzer.scraping.nfl_schedule import run_schedule_scrape
+    from fantasy_analyzer.scraping.narratives import run_recap_narratives, run_preview_narratives
 
     con = sqlite3.connect(db_path)
     try:
@@ -161,15 +163,15 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
             ).fetchone()
             week = (row[0] or 0) + 1
 
-        # Get league_id for this season
+        # Get league_id + playoff_week_start for this season
         row = con.execute(
-            "SELECT league_id FROM leagues WHERE season = ? ORDER BY rowid DESC LIMIT 1",
+            "SELECT league_id, playoff_week_start FROM leagues WHERE season = ? ORDER BY rowid DESC LIMIT 1",
             (season,),
         ).fetchone()
         if not row:
             print(f"No league found for season {season}", file=sys.stderr)
             sys.exit(1)
-        league_id = row[0]
+        league_id, pws = row
 
         print(f"Season {season} — refreshing rosters and scraping week {week} projections")
 
@@ -184,6 +186,19 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
 
         bye_count = run_bye_week_scrape(con, season, week)
         print(f"  Bye weeks: {bye_count} teams on bye in week {week}")
+
+        # Schedule slots for both the just-completed week (recap narratives)
+        # and the upcoming week (preview narratives).
+        for wk in {week - 1, week}:
+            if wk >= 1:
+                slot_count = run_schedule_scrape(con, season, wk)
+                print(f"  Schedule slots: {slot_count} teams for week {wk}")
+
+        recap_count = run_recap_narratives(con, league_id, season)
+        print(f"  Recap narratives: {recap_count} matchups")
+
+        preview_count = run_preview_narratives(con, league_id, season, pws)
+        print(f"  Preview narratives: {preview_count} matchups")
     finally:
         con.close()
 
