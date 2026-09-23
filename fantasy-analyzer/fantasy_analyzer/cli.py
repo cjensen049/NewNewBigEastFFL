@@ -136,7 +136,7 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
     """Refresh current rosters, weekly FantasyPros projections, and Sleeper's
     season-long projections (the roster-quality prior)."""
     from fantasy_analyzer.scraping.fantasypros import run_projections_scrape, update_current_rosters
-    from fantasy_analyzer.scraping.sleeper_projections import run_season_projections_scrape
+    from fantasy_analyzer.scraping.sleeper_projections import run_season_projections_scrape, run_bye_week_scrape
 
     con = sqlite3.connect(db_path)
     try:
@@ -181,6 +181,9 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
 
         season_proj_count = run_season_projections_scrape(con, season)
         print(f"  Season-long projections: {season_proj_count} players stored (roster quality prior)")
+
+        bye_count = run_bye_week_scrape(con, season, week)
+        print(f"  Bye weeks: {bye_count} teams on bye in week {week}")
     finally:
         con.close()
 
