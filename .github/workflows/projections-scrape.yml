@@ -50,6 +50,7 @@ jobs:
         run: git push
 
       - name: Sync staging so it doesn't go stale
+        if: github.ref_name == 'master'  # only meaningful when the cron/dispatch ran on master
         run: |
           git checkout staging
           git merge master --no-edit
