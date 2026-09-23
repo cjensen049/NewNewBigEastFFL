@@ -96,50 +96,75 @@ def _current_pick_owners(
     con: sqlite3.Connection,
     league_id: str,
     current_season: int,
-) -> dict[tuple, int]:
-    """Return {(season, round, original_roster_id): current_roster_id}.
+) -> dict[tuple[int, int, str], str]:
+    """Return {(season, round, original_user_id): current_user_id}.
 
     Considers all future picks (current_season+1 through current_season+3).
-    If a pick has been traded, the most recent to_roster_id is the owner.
-    Un-traded picks default to original_roster_id.
+    If a pick has been traded, the most recent trade's recipient owns it.
+    Un-traded picks default to their original owner.
+
+    A future pick is often traded years before it's actually used -- e.g. a
+    "2027" pick traded in the 2024-season league. Sleeper issues a new
+    league_id every season, so that trade is recorded under the 2024
+    league_id, not the current one. Only searching the CURRENT league's
+    transactions (as this used to) silently drops every such trade, making
+    picks default back to their original owner years after they were dealt
+    away. Every trade across every season this franchise has played (the
+    full `leagues` table -- one continuous dynasty league here) is searched
+    instead, resolving each trade's roster_ids through THAT season's own
+    league_owners mapping (roster_id numbering isn't safe to compare across
+    league instances) so everything ends up keyed by the stable user_id.
     """
     future_start = current_season + 1
     future_end   = current_season + _FUTURE_YEARS
 
-    # All trades involving future picks for this league
+    all_league_ids = [r[0] for r in con.execute("SELECT league_id FROM leagues").fetchall()]
+    placeholders = ",".join("?" * len(all_league_ids))
+
+    roster_to_uid: dict[tuple[str, int], str] = {
+        (lid, rid): uid
+        for lid, rid, uid in con.execute(
+            f"SELECT league_id, roster_id, user_id FROM league_owners WHERE league_id IN ({placeholders})",
+            all_league_ids,
+        ).fetchall()
+    }
+
+    # All trades involving future picks, across every season this league has played
     rows = con.execute(
-        """SELECT tdp.season, tdp.round, tdp.original_roster_id,
-                  tdp.to_roster_id, t.created_epoch
-           FROM transaction_draft_picks tdp
-           JOIN transactions t ON tdp.transaction_id = t.transaction_id
-           WHERE t.league_id = ? AND tdp.season BETWEEN ? AND ?
-           ORDER BY t.created_epoch""",
-        (league_id, future_start, future_end),
+        f"""SELECT t.league_id, tdp.season, tdp.round, tdp.original_roster_id,
+                   tdp.to_roster_id, t.created_epoch
+            FROM transaction_draft_picks tdp
+            JOIN transactions t ON tdp.transaction_id = t.transaction_id
+            WHERE t.league_id IN ({placeholders}) AND tdp.season BETWEEN ? AND ?
+            ORDER BY t.created_epoch""",
+        all_league_ids + [future_start, future_end],
     ).fetchall()
 
     # Keep only the most recent trade per pick
     latest: dict[tuple, tuple] = {}
-    for season, rnd, orig_rid, to_rid, epoch in rows:
-        key = (season, rnd, orig_rid)
+    for txn_league_id, season, rnd, orig_rid, to_rid, epoch in rows:
+        orig_uid = roster_to_uid.get((txn_league_id, orig_rid))
+        to_uid   = roster_to_uid.get((txn_league_id, to_rid))
+        if not orig_uid or not to_uid:
+            continue  # roster_id from a league we don't have owners for -- skip rather than guess
+        key = (season, rnd, orig_uid)
         if key not in latest or (epoch or 0) > latest[key][1]:
-            latest[key] = (to_rid, epoch or 0)
+            latest[key] = (to_uid, epoch or 0)
 
     current_owners = {k: v[0] for k, v in latest.items()}
 
-    # Roster IDs for this league
-    roster_ids = [
+    # Fill un-traded picks — original owner still holds
+    current_uids = [
         r[0] for r in con.execute(
-            "SELECT roster_id FROM league_owners WHERE league_id = ?", (league_id,)
+            "SELECT user_id FROM league_owners WHERE league_id = ?", (league_id,)
         ).fetchall()
     ]
-
-    # Fill un-traded picks — original owner still holds
     for future_season in range(future_start, future_end + 1):
         for rnd in range(1, _ROUNDS + 1):
-            for orig_rid in roster_ids:
-                key = (future_season, rnd, orig_rid)
+            for orig_uid in current_uids:
+                key = (future_season, rnd, orig_uid)
                 if key not in current_owners:
-                    current_owners[key] = orig_rid
+                    current_owners[key] = orig_uid
 
     return current_owners
 
@@ -168,18 +193,7 @@ def _pick_ownership_reconstructed(
     own transaction history. Fallback for sources with no ownership feed.
     """
     pick_owners = _current_pick_owners(con, league_id, current_season)
-    rid_to_uid = dict(
-        con.execute(
-            "SELECT roster_id, user_id FROM league_owners WHERE league_id = ?",
-            (league_id,),
-        ).fetchall()
-    )
-    result = []
-    for (_season, _rnd, _orig_rid), current_rid in pick_owners.items():
-        uid = rid_to_uid.get(current_rid)
-        if uid:
-            result.append((_season, _rnd, uid))
-    return result
+    return [(season, rnd, uid) for (season, rnd, _orig_uid), uid in pick_owners.items()]
 
 
 def _pick_value(con: sqlite3.Connection, source: str, season: int, rnd: int) -> float:
