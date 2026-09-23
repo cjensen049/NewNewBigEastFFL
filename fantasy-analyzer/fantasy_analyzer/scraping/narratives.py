@@ -25,6 +25,11 @@ log = logging.getLogger(__name__)
 
 _MODEL = "claude-haiku-4-5-20251001"
 
+_NO_EM_DASH_RULE = (
+    "Never use an em dash (—) or a double hyphen (--) as punctuation. Write in simpler "
+    "sentences instead, and use commas or parentheses where you'd otherwise reach for a dash."
+)
+
 _RECAP_SYSTEM = (
     "You are a witty fantasy football beat writer. For each matchup you're given, write "
     "ONE short paragraph (2-4 sentences) recapping the result, in a punchy, conversational "
@@ -32,7 +37,8 @@ _RECAP_SYSTEM = (
     "missed their usual per-game pace (the 'projected_rate' field) when notable. Mention the "
     "game-time slot (Thursday Night / Sunday Early / Sunday Late / Sunday Night / Monday Night) "
     "only when it adds real color, e.g. a game decided by a Monday night performance. Do not "
-    "invent any facts not given to you -- if a field is null, just don't mention it. Respond "
+    "invent any facts not given to you -- if a field is null, just don't mention it. "
+    f"{_NO_EM_DASH_RULE} Respond "
     "with ONLY a JSON array like [{\"matchup_id\": 1, \"text\": \"...\"}], no other text."
 )
 
@@ -42,7 +48,7 @@ _PREVIEW_SYSTEM = (
     "much, standout projected performers by name, any bye-week absences worth flagging, and "
     "notable game-time slot concentration (e.g. several key starters all playing Monday night, "
     "adding late suspense). Do not invent any facts not given to you -- if a field is null or "
-    "empty, just don't mention it. Respond with ONLY a JSON array like "
+    f"empty, just don't mention it. {_NO_EM_DASH_RULE} Respond with ONLY a JSON array like "
     "[{\"matchup_id\": 1, \"text\": \"...\"}], no other text."
 )
 
