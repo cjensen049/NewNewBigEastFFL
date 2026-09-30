@@ -134,11 +134,14 @@ function rankStyle(i) {
   return { background: 'var(--border)', color: 'var(--text-muted)' }
 }
 
-function luckVerdict(luckDiff) {
-  if (luckDiff == null) return null
-  if (luckDiff > 0.3) return { label: '↑ Lucky',   color: 'var(--green)',     bg: 'rgba(63,185,80,0.1)' }
-  if (luckDiff < -0.3) return { label: '↓ Unlucky', color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.08)' }
-  return { label: '→ Even',   color: 'var(--gold)',      bg: 'rgba(227,179,65,0.1)' }
+// Styles the verdict string the backend computes (in_season.py::_luck_verdict) --
+// rendering that same string, not re-deriving our own from luck_diff, is what
+// keeps this in sync with the Playoff Picture page's Luck-o-Meter column.
+function luckStyle(verdict) {
+  if (!verdict) return null
+  if (verdict.includes('Unlucky')) return { color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.08)' }
+  if (verdict.includes('Lucky'))   return { color: 'var(--green)',     bg: 'rgba(63,185,80,0.1)' }
+  return { color: 'var(--gold)', bg: 'rgba(227,179,65,0.1)' }
 }
 
 function StandingsPanel() {
@@ -215,12 +218,12 @@ function StandingsPanel() {
               render: v => v != null ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—',
             },
             {
-              key: 'luck_diff', label: 'Luck', align: 'center',
+              key: 'luck_verdict', label: 'Luck', align: 'center',
               render: v => {
-                const verdict = luckVerdict(v)
-                return verdict ? (
-                  <span style={{ background: verdict.bg, color: verdict.color, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                    {verdict.label}
+                const style = luckStyle(v)
+                return style ? (
+                  <span style={{ background: style.bg, color: style.color, borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    {v}
                   </span>
                 ) : null
               },
