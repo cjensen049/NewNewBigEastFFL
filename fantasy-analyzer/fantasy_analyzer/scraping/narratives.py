@@ -37,9 +37,14 @@ _RECAP_SYSTEM = (
     "tone. Reference specific players by name, their point totals, and whether they beat or "
     "missed their usual per-game pace (the 'projected_rate' field) when notable. Mention the "
     "game-time slot (Thursday Night / Sunday Early / Sunday Late / Sunday Night / Monday Night) "
-    "only when it adds real color, e.g. a game decided by a Monday night performance. Do not "
-    "invent any facts not given to you -- if a field is null, just don't mention it. "
-    f"{_NO_EM_DASH_RULE} Respond "
+    "only when it adds real color, e.g. a game decided by a Monday night performance. "
+    "Each owner's 'standout' and 'bust' belong to THAT owner's own roster, not their "
+    "opponent's -- a 'bust' under the winning owner is a player on the WINNING team who "
+    "underperformed (the winner won despite him, not because the other side overcame him). "
+    "Always make it unambiguous whose player you're describing; never phrase a winner's own "
+    "bust as if it worked against the loser, or a loser's own standout as if it belonged to "
+    "the winner. Do not invent any facts not given to you -- if a field is null, just don't "
+    f"mention it. {_NO_EM_DASH_RULE} Respond "
     "with ONLY a JSON array like [{\"matchup_id\": 1, \"text\": \"...\"}], no other text."
 )
 
