@@ -55,7 +55,11 @@ def standings_snapshot(season: int, con: sqlite3.Connection = Depends(get_db)) -
     if not row:
         return {"season": season, "current_week": 0, "next_week": None, "rows": []}
     result = get_standings_snapshot(con, row[0], season, row[1])
-    return result if result else {"season": season, "current_week": 0, "next_week": None, "rows": []}
+    if not result:
+        return {"season": season, "current_week": 0, "next_week": None, "rows": []}
+    for r in result["rows"]:
+        r["luck_verdict"] = _luck_verdict(r["luck_diff"])
+    return result
 
 
 def _attach_narratives(con: sqlite3.Connection, league_id: str, season: int, week: int, kind: str, matchups: list[dict]) -> None:

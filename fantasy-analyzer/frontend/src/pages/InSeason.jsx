@@ -24,15 +24,6 @@ function verdictColor(v) {
   return 'var(--gold)'
 }
 
-function luckVerdictFromDiff(diff) {
-  if (diff == null) return null
-  if (diff >= 1.5)  return 'Very Lucky'
-  if (diff >= 0.5)  return 'Lucky'
-  if (diff >= -0.5) return 'Average'
-  if (diff >= -1.5) return 'Unlucky'
-  return 'Very Unlucky'
-}
-
 // Formats a numeric delta with + prefix and green/red color.
 // null → "—" in faint. 0 → "0.0" in muted.
 function formatDelta(val) {
@@ -187,7 +178,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
               const diffColor = diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--brand-red)' : 'var(--text-muted)'
               const wl    = wlStyle(r.actual_wins, r.actual_losses)
               const simWl = wlStyle(r.sim_wins, r.sim_losses)
-              const verdict = luckVerdictFromDiff(r.luck_diff)
+              const verdict = r.luck_verdict
               return (
                 <tr key={item.key} className="standings-row" style={{ borderBottom: '1px solid var(--border)', background: zone.bg }}>
                   <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
