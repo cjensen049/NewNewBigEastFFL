@@ -7,6 +7,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
+import PlayoffPctBadge from '../components/PlayoffPctBadge'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
               {th('_back',        'Back',    'right')}
               {th('sim_wins',     'All-Play', 'right')}
               {th('_winPctDiff',  'Diff',    'right')}
+              {th('playoff_pct',  'Playoff%', 'right')}
               {th('luck_diff',    'Verdict', 'right')}
               <th style={{ padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
                 {oppHeader}
@@ -161,7 +163,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
               if (item._divider) {
                 return (
                   <tr key={item.key}>
-                    <td colSpan={8} style={{ padding: '6px 10px', background: item.zone.bg, borderTop: `2px solid ${item.zone.border}`, borderBottom: `1px solid ${item.zone.border}` }}>
+                    <td colSpan={9} style={{ padding: '6px 10px', background: item.zone.bg, borderTop: `2px solid ${item.zone.border}`, borderBottom: `1px solid ${item.zone.border}` }}>
                       <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: item.zone.color }}>
                         {item.zone.label}
                       </span>
@@ -194,6 +196,11 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
                     <span style={{ ...simWl, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', fontWeight: 600 }}>{r.sim_wins}-{r.sim_losses}</span>
                   </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', color: diffColor }}>{diffStr}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {r.playoff_pct != null
+                      ? <PlayoffPctBadge pct={r.playoff_pct} clinched={r.clinched} eliminated={r.eliminated} />
+                      : <span style={{ color: 'var(--text-faint)' }}>—</span>}
+                  </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: verdictColor(verdict), fontWeight: 500 }}>{verdict ?? '—'}</td>
                   <td style={{ padding: '8px 10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     {r.next_opponent ?? <span style={{ color: 'var(--text-faint)' }}>—</span>}
@@ -208,7 +215,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
         <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
           All-Play / Diff / Verdict: your cumulative record (and luck) if you'd played every team
           every week so far, not just your actual schedule — grows each week, and isn't a
-          projection. For projected playoff odds, see Power Rankings.
+          projection. Playoff% is the same Monte Carlo odds shown on the Power Rankings page.
         </p>
       </div>
     </div>
@@ -305,6 +312,14 @@ export default function InSeason({ embedded = false }) {
     enabled: !!activeSeason,
   })
 
+  // Same endpoint + query key as the Power Rankings page, so this is the very
+  // same cached response (one calculation), just joined onto these rows by owner.
+  const { data: prData } = useQuery({
+    queryKey: ['power-rankings', activeSeason],
+    queryFn: () => fetch(`/api/in-season/power-rankings/${activeSeason}`).then(r => r.json()),
+    enabled: !!activeSeason,
+  })
+
   const { data: rtbData, isLoading: loadRTB } = useQuery({
     queryKey: ['rtb-season', activeSeason],
     queryFn: () => fetch(`/api/in-season/rtb/${activeSeason}`).then(r => r.json()),
@@ -333,7 +348,13 @@ export default function InSeason({ embedded = false }) {
   //   Wild Card (4–5): top 2 pts scorers from remaining 8
   //   Eliminated (6–11): remaining 6 by pts_for desc
   const zoneRows = useMemo(() => {
-    const raw = snapshotData?.rows ?? []
+    const odds = Object.fromEntries((prData?.rows ?? []).map(r => [r.owner, r]))
+    const raw = (snapshotData?.rows ?? []).map(r => ({
+      ...r,
+      playoff_pct: odds[r.owner]?.playoff_pct ?? null,
+      clinched: odds[r.owner]?.clinched ?? false,
+      eliminated: odds[r.owner]?.eliminated ?? false,
+    }))
     if (raw.length === 0) return []
     const top4 = raw.slice(0, 4)
     const rest = [...raw.slice(4)].sort((a, b) => (b.pts_for ?? 0) - (a.pts_for ?? 0))
@@ -342,7 +363,7 @@ export default function InSeason({ embedded = false }) {
       ...rest.slice(0, 2).map((r, i) => ({ ...r, _pos: 4 + i, _zoneId: 'wildcard' })),
       ...rest.slice(2).map((r, i)    => ({ ...r, _pos: 6 + i, _zoneId: 'eliminated' })),
     ]
-  }, [snapshotData])
+  }, [snapshotData, prData])
 
   // RTB rows come straight from the backend (already ranked by optimal_pts
   // ascending, already excludes real playoff teams once the season's

@@ -15,6 +15,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
+import PlayoffPctBadge from '../components/PlayoffPctBadge'
 import PowerRankingsExplainer from '../components/PowerRankingsExplainer'
 import { useSortableTable } from '../hooks/useSortableTable'
 
@@ -39,19 +40,6 @@ function rankStyle(rank) {
   if (rank === 2) return { bg: 'rgba(26,58,107,0.3)',  text: '#5b8dd9' }
   if (rank === 3) return { bg: 'rgba(26,58,107,0.15)', text: '#5b8dd9' }
   return                 { bg: 'var(--border)',         text: 'var(--text-muted)' }
-}
-
-function playoffStyle(pct, clinched, eliminated) {
-  // "IN"/"OUT" only when mathematically certain (clinched/eliminated), not
-  // just because the simulated % rounds up near 99 or down near 1 -- the
-  // backend already clamps every uncertain team to 1-99%, so a merely
-  // heavy favorite can display "99%" without actually being locked in yet.
-  if (clinched)  return { color: 'var(--green)',     bg: 'rgba(63,185,80,0.15)',  border: 'rgba(63,185,80,0.35)',  label: 'IN' }
-  if (eliminated) return { color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.12)',  border: 'rgba(204,31,46,0.3)',   label: 'OUT' }
-  // 1–99%: color by pct
-  if (pct >= 70) return { color: 'var(--green)',     bg: 'rgba(63,185,80,0.12)',  border: 'rgba(63,185,80,0.25)',  label: null }
-  if (pct >= 40) return { color: 'var(--gold)',      bg: 'rgba(227,179,65,0.12)', border: 'rgba(227,179,65,0.3)',  label: null }
-  return                { color: 'var(--brand-red)', bg: 'rgba(204,31,46,0.1)',   border: 'rgba(204,31,46,0.25)',  label: null }
 }
 
 const PHASE_BADGE = {
@@ -250,7 +238,6 @@ export default function PowerRankings({ season }) {
           {sorted.map((r, i) => {
               const rs = rankStyle(i + 1)
               const wl = wlStyle(r.actual_wins, r.actual_losses)
-              const ps = playoffStyle(r.playoff_pct, r.clinched, r.eliminated)
               const pts = r.pts_for != null
                 ? Number(r.pts_for).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                 : '—'
@@ -296,15 +283,7 @@ export default function PowerRankings({ season }) {
 
                     {/* Playoff % */}
                     <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {ps.label ? (
-                        <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px' }}>
-                          {ps.label}
-                        </span>
-                      ) : (
-                        <span style={{ background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 600 }}>
-                          {(r.playoff_pct ?? 0).toFixed(0)}%
-                        </span>
-                      )}
+                      <PlayoffPctBadge pct={r.playoff_pct} clinched={r.clinched} eliminated={r.eliminated} />
                     </td>
 
                     {/* W-L */}
