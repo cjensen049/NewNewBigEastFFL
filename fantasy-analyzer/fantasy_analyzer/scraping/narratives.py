@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import sqlite3
+import time
 from datetime import datetime, timezone
 
 from fantasy_analyzer.analysis.roster_quality import select_optimal_lineup
@@ -25,6 +26,7 @@ from fantasy_analyzer.analysis.weekly_digest import get_weekly_preview, get_week
 log = logging.getLogger(__name__)
 
 _MODEL = "claude-haiku-4-5-20251001"
+_RETRY_DELAYS = (5, 15, 0)  # seconds to wait after attempt 1, 2; 3rd is the last try
 
 _NO_EM_DASH_RULE = (
     "Never use an em dash (—) or a double hyphen (--) as punctuation. Write in simpler "
@@ -191,24 +193,35 @@ def _call_claude(system: str, facts: list[dict]) -> dict[int, str]:
         return {}
 
     client = anthropic.Anthropic(api_key=api_key)
-    try:
-        resp = client.messages.create(
-            model=_MODEL,
-            max_tokens=2048,
-            system=system,
-            messages=[
-                {"role": "user", "content": json.dumps(facts)},
-                # Prefilling the assistant turn with "[" strongly discourages Claude from
-                # wrapping the reply in a ```json code fence despite the system prompt.
-                {"role": "assistant", "content": "["},
-            ],
-        )
-        raw = "[" + resp.content[0].text
-        parsed = json.loads(_strip_code_fence(raw))
-        return {int(item["matchup_id"]): item["text"] for item in parsed}
-    except Exception as e:
-        log.warning("Claude narrative generation failed: %s; raw response: %.500s", e, locals().get("raw", "<no response>"))
-        return {}
+    # The SDK already retries network/429/5xx errors; this loop also retries
+    # the cases it can't see: a 200 whose body isn't valid JSON (fence, prose,
+    # truncation). One bad response used to silently drop a whole week's recap.
+    for attempt, delay in enumerate(_RETRY_DELAYS, start=1):
+        raw = "<no response>"
+        try:
+            resp = client.messages.create(
+                model=_MODEL,
+                max_tokens=4096,
+                system=system,
+                messages=[
+                    {"role": "user", "content": json.dumps(facts)},
+                    # Prefilling the assistant turn with "[" strongly discourages Claude from
+                    # wrapping the reply in a ```json code fence despite the system prompt.
+                    {"role": "assistant", "content": "["},
+                ],
+            )
+            raw = "[" + resp.content[0].text
+            parsed = json.loads(_strip_code_fence(raw))
+            return {int(item["matchup_id"]): item["text"] for item in parsed}
+        except Exception as e:
+            log.warning(
+                "Claude narrative generation failed (attempt %d/%d): %s: %s; stop_reason=%s; raw response: %.500s",
+                attempt, len(_RETRY_DELAYS), type(e).__name__, e,
+                getattr(locals().get("resp"), "stop_reason", None), raw,
+            )
+            if attempt < len(_RETRY_DELAYS):
+                time.sleep(delay)
+    return {}
 
 
 def _strip_code_fence(text: str) -> str:

@@ -278,6 +278,40 @@ class TestCallClaudeParsing:
         assert result == {1: "Close one."}
 
 
+class TestCallClaudeRetry:
+    def _client(self, monkeypatch, texts):
+        """Fake client whose successive create() calls return `texts` in order."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+        monkeypatch.setattr("fantasy_analyzer.scraping.narratives.time.sleep", lambda s: None)
+        calls = []
+
+        class FakeMessages:
+            def create(self, **kwargs):
+                calls.append(1)
+                text = texts[min(len(calls) - 1, len(texts) - 1)]
+                return type("R", (), {"content": [type("C", (), {"text": text})()], "stop_reason": "end_turn"})()
+
+        class FakeClient:
+            def __init__(self, api_key):
+                self.messages = FakeMessages()
+
+        import anthropic
+        monkeypatch.setattr(anthropic, "Anthropic", FakeClient)
+        return calls
+
+    def test_retries_after_unparseable_response_then_succeeds(self, monkeypatch):
+        """Regression: a single 200 with bad JSON used to drop the whole week's recap."""
+        good = json.dumps([{"matchup_id": 1, "text": "Fine."}])[1:]
+        calls = self._client(monkeypatch, ['{"matchup_id": 1, "text": "cut off mid-sen', good])
+        assert _call_claude("system", [{"matchup_id": 1}]) == {1: "Fine."}
+        assert len(calls) == 2
+
+    def test_gives_up_after_three_attempts(self, monkeypatch):
+        calls = self._client(monkeypatch, ["not json at all"])
+        assert _call_claude("system", [{"matchup_id": 1}]) == {}
+        assert len(calls) == 3
+
+
 class TestStripCodeFence:
     def test_strips_trailing_fence(self):
         assert _strip_code_fence('[{"a": 1}]\n```') == '[{"a": 1}]'

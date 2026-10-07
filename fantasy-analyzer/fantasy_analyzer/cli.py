@@ -209,9 +209,13 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
 
         recap_count = run_recap_narratives(con, league_id, season)
         print(f"  Recap narratives: {recap_count} matchups")
+        if recap_count == 0:
+            print("::warning::Recap narratives: 0 matchups generated (see Claude warnings above)")
 
         preview_count = run_preview_narratives(con, league_id, season, pws)
         print(f"  Preview narratives: {preview_count} matchups")
+        if preview_count == 0:
+            print("::warning::Preview narratives: 0 matchups generated (see Claude warnings above)")
     finally:
         con.close()
 
