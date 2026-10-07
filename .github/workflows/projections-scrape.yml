@@ -1,12 +1,8 @@
-name: Wednesday Projections Scrape
+name: Projections Scrape (manual)
 
+# No schedule: the weekly projections scrape + narratives now run as part of
+# weekly-refresh.yml (after ingest). Use this only to re-run it by hand.
 on:
-  schedule:
-    # Every Wednesday at 08:05 UTC (4:05 AM ET) — after Tuesday waiver processing,
-    # so recaps/previews are ready before most people check in the morning.
-    # Off the :00 mark since GitHub Actions cron runs queue up at the top of
-    # every hour and can lag noticeably right then.
-    - cron: '5 8 * * 3'
   workflow_dispatch:  # Allow manual trigger from GitHub Actions tab
 
 permissions:

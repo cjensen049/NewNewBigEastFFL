@@ -2,8 +2,11 @@ name: Weekly DB Refresh
 
 on:
   schedule:
-    # Every Tuesday at 07:00 UTC (3 AM ET) — after Monday Night Football
-    - cron: '0 7 * * 2'
+    # Every Tuesday at 06:17 UTC (2:17 AM ET) — after Monday Night Football.
+    # Goal is fresh data by ~7 AM ET, but GitHub's scheduler has been starting
+    # these 4-7 hours late, so this is set early to absorb that lag. Off the
+    # :00 mark since that's when scheduled runs queue up the worst.
+    - cron: '17 6 * * 2'
   workflow_dispatch:  # Allow manual trigger from GitHub Actions tab
 
 permissions:
@@ -46,13 +49,23 @@ jobs:
       - name: Run ingest
         run: python -m fantasy_analyzer.cli ingest
 
+      # Runs after ingest because the recap needs the just-scored week's matchups.
+      # Same job (not a separate workflow) so there's one commit/push of league.db;
+      # two workflows pushing the same binary DB at once reject each other.
+      # continue-on-error so a scrape/Claude hiccup can't lose the ingested scores.
+      - name: Scrape projections, refresh rosters, generate recap/preview
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m fantasy_analyzer.cli scrape-projections
+
       - name: Commit updated DB
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/league.db
           git diff --staged --quiet && echo "No changes to commit" || \
-            git commit -m "chore: weekly DB refresh $(date -u +'%Y-%m-%d')"
+            git commit -m "chore: weekly refresh + projections scrape $(date -u +'%Y-%m-%d')"
 
       - name: Push changes
         run: git push
