@@ -183,3 +183,59 @@ class TestRecordScoreIsTrueAllPlayPercentage:
         assert by_owner["Alice"]["record_score"] == pytest.approx(75.0)
         assert by_owner["Bob"]["record_score"] == pytest.approx(75.0)
         assert by_owner["Carl"]["record_score"] == pytest.approx(0.0)
+
+
+class TestTrendIsVersusLastWeek:
+    """The movement arrows compare against how the SAME rules ranked teams as of
+    LAST WEEK (last week's games, remaining schedule and phase weights) --
+    recomputed from stored weekly data, never a snapshot of a prior run. The
+    previous rank must therefore equal the rank you'd get if the latest week
+    hadn't been played yet. (It used to reuse this week's schedule difficulty,
+    which understated nearly all movement.)"""
+
+    # Scores chosen so the old behavior (reusing this week's schedule difficulty
+    # for the baseline) produces a different ranking than the true as-of-last-week
+    # one -- i.e. this fails if the baseline stops being rewound properly.
+    PLAYED = {
+        1: {"u1": 109.0, "u2": 113.0, "u3": 65.0,  "u4": 93.0},
+        2: {"u1": 125.0, "u2": 122.0, "u3": 111.0, "u4": 98.0},
+        3: {"u1": 121.0, "u2": 105.0, "u3": 134.0, "u4": 87.0},
+    }
+    # Pairings for every week; weeks 4-6 are scheduled but unplayed (0.0 points).
+    PAIRS = {
+        1: [("u1", "u2"), ("u3", "u4")], 2: [("u1", "u3"), ("u2", "u4")],
+        3: [("u1", "u4"), ("u2", "u3")], 4: [("u1", "u2"), ("u3", "u4")],
+        5: [("u1", "u3"), ("u2", "u4")], 6: [("u1", "u4"), ("u2", "u3")],
+    }
+
+    def _build(self, played_through: int) -> sqlite3.Connection:
+        con = sqlite3.connect(":memory:")
+        con.executescript(DDL)
+        con.execute(
+            "INSERT INTO leagues (league_id, season, name, status, total_rosters, playoff_week_start) "
+            "VALUES ('L1', 2026, 'Test', 'in_season', 4, 7)"
+        )
+        for i, (uid, name) in enumerate([("u1", "A"), ("u2", "B"), ("u3", "C"), ("u4", "D")], 1):
+            con.execute("INSERT INTO owners (user_id, canonical_name) VALUES (?,?)", (uid, name))
+            con.execute("INSERT INTO league_owners (league_id, user_id, roster_id) VALUES ('L1', ?, ?)", (uid, i))
+        for week, pairs in self.PAIRS.items():
+            for mid, (a, b) in enumerate(pairs, 1):
+                for uid in (a, b):
+                    pts = self.PLAYED[week][uid] if week <= played_through else 0.0
+                    con.execute(
+                        "INSERT INTO matchups (league_id, season, week, matchup_id, roster_id, user_id, points, is_playoff) "
+                        "VALUES ('L1', 2026, ?, ?, ?, ?, ?, 0)",
+                        (week, mid, int(uid[1]), uid, pts),
+                    )
+        con.commit()
+        return con
+
+    def test_prev_rank_equals_ranking_as_of_last_week(self):
+        now = compute_power_rankings(self._build(3), "L1", 2026, pws=7, n_sims=200)
+        then = compute_power_rankings(self._build(2), "L1", 2026, pws=7, n_sims=200)
+        assert now["current_week"] == 3 and then["current_week"] == 2
+
+        last_week_rank = {r["owner"]: r["rank"] for r in then["rows"]}
+        for r in now["rows"]:
+            assert r["prev_rank"] == last_week_rank[r["owner"]]
+            assert r["trend"] == r["prev_rank"] - r["rank"]

@@ -484,11 +484,16 @@ def compute_power_rankings(
     record_norm_prev = {uid: swp_prev.get(uid, 0.0) * 100 for uid in uids}
 
     # ── SoS component (remaining schedule, inverted) ──────────────────────────
-    win_pct_by_uid = {uid: swp_curr.get(uid, 0.5) for uid in uids}
-    sos_raw  = _remaining_sos(con, league_id, current_week, pws, win_pct_by_uid)
-    sos_inv  = {uid: 1.0 - v for uid, v in sos_raw.items() if v is not None}
-    sos_norm = _normalize(sos_inv) if sos_inv else {}
-    sos_norm_full = {uid: sos_norm.get(uid, 50.0) for uid in uids}
+    def _sos_scores(week: int, swp: dict[str, float]) -> dict[str, float]:
+        win_pct_by_uid = {uid: swp.get(uid, 0.5) for uid in uids}
+        sos_raw = _remaining_sos(con, league_id, week, pws, win_pct_by_uid)
+        sos_inv = {uid: 1.0 - v for uid, v in sos_raw.items() if v is not None}
+        sos_norm = _normalize(sos_inv) if sos_inv else {}
+        return {uid: sos_norm.get(uid, 50.0) for uid in uids}
+
+    sos_norm_full = _sos_scores(current_week, swp_curr)
+    # Last week's baseline uses last week's remaining schedule, too
+    sos_norm_prev = _sos_scores(prev_week, swp_prev)
 
     # ── Roster quality component ──────────────────────────────────────────────
     # Normalize raw projected pts; fall back to 50.0 per team if no data
@@ -497,19 +502,25 @@ def compute_power_rankings(
     rq_norm = {uid: rq_norm_map.get(uid, 50.0) for uid in uids}
 
     # ── Composite power score (current and previous week for trend) ───────────
-    def _composite(sc_norm: dict, rc_norm: dict) -> dict[str, float]:
+    def _composite(sc_norm: dict, rc_norm: dict, sos_norm: dict, w: dict) -> dict[str, float]:
         return {
             uid: (
-                weights["scoring"] * sc_norm.get(uid, 50.0)
-                + weights["record"]  * rc_norm.get(uid, 50.0)
-                + weights["sos"]     * sos_norm_full.get(uid, 50.0)
-                + weights["roster"]  * rq_norm.get(uid, 50.0)
+                w["scoring"] * sc_norm.get(uid, 50.0)
+                + w["record"]  * rc_norm.get(uid, 50.0)
+                + w["sos"]     * sos_norm.get(uid, 50.0)
+                + w["roster"]  * rq_norm.get(uid, 50.0)
             )
             for uid in uids
         }
 
-    power_curr = _composite(scoring_norm_curr, record_norm_curr)
-    power_prev = _composite(scoring_norm_prev, record_norm_prev)
+    # The "previous" ranking is what these same rules gave as of LAST WEEK (that
+    # week's games, remaining schedule, and phase weights), recomputed from the
+    # stored weekly data -- never a snapshot of a prior run -- so re-running
+    # mid-week can't change the baseline. Roster quality can't be rewound (rosters
+    # and projections are overwritten in place), so it's today's value in both.
+    weights_prev = phase_table[_phase(prev_week)]["weights"]
+    power_curr = _composite(scoring_norm_curr, record_norm_curr, sos_norm_full, weights)
+    power_prev = _composite(scoring_norm_prev, record_norm_prev, sos_norm_prev, weights_prev)
 
     rank_curr = {uid: r for r, uid in enumerate(sorted(uids, key=lambda u: -power_curr[u]), 1)}
     rank_prev = {uid: r for r, uid in enumerate(sorted(uids, key=lambda u: -power_prev[u]), 1)}
