@@ -13,6 +13,11 @@ manager's start/sit quality, not the players' over/under-performance.
 Sleeper projections only. A starter with no Sleeper projection that week (out,
 inactive) counts as 0 projected, same as Sleeper's own app shows. Regular
 season only.
+
+Sleeper's projections run high or low for the whole league in some seasons (e.g.
+every team ~9 pts/week under in 2021/2022/2025, ~even in 2023/2024), so raw
+over/under isn't comparable across seasons. Each week's league-wide average
+over/under is also subtracted ("vs league"), which centers every week on zero.
 """
 
 from __future__ import annotations
@@ -34,11 +39,14 @@ def _avg(values: list[float]) -> float | None:
 def get_projection_performance(con: sqlite3.Connection, league_id: str, season: int) -> dict:
     """Per-owner weekly and season over/under vs. Sleeper projections, plus lineup efficiency.
 
-    Returns {season, weeks, rows}; rows are sorted by season total over/under
-    (best first). Each row: owner, total_diff, avg_diff, recent_avg_diff (last
-    3 weeks), total_actual, total_projected, efficiency_pct, pts_left_on_bench,
-    and weeks: [{week, actual, projected, diff, efficiency_pct, pts_left_on_bench}].
-    A team-week with no projection data is left out of that owner's weeks.
+    Returns {season, weeks, league_avg_diff, rows}; rows are sorted by season
+    total over/under (best first). league_avg_diff is the mean over/under per
+    team-week across the whole league. Each row: owner, total_diff,
+    total_vs_league (season total after subtracting each week's league average),
+    avg_diff, recent_avg_diff (last 3 weeks), total_actual, total_projected,
+    efficiency_pct, pts_left_on_bench, and weeks: [{week, actual, projected, diff,
+    diff_vs_league, efficiency_pct, pts_left_on_bench}]. A team-week with no
+    projection data is left out of that owner's weeks.
     """
     weeks = [
         r[0] for r in con.execute(
@@ -48,7 +56,7 @@ def get_projection_performance(con: sqlite3.Connection, league_id: str, season: 
         )
     ]
     if not weeks:
-        return {"season": season, "weeks": [], "rows": []}
+        return {"season": season, "weeks": [], "league_avg_diff": None, "rows": []}
 
     efficiency = {
         (r["owner"], r["week"]): r
@@ -69,6 +77,16 @@ def get_projection_performance(con: sqlite3.Connection, league_id: str, season: 
                 "_optimal": eff["optimal_pts"] if eff else None,
             })
 
+    all_diffs = [w["diff"] for wks in by_owner.values() for w in wks]
+    week_avg: dict[int, float] = {}
+    for week in weeks:
+        d = [w["diff"] for wks in by_owner.values() for w in wks if w["week"] == week]
+        if d:
+            week_avg[week] = sum(d) / len(d)
+    for wks in by_owner.values():
+        for w in wks:
+            w["diff_vs_league"] = round(w["diff"] - week_avg[w["week"]], 1)
+
     rows = []
     for owner, wks in by_owner.items():
         diffs = [w["diff"] for w in wks]
@@ -78,6 +96,7 @@ def get_projection_performance(con: sqlite3.Connection, league_id: str, season: 
         rows.append({
             "owner": owner,
             "total_diff": round(sum(diffs), 1),
+            "total_vs_league": round(sum(w["diff_vs_league"] for w in wks), 1),
             "avg_diff": _avg(diffs),
             "recent_avg_diff": _avg(diffs[-_RECENT_WEEKS:]),
             "total_actual": round(sum(w["actual"] for w in wks), 1),
@@ -87,4 +106,4 @@ def get_projection_performance(con: sqlite3.Connection, league_id: str, season: 
             "weeks": [{k: v for k, v in w.items() if k != "_optimal"} for w in wks],
         })
     rows.sort(key=lambda r: -r["total_diff"])
-    return {"season": season, "weeks": weeks, "rows": rows}
+    return {"season": season, "weeks": weeks, "league_avg_diff": _avg(all_diffs), "rows": rows}

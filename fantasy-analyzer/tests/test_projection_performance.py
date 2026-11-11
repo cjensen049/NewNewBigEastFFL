@@ -46,14 +46,16 @@ def _week(con, week, scores, projections, pool=None):
 
 class TestProjectionPerformance:
     def test_no_played_weeks_returns_empty(self, db):
-        assert get_projection_performance(db, "L1", 2026) == {"season": 2026, "weeks": [], "rows": []}
+        assert get_projection_performance(db, "L1", 2026) == {
+            "season": 2026, "weeks": [], "league_avg_diff": None, "rows": [],
+        }
 
     def test_weekly_diff_is_actual_minus_projected_of_started_players(self, db):
         # Alice projected 60+50=110, scored 130 -> +20. Bob projected 45+45=90, scored 80 -> -10.
         _week(db, 1, {"u1": 130.0, "u2": 80.0}, {"a1": 60, "a2": 50, "b1": 45, "b2": 45})
         rows = {r["owner"]: r for r in get_projection_performance(db, "L1", 2026)["rows"]}
         assert rows["Alice"]["weeks"][0] == {
-            "week": 1, "actual": 130.0, "projected": 110.0, "diff": 20.0,
+            "week": 1, "actual": 130.0, "projected": 110.0, "diff": 20.0, "diff_vs_league": 15.0,
             "efficiency_pct": None, "pts_left_on_bench": None,
         }
         assert rows["Bob"]["weeks"][0]["diff"] == -10.0
@@ -92,3 +94,18 @@ class TestProjectionPerformance:
         assert a["total_diff"] == 0.0                      # played exactly to projection...
         assert a["efficiency_pct"] < 100 and a["pts_left_on_bench"] > 0   # ...but started the wrong guys
         assert b["efficiency_pct"] == 100.0 and b["pts_left_on_bench"] == 0.0
+
+
+class TestVsLeagueAverage:
+    def test_each_week_is_centered_on_the_league_average(self, db):
+        # Week 1: Alice +20, Bob -10 -> league avg +5, so +15 / -15.
+        # Week 2: Alice -10, Bob -30 -> league avg -20, so +10 / -10.
+        _week(db, 1, {"u1": 130.0, "u2": 80.0}, {"a1": 60, "a2": 50, "b1": 45, "b2": 45})
+        _week(db, 2, {"u1": 90.0, "u2": 60.0}, {"a1": 50, "a2": 50, "b1": 45, "b2": 45})
+        result = get_projection_performance(db, "L1", 2026)
+        rows = {r["owner"]: r for r in result["rows"]}
+        assert result["league_avg_diff"] == -7.5                 # (20 - 10 - 10 - 30) / 4
+        assert rows["Alice"]["total_vs_league"] == 25.0          # 15 + 10
+        assert rows["Bob"]["total_vs_league"] == -25.0
+        assert rows["Alice"]["total_vs_league"] + rows["Bob"]["total_vs_league"] == 0
+        assert rows["Alice"]["total_diff"] == 10.0               # raw over/under is unchanged

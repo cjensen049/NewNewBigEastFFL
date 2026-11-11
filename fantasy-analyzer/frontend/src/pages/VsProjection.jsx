@@ -5,8 +5,10 @@
  * One row per owner. "Players vs projection" columns show the actual points
  * their starters scored minus the sum of those starters' own Sleeper
  * projections (+20 = starters beat projection by 20), per week (W1, W2, ...),
- * for the season, per week on average, and over the last 3 weeks. This is
- * about the players, not the manager's choices.
+ * for the season, per week on average, and over the last 3 weeks. "vs League"
+ * is the season total after subtracting each week's league-wide average, which
+ * removes seasons where Sleeper's projections ran high or low for everyone. This
+ * is about the players, not the manager's choices.
  *
  * "Lineup decisions" columns (Efficiency, Left on Bench) are a separate
  * measure of the manager's start/sit: actual score as a % of the best lineup
@@ -87,6 +89,7 @@ export default function VsProjection() {
   const columns = [
     { key: 'owner', label: 'Owner', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
     { key: 'total_diff', label: 'Season +/-', align: 'right', render: v => <DiffText value={v} bold /> },
+    { key: 'total_vs_league', label: 'vs League', align: 'right', render: v => <DiffText value={v} /> },
     { key: 'avg_diff', label: 'Per Wk', align: 'right', render: v => <DiffText value={v} /> },
     { key: 'recent_avg_diff', label: 'Last 3', align: 'right', render: v => <DiffText value={v} /> },
     ...weeks.map(w => ({ key: `w${w}`, label: `W${w}`, align: 'right', render: v => <WeekCell value={v} /> })),
@@ -125,6 +128,11 @@ export default function VsProjection() {
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Players vs Projection</span>
           <span className="fs-label" style={{ color: 'var(--text-faint)' }}>Season +/- through Wk {weeks[weeks.length - 1] ?? '—'}</span>
+          {data?.league_avg_diff != null && (
+            <span className="fs-label" style={{ color: 'var(--text-faint)' }} title="Average over/under per team per week, league-wide. Non-zero means Sleeper's projections ran high or low for everyone this season.">
+              · League avg {signed(data.league_avg_diff)} per team-week
+            </span>
+          )}
           <span className="fs-label" style={{ marginLeft: 'auto', color: 'var(--text-faint)' }}>Efficiency columns = lineup decisions</span>
         </div>
         <p className="fs-body" style={{ color: 'var(--text-faint)', margin: 0, padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
@@ -151,8 +159,10 @@ export default function VsProjection() {
           <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
             Projections are Sleeper's own for that week, summed over the players actually started
             (a starter with no projection, such as an injured player, counts as 0 projected).
-            Efficiency is actual points as a % of the best possible lineup in hindsight; Left on
-            Bench is the points between the two. Regular season only.
+            vs League subtracts each week's league-wide average over/under, so seasons where
+            Sleeper's projections ran high or low for everyone compare fairly. Efficiency is actual
+            points as a % of the best possible lineup in hindsight; Left on Bench is the points
+            between the two. Regular season only.
           </p>
         </div>
       </div>
