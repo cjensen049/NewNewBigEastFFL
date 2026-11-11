@@ -1,5 +1,5 @@
 /**
- * League.jsx — wraps History, In-Season, Head-to-Head, and Draft pages.
+ * League.jsx — wraps In-Season, Power Rankings, Vs Projection, History, Head-to-Head, Draft and Schedule.
  *
  * Tab state lives in the URL query param `?tab=history` so the global sidebar
  * sub-items can link directly to each section.
@@ -15,10 +15,12 @@ import HeadToHead from './HeadToHead'
 import Draft from './Draft'
 import Schedule from './Schedule'
 import PowerRankingsTab from './PowerRankingsTab'
+import VsProjection from './VsProjection'
 
 const TABS = [
   { id: 'inseason',  label: '📅 In-Season' },
   { id: 'rankings',  label: '🏆 Power Rankings' },
+  { id: 'projection', label: '🎯 Vs Projection' },
   { id: 'history',   label: '📊 History' },
   { id: 'h2h',       label: '⚔️ Head-to-Head' },
   { id: 'draft',     label: '📋 Draft' },
@@ -59,6 +61,7 @@ export default function League() {
       <div style={{ padding: '24px clamp(12px, 3vw, 24px)' }}>
         <TabPanel id="inseason"  activeTab={tab}><InSeason         embedded /></TabPanel>
         <TabPanel id="rankings"  activeTab={tab}><PowerRankingsTab /></TabPanel>
+        <TabPanel id="projection" activeTab={tab}><VsProjection /></TabPanel>
         <TabPanel id="history"   activeTab={tab}><History          embedded /></TabPanel>
         <TabPanel id="h2h"       activeTab={tab}><HeadToHead       embedded /></TabPanel>
         <TabPanel id="draft"     activeTab={tab}><Draft            embedded /></TabPanel>

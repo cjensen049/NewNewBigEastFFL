@@ -24,6 +24,7 @@ const LEAGUE_SUBS = [
       { view: 'dynasty', label: 'Dynasty' },
     ],
   },
+  { tab: 'projection', label: 'Vs Projection', emoji: '🎯' },
   { tab: 'history',   label: 'History',        emoji: '📊' },
   { tab: 'h2h',       label: 'Head-to-Head',   emoji: '⚔️' },
   { tab: 'draft',     label: 'Draft',          emoji: '📋' },
