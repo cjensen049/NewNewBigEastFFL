@@ -25,6 +25,7 @@ from fantasy_analyzer.analysis.dynasty_rankings import (
     get_dynasty_rankings_checkpoints,
     get_dynasty_rankings_snapshot,
 )
+from fantasy_analyzer.analysis.projection_performance import get_projection_performance
 from fantasy_analyzer.analysis.weekly_digest import get_weekly_preview, get_weekly_recap
 
 router = APIRouter()
@@ -208,6 +209,16 @@ def dynasty_rankings(
         **result, "source": source, "checkpoint": checkpoint,
         "available_sources": available_sources, "available_checkpoints": checkpoints,
     }
+
+
+@router.get("/projection-performance/{season}")
+def projection_performance(season: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Each owner's starters' actual points vs. Sleeper projections, by week and for the season,
+    plus lineup efficiency as a separate measure."""
+    row = con.execute("SELECT league_id FROM leagues WHERE season = ?", (season,)).fetchone()
+    if not row:
+        return {"season": season, "weeks": [], "rows": []}
+    return get_projection_performance(con, row[0], season)
 
 
 @router.get("/power-rankings/{season}")

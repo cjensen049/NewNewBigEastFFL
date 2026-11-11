@@ -33,7 +33,7 @@ def last_completed_week(con: sqlite3.Connection, league_id: str) -> int:
     return row[0] or 0
 
 
-def _team_actual_vs_projected(con: sqlite3.Connection, league_id: str, season: int, week: int) -> dict[str, dict]:
+def team_actual_vs_projected(con: sqlite3.Connection, league_id: str, season: int, week: int) -> dict[str, dict]:
     """Return {owner: {actual, projected, diff}} -- each team's real score vs.
     the sum of their actual starters' own pre-game weekly projections. A team
     with no projection data for any starter is omitted (diff would be meaningless)."""
@@ -144,7 +144,7 @@ def get_weekly_recap(con: sqlite3.Connection, league_id: str, season: int) -> di
 
     overachiever = None
     underachiever = None
-    team_perf = _team_actual_vs_projected(con, league_id, season, week)
+    team_perf = team_actual_vs_projected(con, league_id, season, week)
     if team_perf:
         best_name = max(team_perf, key=lambda n: team_perf[n]["diff"])
         worst_name = min(team_perf, key=lambda n: team_perf[n]["diff"])
