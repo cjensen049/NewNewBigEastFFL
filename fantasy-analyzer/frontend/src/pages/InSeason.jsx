@@ -8,6 +8,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 import PlayoffPctBadge from '../components/PlayoffPctBadge'
+import VsProjection from './VsProjection'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -410,6 +411,7 @@ export default function InSeason({ embedded = false }) {
       {(loadSnap || loadRTB) ? <LoadingSpinner /> : (
         <>
           <PlayoffPicture zoneRows={zoneRows} nextWeek={snapshotData?.next_week} finishEmoji={finishEmoji} />
+          <VsProjection season={activeSeason} />
           <RaceToBottom rows={rtbRows} />
         </>
       )}

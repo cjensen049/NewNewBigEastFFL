@@ -6,7 +6,6 @@ import Owner from './pages/Owner'
 import OwnerRoster from './pages/OwnerRoster'
 import Transactions from './pages/Transactions'
 import Calendar from './pages/Calendar'
-import VsProjection from './pages/VsProjection'
 
 export default function App() {
   return (
@@ -22,7 +21,6 @@ export default function App() {
             <Route path="/owner/:name"   element={<Owner />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/calendar"     element={<Calendar />} />
-            <Route path="/vs-projection" element={<VsProjection />} />
             <Route path="/history"   element={<Navigate to="/league" replace />} />
             <Route path="/in-season" element={<Navigate to="/league" replace />} />
             <Route path="/h2h"       element={<Navigate to="/league" replace />} />

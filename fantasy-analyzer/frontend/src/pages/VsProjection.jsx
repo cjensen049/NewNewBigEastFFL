@@ -1,5 +1,6 @@
 /**
  * VsProjection.jsx — how each owner's starters performed vs. Sleeper's projections.
+ * Rendered inside the In-Season page (below the Playoff Picture), which passes its season in.
  *
  * One row per owner. "Players vs projection" columns show the actual points
  * their starters scored minus the sum of those starters' own Sleeper
@@ -12,8 +13,11 @@
  * in hindsight, and the points left on the bench.
  *
  * Data: /api/in-season/projection-performance/{season}. Click any header to sort.
+ *
+ * Props:
+ *   season  {number} — season to show (the In-Season page's selected season)
  */
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import DataTable from '../components/DataTable'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -54,19 +58,11 @@ function WeekCell({ value }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function VsProjection() {
-  const { data: seasonsData, isLoading: loadSeasons } = useQuery({
-    queryKey: ['inseason-seasons'],
-    queryFn: () => fetch('/api/in-season/seasons').then(r => r.json()),
-  })
-  const [selectedSeason, setSelectedSeason] = useState(null)
-  const seasons = seasonsData?.seasons ?? []
-  const activeSeason = selectedSeason ?? seasons[0]
-
+export default function VsProjection({ season }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['projection-performance', activeSeason],
-    queryFn: () => fetch(`/api/in-season/projection-performance/${activeSeason}`).then(r => r.json()),
-    enabled: !!activeSeason,
+    queryKey: ['projection-performance', season],
+    queryFn: () => fetch(`/api/in-season/projection-performance/${season}`).then(r => r.json()),
+    enabled: !!season,
   })
 
   const weeks = data?.weeks ?? []
@@ -103,36 +99,21 @@ export default function VsProjection() {
     },
   ]
 
-  if (loadSeasons) return <LoadingSpinner />
+  if (!isLoading && rows.length === 0) return null
 
   return (
-    <div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', letterSpacing: '2px', marginBottom: '8px' }}>Vs Projection</h1>
-      <p className="fs-body" style={{ color: 'var(--text-faint)', margin: '0 0 20px', maxWidth: '720px' }}>
-        Did each team's starters score more or less than Sleeper projected? +20 means the
-        players beat their projections by 20 points that week. Lineup efficiency is separate:
-        it shows how good the manager's start/sit choices were, not how the players performed.
-      </p>
-
-      {seasons.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)' }}>Season</span>
-          <select
-            value={activeSeason ?? ''}
-            onChange={e => setSelectedSeason(Number(e.target.value))}
-            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', outline: 'none' }}
-          >
-            {seasons.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      )}
-
+    <div style={{ marginTop: '20px' }}>
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Players vs Projection</span>
           <span className="fs-label" style={{ color: 'var(--text-faint)' }}>Season +/- through Wk {weeks[weeks.length - 1] ?? '—'}</span>
           <span className="fs-label" style={{ marginLeft: 'auto', color: 'var(--text-faint)' }}>Efficiency columns = lineup decisions</span>
         </div>
+        <p className="fs-body" style={{ color: 'var(--text-faint)', margin: 0, padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+          Did each team's starters score more or less than Sleeper projected? +20 means the players
+          beat their projections by 20 points that week. Lineup efficiency is separate: it shows how
+          good the manager's start/sit choices were, not how the players performed.
+        </p>
         {isLoading ? (
           <div style={{ padding: '20px' }}><LoadingSpinner /></div>
         ) : (
