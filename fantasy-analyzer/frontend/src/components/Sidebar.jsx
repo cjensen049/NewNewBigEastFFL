@@ -225,6 +225,11 @@ function SidebarContent({ onNavClick, isMobile }) {
             <span>Transactions</span>
           </NavLink>
         )}
+
+        <NavLink to="/vs-projection" onClick={onNavClick} className={({ isActive }) => `sidebar-nav-item${isActive ? ' active' : ''}`}>
+          <span>🎯</span>
+          <span>Vs Projection</span>
+        </NavLink>
       </nav>
 
       {/* Footer */}
