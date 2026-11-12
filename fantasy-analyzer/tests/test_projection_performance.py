@@ -264,27 +264,30 @@ class TestSeasonAverageStandIn:
 
 
 class TestProjectionLuckVerdict:
-    def test_buckets_follow_standard_errors(self):
-        # 14 weeks: SE = 22/sqrt(14) ~ 5.9, so cutoffs sit near +/-5.9 and +/-11.8 per week.
-        assert projection_luck_verdict(12.5, 14) == "Very Lucky"
-        assert projection_luck_verdict(7.0, 14) == "Lucky"
-        assert projection_luck_verdict(0.0, 14) == "Average"
-        assert projection_luck_verdict(-7.0, 14) == "Unlucky"
-        assert projection_luck_verdict(-12.5, 14) == "Very Unlucky"
+    def test_buckets_use_fixed_points_per_week_vs_the_league_average(self):
+        assert projection_luck_verdict(14.9) == "Very Lucky"      # e.g. +134 over 9 weeks
+        assert projection_luck_verdict(5.0) == "Lucky"
+        assert projection_luck_verdict(0.0) == "Average"
+        assert projection_luck_verdict(-5.0) == "Unlucky"
+        assert projection_luck_verdict(-12.0) == "Very Unlucky"
 
-    def test_a_hot_start_is_not_called_lucky_until_there_is_evidence(self):
-        assert projection_luck_verdict(10.0, 2) == "Average"      # +10/wk after 2 weeks is just noise
-        assert projection_luck_verdict(10.0, 14) == "Lucky"       # the same average over a season is not
-        assert projection_luck_verdict(-10.0, 2) == "Average"
+    def test_boundaries_match_the_schedule_luck_style(self):
+        assert projection_luck_verdict(10.0) == "Very Lucky"
+        assert projection_luck_verdict(9.9) == "Lucky"
+        assert projection_luck_verdict(2.5) == "Lucky"
+        assert projection_luck_verdict(2.4) == "Average"
+        assert projection_luck_verdict(-2.5) == "Average"
+        assert projection_luck_verdict(-2.6) == "Unlucky"
+        assert projection_luck_verdict(-10.0) == "Unlucky"
+        assert projection_luck_verdict(-10.1) == "Very Unlucky"
 
     def test_no_data_has_no_verdict(self):
-        assert projection_luck_verdict(None, 5) is None
-        assert projection_luck_verdict(3.0, 0) is None
+        assert projection_luck_verdict(None) is None
 
     def test_rows_carry_the_verdict_and_the_average_it_was_based_on(self, db):
         _week(db, 1, {"u1": 130.0, "u2": 80.0}, {"a1": 60, "a2": 50, "b1": 45, "b2": 45})
         alice = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")
-        assert alice["avg_vs_league"] == 15.0 and alice["luck_verdict"] == "Average"   # 1 week of evidence
+        assert alice["avg_vs_league"] == 15.0 and alice["luck_verdict"] == "Very Lucky"
 
 
 class TestLeadersAndRecords:

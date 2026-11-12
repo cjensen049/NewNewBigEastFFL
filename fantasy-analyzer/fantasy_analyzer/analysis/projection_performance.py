@@ -26,7 +26,6 @@ over/under is also subtracted ("vs league"), which centers every week on zero.
 from __future__ import annotations
 
 import json
-import math
 import sqlite3
 from collections import defaultdict
 
@@ -35,34 +34,29 @@ from fantasy_analyzer.analysis.weekly_digest import team_actual_vs_projected
 
 _RECENT_WEEKS = 3
 
-# Standard deviation of one team's weekly over/under vs. the league average, measured
-# across every team-week 2021-2026 (21.9). Used to judge how unusual a season is.
-_TEAM_WEEK_SD = 22.0
-
-
 def _avg(values: list[float]) -> float | None:
     """Mean rounded to 1 decimal, or None for an empty list."""
     return round(sum(values) / len(values), 1) if values else None
 
 
-def projection_luck_verdict(avg_vs_league: float | None, weeks: int) -> str | None:
-    """Very Lucky ... Very Unlucky for an owner's average weekly over/under vs. the league.
+def projection_luck_verdict(avg_vs_league: float | None) -> str | None:
+    """Very Lucky ... Very Unlucky from an owner's average weekly over/under vs. the league.
 
-    Sample-size aware: the average is compared with how far chance alone moves an
-    average of `weeks` team-weeks (sd / sqrt(weeks)). One standard error is Lucky or
-    Unlucky, two is Very. Early in a season a hot start stays "Average" until there's
-    enough evidence; by week 14 the cutoffs are about +/-6 and +/-12 points per week.
+    avg_vs_league is points per week above (+) or below (-) the league-wide average
+    over/under (an owner's season total vs. league divided by weeks played). Fixed
+    cutoffs, same boundary style as the schedule-luck verdict: +10 or more is Very
+    Lucky, +2.5 up to +10 Lucky, -2.5 up to +2.5 Average, -10 up to -2.5 Unlucky, and
+    below -10 Very Unlucky.
     """
-    if avg_vs_league is None or weeks <= 0:
+    if avg_vs_league is None:
         return None
-    z = avg_vs_league / (_TEAM_WEEK_SD / math.sqrt(weeks))
-    if z >= 2:
+    if avg_vs_league >= 10:
         return "Very Lucky"
-    if z >= 1:
+    if avg_vs_league >= 2.5:
         return "Lucky"
-    if z > -1:
+    if avg_vs_league >= -2.5:
         return "Average"
-    if z > -2:
+    if avg_vs_league >= -10:
         return "Unlucky"
     return "Very Unlucky"
 
@@ -140,7 +134,7 @@ def get_projection_performance(con: sqlite3.Connection, league_id: str, season: 
             "total_diff": round(sum(diffs), 1),
             "total_vs_league": round(sum(vs_league), 1),
             "avg_vs_league": _avg(vs_league),
-            "luck_verdict": projection_luck_verdict(sum(vs_league) / len(vs_league), len(vs_league)),
+            "luck_verdict": projection_luck_verdict(sum(vs_league) / len(vs_league)),
             "avg_diff": _avg(diffs),
             "recent_avg_diff": _avg(diffs[-_RECENT_WEEKS:]),
             "total_actual": round(sum(w["actual"] for w in wks), 1),

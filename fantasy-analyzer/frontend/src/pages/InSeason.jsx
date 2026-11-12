@@ -217,10 +217,10 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
         <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
           All-Play / Diff / Schedule Luck: your cumulative record (and luck) if you'd played every team
           every week so far, not just your actual schedule — grows each week, and isn't a
-          projection. Projection Luck: how far your starters ran above or below Sleeper's projections
-          compared with the league average, judged against what chance alone would produce over that
-          many weeks (details on the Vs Projection page). Playoff% is the same Monte Carlo odds shown
-          on the Power Rankings page.
+          projection. Projection Luck: your average weekly points over or under Sleeper's projections,
+          compared with the league average (Very Lucky +10 or more per week, Lucky +2.5 to +10, Average
+          within 2.5, Unlucky -2.5 to -10, Very Unlucky below -10; details on the Vs Projection page).
+          Playoff% is the same Monte Carlo odds shown on the Power Rankings page.
         </p>
       </div>
     </div>
