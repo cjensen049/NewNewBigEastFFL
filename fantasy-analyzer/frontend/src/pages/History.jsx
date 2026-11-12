@@ -652,10 +652,10 @@ function ChampionsTab() {
 // ---------------------------------------------------------------------------
 
 // Top 10 players who most beat, and most missed, Sleeper's projection while in a starting
-// lineup (any owner, all seasons, regular season). "Raw" is actual minus projection.
+// lineup (any owner, all seasons, regular season). "Raw" is actual minus projection, with
+// projections being Sleeper's projected stat lines scored under NNBE's own rules.
 // "vs position avg" subtracts the average for starters at the same position that season,
-// because quarterbacks as a group run under Sleeper's projection in this league (so the raw
-// bottom 10 is nearly all QBs) while RBs run slightly over.
+// for a like-for-like view when a position group ran over or under as a whole.
 function PlayerProjectionsTab() {
   const [view, setView] = useState('raw')
   const { data, isLoading, error } = useQuery({
@@ -691,10 +691,11 @@ function PlayerProjectionsTab() {
         </div>
       </div>
       <p className="text-xs text-gray-500 mb-4">
-        Regular season starts only, all owners, Sleeper projections (estimated stand-ins are not counted).
+        Regular season starts only, all owners. Projections are Sleeper&apos;s projected stat lines scored with NNBE&apos;s own
+        scoring rules (estimated stand-ins are not counted).
         {adj
           ? ' Each start is compared with the average starter at that position that season, so this ranks players against their own position.'
-          : ' Quarterbacks as a group run under Sleeper’s projection in this league, so the bottom of this list is mostly QBs; try "vs Position Avg" for a like-for-like view.'}
+          : ' Raw is simply actual points minus projection; "vs Position Avg" adjusts for a position group that ran over or under as a whole.'}
       </p>
 
       <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--green)' }}>Top 10 over projection</h3>

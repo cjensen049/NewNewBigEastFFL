@@ -12,6 +12,14 @@ signal. Per-week is used for anything that needs THIS week's reality (an
 injured/doubtful player has no `pts_ppr` at all that week, rather than a
 healthy season average) -- the Weekly Preview panel's projected matchup
 totals and bye-week detection.
+
+Every projected point total stored here is rebuilt from Sleeper's projected STAT
+LINE (yards, TDs, receptions, ...) under the league's own scoring_settings, never
+Sleeper's ready-made `pts_ppr`. For quarterbacks in its older weekly feeds, `pts_ppr`
+includes ~2 points a game of pass-first-down credit that NNBE (and the actual
+scores) never award, which made every QB read as an under-performer.
+`pts_ppr` is only used as the marker that a real projection exists: retired or
+released players have a record with no projected stats at all.
 """
 
 from __future__ import annotations
@@ -26,10 +34,42 @@ log = logging.getLogger(__name__)
 
 _URL = "https://api.sleeper.app/projections/nfl/{season}?season_type=regular"
 _WEEK_URL = "https://api.sleeper.app/projections/nfl/{season}/{week}?season_type=regular"
+_LEAGUE_URL = "https://api.sleeper.app/v1/league/{league_id}"
+
+# NNBE's scoring (identical in every season 2021-2026). Only used if the league's settings
+# can't be fetched, so a Sleeper hiccup can't quietly change how projections are scored.
+DEFAULT_SCORING: dict[str, float] = {
+    "pass_yd": 0.04, "pass_td": 4.0, "pass_int": -1.0, "pass_2pt": 2.0,
+    "rush_yd": 0.1, "rush_td": 6.0, "rush_2pt": 2.0,
+    "rec": 1.0, "rec_yd": 0.1, "rec_td": 6.0, "rec_2pt": 2.0,
+    "fum_lost": -2.0, "fum_rec_td": 6.0, "st_td": 6.0,
+}
 
 
-def fetch_season_projections(season: int) -> list[dict]:
-    """Return [{player_id, position, projected_pts}] for every projected player."""
+def fetch_scoring_settings(league_id: str) -> dict[str, float]:
+    """The league's scoring rules ({stat: points}, non-zero only), from Sleeper.
+
+    Falls back to DEFAULT_SCORING (with a warning) if the league can't be fetched.
+    """
+    try:
+        resp = httpx.get(_LEAGUE_URL.format(league_id=league_id), timeout=30.0, verify=False)
+        resp.raise_for_status()
+        settings = resp.json().get("scoring_settings") or {}
+    except (httpx.HTTPError, ValueError) as e:
+        log.warning("Couldn't fetch scoring settings for league %s (%s); using NNBE defaults", league_id, e)
+        return dict(DEFAULT_SCORING)
+    scoring = {k: round(float(v), 4) for k, v in settings.items() if isinstance(v, (int, float)) and v}
+    return scoring or dict(DEFAULT_SCORING)
+
+
+def score_stats(stats: dict, scoring: dict[str, float]) -> float:
+    """Fantasy points for a (projected) stat line under the given scoring rules."""
+    return sum(float(stats.get(stat) or 0.0) * pts for stat, pts in scoring.items())
+
+
+def fetch_season_projections(season: int, scoring: dict[str, float]) -> list[dict]:
+    """Return [{player_id, position, projected_pts}] for every projected player,
+    scored under `scoring` (see score_stats)."""
     try:
         # verify=False: public read-only API (Windows SSL cert issue), same as fantasypros.py
         resp = httpx.get(_URL.format(season=season), timeout=30.0, verify=False)
@@ -52,7 +92,7 @@ def fetch_season_projections(season: int) -> list[dict]:
             # Sleeper's number here is a season total (rest-of-season, ~18 games) --
             # divide down to a per-game rate so it's on the same scale as a team's
             # weekly scoring average, which is what this gets blended against.
-            "projected_pts": float(pts) / float(gp),
+            "projected_pts": score_stats(stats, scoring) / float(gp),
         })
     return results
 
@@ -76,10 +116,10 @@ def store_season_projections(con: sqlite3.Connection, projections: list[dict], s
     return len(projections)
 
 
-def run_season_projections_scrape(con: sqlite3.Connection, season: int) -> int:
+def run_season_projections_scrape(con: sqlite3.Connection, season: int, scoring: dict[str, float]) -> int:
     """Fetch and store Sleeper's rest-of-season projections. Returns count stored."""
     log.info("Fetching Sleeper season-long projections for %d", season)
-    projections = fetch_season_projections(season)
+    projections = fetch_season_projections(season, scoring)
     stored = store_season_projections(con, projections, season)
     log.info("Stored %d season-long projections for %d", stored, season)
     return stored
@@ -139,8 +179,9 @@ def run_bye_week_scrape(con: sqlite3.Connection, season: int, week: int) -> int:
     return stored
 
 
-def fetch_week_projections(season: int, week: int) -> list[dict]:
-    """Return [{player_id, position, projected_pts}] for this specific week.
+def fetch_week_projections(season: int, week: int, scoring: dict[str, float]) -> list[dict]:
+    """Return [{player_id, position, projected_pts}] for this specific week, scored under
+    `scoring` (see score_stats).
 
     Unlike the season-long projection, this reflects THIS week's reality --
     a player ruled out or doubtful with an injury has no `pts_ppr` at all
@@ -157,14 +198,14 @@ def fetch_week_projections(season: int, week: int) -> list[dict]:
     results = []
     for rec in resp.json() or []:
         pid = rec.get("player_id")
-        pts = (rec.get("stats") or {}).get("pts_ppr")
+        stats = rec.get("stats") or {}
         position = (rec.get("player") or {}).get("position")
-        if not pid or pts is None or not position:
-            continue
+        if not pid or stats.get("pts_ppr") is None or not position:
+            continue   # no projected stat line (injured/out, or retired and since dropped)
         results.append({
             "player_id": pid,
             "position": position,
-            "projected_pts": float(pts),
+            "projected_pts": score_stats(stats, scoring),
         })
     return results
 
@@ -194,10 +235,10 @@ def store_week_projections(con: sqlite3.Connection, projections: list[dict], sea
     return len(projections)
 
 
-def run_week_projections_scrape(con: sqlite3.Connection, season: int, week: int) -> int:
+def run_week_projections_scrape(con: sqlite3.Connection, season: int, week: int, scoring: dict[str, float]) -> int:
     """Fetch and store Sleeper's this-week projections. Returns count stored."""
     log.info("Fetching Sleeper week %d projections for %d", week, season)
-    projections = fetch_week_projections(season, week)
+    projections = fetch_week_projections(season, week, scoring)
     stored = store_week_projections(con, projections, season, week)
     log.info("Stored %d week %d projections for %d", stored, week, season)
     return stored

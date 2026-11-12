@@ -156,7 +156,8 @@ export default function VsProjection() {
         )}
         <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
-            Projections are Sleeper's own for that week, summed over the players actually started.
+            Projections are Sleeper's projected stat lines for that week (yards, TDs, receptions) scored with
+            NNBE's own scoring rules, summed over the players actually started.
             A starter with no weekly projection who scored (Sleeper drops players who later retire or get
             released) uses his season-long per-game projection instead, marked *. One with no projection of
             any kind, or who was inactive, is left out, so he can't show up as over-performance.

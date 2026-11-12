@@ -149,7 +149,7 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
     and recap comparisons, replacing FantasyPros' paywall-limited scrape)."""
     from fantasy_analyzer.scraping.fantasypros import update_current_rosters
     from fantasy_analyzer.scraping.sleeper_projections import (
-        run_season_projections_scrape, run_week_projections_scrape, run_bye_week_scrape,
+        fetch_scoring_settings, run_season_projections_scrape, run_week_projections_scrape, run_bye_week_scrape,
     )
     from fantasy_analyzer.scraping.nfl_schedule import run_schedule_scrape
     from fantasy_analyzer.scraping.narratives import run_recap_narratives, run_preview_narratives
@@ -192,7 +192,10 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
         roster_count = update_current_rosters(con, league_id)
         print(f"  Rosters: {roster_count} player-roster entries updated")
 
-        season_proj_count = run_season_projections_scrape(con, season)
+        # Projections are rebuilt from Sleeper's stat lines under OUR league's scoring, not its pts_ppr
+        scoring = fetch_scoring_settings(league_id)
+
+        season_proj_count = run_season_projections_scrape(con, season, scoring)
         print(f"  Season-long projections: {season_proj_count} players stored (roster quality prior)")
 
         bye_count = run_bye_week_scrape(con, season, week)
@@ -202,7 +205,7 @@ def _run_scrape_projections(args: argparse.Namespace, db_path: str) -> None:
         # week (recap narratives) and the upcoming week (preview narratives).
         for wk in {week - 1, week}:
             if wk >= 1:
-                wk_proj_count = run_week_projections_scrape(con, season, wk)
+                wk_proj_count = run_week_projections_scrape(con, season, wk, scoring)
                 print(f"  Week {wk} projections: {wk_proj_count} players stored")
                 slot_count = run_schedule_scrape(con, season, wk)
                 print(f"  Schedule slots: {slot_count} teams for week {wk}")

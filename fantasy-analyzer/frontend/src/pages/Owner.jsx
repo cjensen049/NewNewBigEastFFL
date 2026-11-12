@@ -331,7 +331,7 @@ function VsProjectionTab({ owner }) {
       <div className="flex flex-wrap items-center gap-4 mb-4">
         <h2 className="text-base md:text-lg font-semibold">Players vs Projection</h2>
         <p className="text-xs text-gray-500">
-          Regular season only · Sleeper projections · rostered players
+          Regular season only · Sleeper projections scored under NNBE rules · rostered players
           {mode === 'bench' ? ' · weeks on the bench' : mode === 'starter' ? ' · weeks in the starting lineup' : ' · bench weeks faded'}
         </p>
         <div className="flex items-center gap-3 ml-auto">

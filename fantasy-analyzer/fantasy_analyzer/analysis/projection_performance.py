@@ -10,7 +10,10 @@ Lineup efficiency (actual score as a % of the best lineup in hindsight, from
 analysis.start_sit) is reported alongside but as a separate measure -- it is the
 manager's start/sit quality, not the players' over/under-performance.
 
-Sleeper projections only. Sleeper drops players who later retire or get released
+Sleeper projections only, scored with NNBE's own rules: the scraper rebuilds each
+projected point total from Sleeper's projected stat line (see scraping.sleeper_projections),
+because Sleeper's ready-made total for older QB feeds carries ~2 pts/game of first-down
+credit that NNBE never awards. Sleeper drops players who later retire or get released
 from its old weekly feeds (Tom Brady's 2021 has none), and counting those as "0
 projected" made their whole season read as over-performance. So a starter with no
 weekly projection who scored gets his season-long per-game rate as a stand-in
@@ -306,11 +309,10 @@ def get_projection_leaders(con: sqlite3.Connection, top_n: int = 10) -> dict:
     adj_diff / avg_adj_diff and seasons (e.g. "2021-2024"). Regular season, any owner,
     real projections only.
 
-    over/under rank by raw diff. Quarterbacks run ~2.5 pts per start under Sleeper's
-    projection in this league while RBs run slightly over, so the raw lists are mostly
-    QBs on the bottom. over_adj/under_adj rank by adj_diff instead: each start's diff
-    minus the average diff of all starters at that position in that season, i.e. how a
-    player did against other starters at his own position.
+    over/under rank by raw diff. over_adj/under_adj rank by adj_diff instead: each
+    start's diff minus the average diff of all starters at that position in that
+    season, i.e. how a player did against other starters at his own position (useful
+    when a position group ran over or under as a whole, as QBs did in 2021-22).
     """
     events = _starter_events(con)
     pos_season: dict[tuple, list[float]] = defaultdict(list)
