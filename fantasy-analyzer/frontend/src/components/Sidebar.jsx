@@ -42,6 +42,7 @@ const OWNER_SUBS = [
   { tab: 'summary', label: 'Career Summary', emoji: '📋' },
   { tab: 'h2h',     label: 'Head-to-Head',   emoji: '⚔️' },
   { tab: 'players', label: 'Top Players',    emoji: '⭐' },
+  { tab: 'projection', label: 'Vs Projection', emoji: '🎯' },
   { tab: 'draft',   label: 'Draft Picks',    emoji: '🏈' },
   { tab: 'trades',  label: 'Trades',         emoji: '🔄' },
   { tab: 'waivers', label: 'Waivers',        emoji: '💰' },

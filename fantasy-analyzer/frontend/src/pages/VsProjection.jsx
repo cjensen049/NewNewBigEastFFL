@@ -20,40 +20,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import DataTable from '../components/DataTable'
 import LoadingSpinner from '../components/LoadingSpinner'
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const fmt1 = v => Number(v).toFixed(1)
-
-function signed(v) {
-  if (v == null) return '—'
-  return `${v > 0 ? '+' : ''}${fmt1(v)}`
-}
-
-function diffColor(v) {
-  if (v == null || Math.abs(v) < 0.05) return 'var(--text-muted)'
-  return v > 0 ? 'var(--green)' : 'var(--brand-red)'
-}
-
-// Colored text for a +/- value (season, per week, last 3).
-function DiffText({ value, bold = false }) {
-  return <span style={{ color: diffColor(value), fontWeight: bold ? 700 : 500 }}>{signed(value)}</span>
-}
-
-// One weekly cell: tinted by size so hot/cold weeks stand out at a glance.
-function WeekCell({ value }) {
-  if (value == null) return <span style={{ color: 'var(--text-faint)' }}>—</span>
-  const strength = Math.min(Math.abs(value) / 50, 1) * 0.28
-  const rgb = value >= 0 ? '63,185,80' : '204,31,46'
-  return (
-    <span style={{
-      display: 'inline-block', minWidth: '52px', textAlign: 'center', borderRadius: '4px', padding: '2px 4px',
-      fontSize: '12px', fontWeight: 600, color: diffColor(value), background: `rgba(${rgb},${strength})`,
-    }}>
-      {signed(value)}
-    </span>
-  )
-}
+import { fmt1, signed, DiffText, WeekCell } from '../components/DiffCells'
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 

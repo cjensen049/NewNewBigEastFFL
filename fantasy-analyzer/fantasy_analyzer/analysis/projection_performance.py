@@ -22,6 +22,7 @@ over/under is also subtracted ("vs league"), which centers every week on zero.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections import defaultdict
 
@@ -107,3 +108,87 @@ def get_projection_performance(con: sqlite3.Connection, league_id: str, season: 
         })
     rows.sort(key=lambda r: -r["total_diff"])
     return {"season": season, "weeks": weeks, "league_avg_diff": _avg(all_diffs), "rows": rows}
+
+
+def _role_totals(entries: list[dict]) -> dict:
+    """Games, actual, projected and over/under for a list of player-week entries."""
+    actual = sum(e["actual"] for e in entries)
+    projected = sum(e["projected"] or 0.0 for e in entries)
+    diff = actual - projected
+    return {
+        "games": len(entries),
+        "actual": round(actual, 1),
+        "projected": round(projected, 1),
+        "diff": round(diff, 1),
+        "avg_diff": round(diff / len(entries), 1) if entries else None,
+    }
+
+
+def get_owner_player_performance(con: sqlite3.Connection, owner_name: str, season: int) -> dict:
+    """Every player an owner rostered in a season: actual vs. Sleeper projection, by week.
+
+    One row per player with a `weeks` list ({week, actual, projected, diff, role},
+    role is "starter" or "bench") and `totals` for each of "all", "starter" and
+    "bench" so the page can toggle without recomputing. Regular season only.
+
+    A started player always appears, even with no projection and 0 points (he
+    held a lineup slot). A bench player appears only if he was projected or
+    scored, so inactive/bye players don't pad his games with zeros. A missing
+    projection counts as 0 projected, as in get_projection_performance, so the
+    starter diffs add up to that owner's team-level over/under.
+    """
+    row = con.execute("SELECT user_id FROM owners WHERE canonical_name = ?", (owner_name,)).fetchone()
+    empty = {"owner": owner_name, "season": season, "weeks": [], "rows": []}
+    if not row:
+        return empty
+
+    matchups = con.execute(
+        """SELECT week, starters_json, players_points_json FROM matchups
+           WHERE user_id=? AND season=? AND is_playoff=0 AND points IS NOT NULL AND points > 0
+             AND starters_json IS NOT NULL AND players_points_json IS NOT NULL
+           ORDER BY week""",
+        (row[0], season),
+    ).fetchall()
+    if not matchups:
+        return empty
+
+    projections = {
+        (w, pid): p for w, pid, p in con.execute(
+            "SELECT week, player_id, projected_pts FROM player_projections WHERE season=?", (season,)
+        )
+    }
+    info = {pid: (name, pos) for pid, name, pos in con.execute("SELECT player_id, full_name, position FROM players")}
+
+    by_player: dict[str, list[dict]] = defaultdict(list)
+    for week, starters_raw, pp_raw in matchups:
+        starters = set(json.loads(starters_raw))
+        for pid, pts in json.loads(pp_raw).items():
+            actual = float(pts or 0.0)
+            projected = projections.get((week, pid))
+            role = "starter" if pid in starters else "bench"
+            if role == "bench" and projected is None and actual == 0:
+                continue
+            by_player[pid].append({
+                "week": week,
+                "actual": round(actual, 1),
+                "projected": round(projected, 1) if projected is not None else None,
+                "diff": round(actual - (projected or 0.0), 1),
+                "role": role,
+            })
+
+    rows = []
+    for pid, entries in by_player.items():
+        name, pos = info.get(pid, (pid, None))
+        rows.append({
+            "player_id": pid,
+            "player": name or pid,
+            "position": pos,
+            "weeks": entries,
+            "totals": {
+                "all": _role_totals(entries),
+                "starter": _role_totals([e for e in entries if e["role"] == "starter"]),
+                "bench": _role_totals([e for e in entries if e["role"] == "bench"]),
+            },
+        })
+    rows.sort(key=lambda r: -r["totals"]["all"]["diff"])
+    return {"owner": owner_name, "season": season, "weeks": [m[0] for m in matchups], "rows": rows}

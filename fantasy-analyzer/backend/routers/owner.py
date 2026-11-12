@@ -19,6 +19,7 @@ from fantasy_analyzer.analysis.history import (
     get_season_breakdown,
     get_owner_top_players,
 )
+from fantasy_analyzer.analysis.projection_performance import get_owner_player_performance
 from fantasy_analyzer.analysis.transactions import (
     get_trade_log,
     get_owner_waiver_log,
@@ -368,6 +369,16 @@ def owner_top_players(
     """Top-scoring starters for an owner (all-time or filtered to one season)."""
     players = get_owner_top_players(con, name, season=season)
     return {"owner": name, "season": season, "players": players}
+
+
+@router.get("/{name}/player-projection")
+def owner_player_projection(
+    name: str,
+    season: int = Query(...),
+    con: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    """Each rostered player's actual vs. Sleeper projection by week, tagged starter/bench."""
+    return get_owner_player_performance(con, name, season)
 
 
 @router.get("/{name}/trades")
