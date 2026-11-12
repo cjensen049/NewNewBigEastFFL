@@ -658,8 +658,9 @@ function ChampionsTab() {
 // for a like-for-like view when a position group ran over or under as a whole.
 function PlayerProjectionsTab() {
   const [view, setView] = useState('raw')
-  // Which column each table is sorted by. Sorting by Per Start swaps the top-10 list for every player
-  // with a full season of starts, so the per-start leaders aren't limited to the top 10 by total.
+  // Which column each table is sorted by. Sorting by Per Start re-ranks within players who have a full
+  // season of starts, so the per-start leaders aren't limited to the top 10 by total. Each table is always
+  // exactly 10 rows and only sorts one way (top: high to low, bottom: low to high).
   const [overSort, setOverSort] = useState(null)
   const [underSort, setUnderSort] = useState(null)
   const { data, isLoading, error } = useQuery({
@@ -672,12 +673,12 @@ function PlayerProjectionsTab() {
 
   const adj = view === 'adj'
   const switchView = v => { setView(v); setOverSort(null); setUnderSort(null) }
-  const expanded = key => key === 'avg_diff' || key === 'avg_adj_diff'
-  const rowsFor = (list, sortKey) => (expanded(sortKey) ? data.qualified : data[list])
-  const note = sortKey => expanded(sortKey) && (
+  const perStart = key => key === 'avg_diff' || key === 'avg_adj_diff'
+  // e.g. 'over' -> 'over_adj_per_start'; by total unless the table is sorted by Per Start
+  const rowsFor = (side, sortKey) => data[`${side}${adj ? '_adj' : ''}${perStart(sortKey) ? '_per_start' : ''}`]
+  const note = sortKey => perStart(sortKey) && (
     <p className="text-xs text-gray-500 mb-2">
-      Sorted by per-start average: showing all {data.qualified.length} players with {data.min_starts}+ starts
-      (a full regular season) instead of just the top 10 by total.
+      Ranked by per-start average among players with {data.min_starts}+ starts (a full regular season).
     </p>
   )
   const diffKey = adj ? 'adj_diff' : 'diff'
@@ -710,14 +711,16 @@ function PlayerProjectionsTab() {
         {adj
           ? ' Each start is compared with the average starter at that position that season, so this ranks players against their own position.'
           : ' Raw is simply actual points minus projection; "vs Position Avg" adjusts for a position group that ran over or under as a whole.'}
+        {' '}Click a column to re-rank: the top table always sorts high to low and the bottom table low to high.
       </p>
 
       <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--green)' }}>Top 10 over projection</h3>
       {note(overSort)}
       <DataTable
         key={`over-${view}`}
-        rows={rowsFor(adj ? 'over_adj' : 'over', overSort)}
-        maxHeight={expanded(overSort) ? '560px' : 'none'} minWidth="760px" columns={columns}
+        rows={rowsFor('over', overSort)}
+        maxHeight="none" minWidth="760px" columns={columns}
+        defaultSort={diffKey} fixedSortDir="desc"
         onSortChange={setOverSort}
       />
 
@@ -725,8 +728,9 @@ function PlayerProjectionsTab() {
       {note(underSort)}
       <DataTable
         key={`under-${view}`}
-        rows={rowsFor(adj ? 'under_adj' : 'under', underSort)}
-        maxHeight={expanded(underSort) ? '560px' : 'none'} minWidth="760px" columns={columns}
+        rows={rowsFor('under', underSort)}
+        maxHeight="none" minWidth="760px" columns={columns}
+        defaultSort={diffKey} fixedSortDir="asc"
         onSortChange={setUnderSort}
       />
     </div>

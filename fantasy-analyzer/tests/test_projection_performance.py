@@ -329,7 +329,7 @@ class TestLeadersAndRecords:
         assert by["a2"]["owners"] == "Alice (2), Bob (1)"     # most starts first, counts when more than one owner
         assert by["b2"]["owners"] == "Bob"                    # a single owner is just the name
 
-    def test_qualified_pool_is_everyone_with_enough_starts_not_just_the_top_n(self, db):
+    def test_per_start_lists_only_rank_players_with_a_full_season_of_starts(self, db):
         self._setup(db)                                  # a1, a2, b1, b2: 2 starts each
         db.execute(
             "INSERT INTO matchups (league_id, season, week, matchup_id, roster_id, user_id, points, is_playoff, "
@@ -339,15 +339,18 @@ class TestLeadersAndRecords:
         db.execute("INSERT INTO player_projections (season, week, player_id, position, projected_pts, scraped_at) "
                    "VALUES (2026, 3, 'a2', 'WR', 20, 'x')")
         db.commit()
+        # per-start averages: a2 +20,+4,-2 -> +7.3 | b2 +1,+3 -> +2.0 | b1 -6,-2 -> -4.0 | a1 -10,-2 -> -6.0
 
-        everyone = get_projection_leaders(db, top_n=1, min_starts=2)
-        assert len(everyone["over"]) == 1                                             # top_n still caps the ranked lists
-        assert {p["player"] for p in everyone["qualified"]} == {"a1", "a2", "b1", "b2"}
-        assert everyone["min_starts"] == 2
+        enough = get_projection_leaders(db, top_n=2, min_starts=2)
+        assert [p["player"] for p in enough["over_per_start"]] == ["a2", "b2"]        # best per-start first
+        assert [p["player"] for p in enough["under_per_start"]] == ["a1", "b1"]       # worst per-start first
+        assert enough["min_starts"] == 2
 
-        full_season = get_projection_leaders(db, top_n=1, min_starts=3)
-        assert [p["player"] for p in full_season["qualified"]] == ["a2"]              # only a2 reached 3 starts
-        assert get_projection_leaders(db, min_starts=14)["qualified"] == []           # nobody has a full season here
+        full_season = get_projection_leaders(db, top_n=2, min_starts=3)
+        assert [p["player"] for p in full_season["over_per_start"]] == ["a2"]          # only a2 reached 3 starts
+        assert [p["player"] for p in full_season["under_per_start"]] == ["a2"]
+        assert get_projection_leaders(db, min_starts=14)["over_per_start"] == []       # nobody has a full season here
+        assert len(get_projection_leaders(db, top_n=2)["over"]) == 2                   # the by-total lists are unaffected
 
     def test_estimated_stand_ins_never_reach_the_leaderboards(self, db):
         self._setup(db)

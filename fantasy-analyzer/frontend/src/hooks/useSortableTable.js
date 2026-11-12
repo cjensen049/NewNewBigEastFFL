@@ -8,12 +8,13 @@ import { useState, useMemo } from 'react'
  *   sortKey    — the column key currently sorted, or null
  *   sortDir    — 'asc' | 'desc'
  *   handleSort — call with a column key; toggles dir if already sorted by that key
+ *                (unless fixedDir is given: the direction never changes, only the column)
  *
  * Numeric strings are compared as numbers; everything else is compared as strings.
  */
-export function useSortableTable(rows, defaultKey = null, defaultDir = 'asc') {
+export function useSortableTable(rows, defaultKey = null, defaultDir = 'asc', fixedDir = null) {
   const [sortKey, setSortKey] = useState(defaultKey)
-  const [sortDir, setSortDir] = useState(defaultDir)
+  const [sortDir, setSortDir] = useState(fixedDir ?? defaultDir)
 
   const sorted = useMemo(() => {
     if (!sortKey || !rows) return rows ?? []
@@ -30,6 +31,10 @@ export function useSortableTable(rows, defaultKey = null, defaultDir = 'asc') {
   }, [rows, sortKey, sortDir])
 
   function handleSort(key) {
+    if (fixedDir) {
+      setSortKey(key)
+      return
+    }
     if (sortKey === key) {
       setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     } else {
