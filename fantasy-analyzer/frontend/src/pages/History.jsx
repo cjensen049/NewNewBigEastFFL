@@ -674,6 +674,7 @@ function PlayerProjectionsTab() {
     { key: '_rank', label: '#', sortable: false, render: (v, row, i) => i + 1 },
     { key: 'player', label: 'Player' },
     { key: 'position', label: 'Pos', sortable: false, render: v => <OwnerPosBadge pos={v} /> },
+    { key: 'owners', label: 'Owner(s)' },
     { key: 'starts', label: 'Starts', align: 'right' },
     { key: 'projected', label: 'Proj', align: 'right', render: v => fmt1(v) },
     { key: 'actual', label: 'Actual', align: 'right', render: v => fmt1(v) },
@@ -699,10 +700,10 @@ function PlayerProjectionsTab() {
       </p>
 
       <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--green)' }}>Top 10 over projection</h3>
-      <DataTable rows={data[adj ? 'over_adj' : 'over']} maxHeight="none" minWidth="640px" columns={columns} />
+      <DataTable rows={data[adj ? 'over_adj' : 'over']} maxHeight="none" minWidth="760px" columns={columns} />
 
       <h3 className="text-sm font-semibold mb-2 mt-8" style={{ color: 'var(--brand-red)' }}>Top 10 under projection</h3>
-      <DataTable rows={data[adj ? 'under_adj' : 'under']} maxHeight="none" minWidth="640px" columns={columns} />
+      <DataTable rows={data[adj ? 'under_adj' : 'under']} maxHeight="none" minWidth="760px" columns={columns} />
     </div>
   )
 }

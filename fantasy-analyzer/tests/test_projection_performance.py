@@ -314,6 +314,21 @@ class TestLeadersAndRecords:
         by = {p["player"]: p for p in leaders["over_adj"]}
         assert by["a1"]["adj_diff"] == -2.0 and by["b1"]["adj_diff"] == 2.0
 
+    def test_leaders_list_every_owner_who_started_the_player(self, db):
+        self._setup(db)
+        # Bob also starts a2 in week 3 (a2 started twice for Alice before that).
+        db.execute(
+            "INSERT INTO matchups (league_id, season, week, matchup_id, roster_id, user_id, points, is_playoff, "
+            "starters_json, players_points_json) VALUES ('L1', 2026, 3, 1, 2, 'u2', 25.0, 0, ?, ?)",
+            (json.dumps(["a2"]), json.dumps({"a2": 25.0})),
+        )
+        db.execute("INSERT INTO player_projections (season, week, player_id, position, projected_pts, scraped_at) "
+                   "VALUES (2026, 3, 'a2', 'WR', 20, 'x')")
+        db.commit()
+        by = {p["player"]: p for p in get_projection_leaders(db)["over"]}
+        assert by["a2"]["owners"] == "Alice (2), Bob (1)"     # most starts first, counts when more than one owner
+        assert by["b2"]["owners"] == "Bob"                    # a single owner is just the name
+
     def test_estimated_stand_ins_never_reach_the_leaderboards(self, db):
         self._setup(db)
         db.execute("DELETE FROM player_projections WHERE player_id='a2'")

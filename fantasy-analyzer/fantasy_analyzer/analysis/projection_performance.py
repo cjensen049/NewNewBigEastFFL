@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from fantasy_analyzer.analysis.start_sit import get_start_sit_weeks
 from fantasy_analyzer.analysis.weekly_digest import team_actual_vs_projected
@@ -305,9 +305,10 @@ def get_projection_leaders(con: sqlite3.Connection, top_n: int = 10) -> dict:
     """All-time top players over and under Sleeper's projection while in a starting lineup.
 
     Returns {over, under, over_adj, under_adj}, each a list of up to top_n rows: player,
-    position, starts, projected, actual, diff (total over/under), avg_diff (per start),
-    adj_diff / avg_adj_diff and seasons (e.g. "2021-2024"). Regular season, any owner,
-    real projections only.
+    position, owners, starts, projected, actual, diff (total over/under), avg_diff (per
+    start), adj_diff / avg_adj_diff and seasons (e.g. "2021-2024"). owners lists everyone
+    who started him, most starts first, with the start count when there's more than one
+    (e.g. "Casey (40), Jensen (28)"). Regular season, any owner, real projections only.
 
     over/under rank by raw diff. over_adj/under_adj rank by adj_diff instead: each
     start's diff minus the average diff of all starters at that position in that
@@ -324,9 +325,10 @@ def get_projection_leaders(con: sqlite3.Connection, top_n: int = 10) -> dict:
     for e in events:
         a = agg.setdefault(e["player_id"], {
             "player_id": e["player_id"], "player": e["player"], "position": e["position"],
-            "starts": 0, "projected": 0.0, "actual": 0.0, "adj": 0.0, "seasons": set(),
+            "starts": 0, "projected": 0.0, "actual": 0.0, "adj": 0.0, "seasons": set(), "owners": Counter(),
         })
         a["starts"] += 1
+        a["owners"][e["owner"]] += 1
         a["projected"] += e["projected"]
         a["actual"] += e["actual"]
         a["adj"] += e["diff"] - pos_avg[(e["position"], e["season"])]
@@ -336,9 +338,11 @@ def get_projection_leaders(con: sqlite3.Connection, top_n: int = 10) -> dict:
     for a in agg.values():
         diff = a["actual"] - a["projected"]
         lo, hi = min(a["seasons"]), max(a["seasons"])
+        ranked = sorted(a["owners"].items(), key=lambda kv: (-kv[1], kv[0]))
+        owners = ranked[0][0] if len(ranked) == 1 else ", ".join(f"{o} ({n})" for o, n in ranked)
         rows.append({
             "player_id": a["player_id"], "player": a["player"], "position": a["position"],
-            "starts": a["starts"], "projected": round(a["projected"], 1), "actual": round(a["actual"], 1),
+            "owners": owners, "starts": a["starts"], "projected": round(a["projected"], 1), "actual": round(a["actual"], 1),
             "diff": round(diff, 1), "avg_diff": round(diff / a["starts"], 1),
             "adj_diff": round(a["adj"], 1), "avg_adj_diff": round(a["adj"] / a["starts"], 1),
             "seasons": str(lo) if lo == hi else f"{lo}-{hi}",
