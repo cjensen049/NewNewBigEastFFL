@@ -6,14 +6,14 @@
  *
  * Tabs: Career Summary | Head-to-Head | Top Players | Vs Projection | Draft Picks | Trades | Waivers
  */
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { TabPanel } from '../components/Tabs'
 import DataTable from '../components/DataTable'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { fmt1, signed, DiffText, WeekCell } from '../components/DiffCells'
+import PlayerProjectionTable, { POS_STYLE, OwnerPosBadge, PillToggle } from '../components/PlayerProjectionTable'
 
 const pct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
 const fmtPts = (v) => v != null ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'
@@ -29,25 +29,6 @@ const TABS = [
 ]
 
 const CONTAINER = { maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(12px, 3vw, 24px)' }
-
-// Position colours — mirrors Draft.jsx
-const POS_STYLE = {
-  QB: { border: 'border-l-red-500',    bg: 'bg-red-900/30' },
-  RB: { border: 'border-l-green-500',  bg: 'bg-green-900/30' },
-  WR: { border: 'border-l-blue-500',   bg: 'bg-blue-900/30' },
-  TE: { border: 'border-l-orange-500', bg: 'bg-orange-900/30' },
-}
-const POS_BADGE = {
-  QB: 'bg-red-700', RB: 'bg-green-700', WR: 'bg-blue-700', TE: 'bg-orange-600',
-}
-function OwnerPosBadge({ pos }) {
-  if (!pos) return null
-  return (
-    <span className={`${POS_BADGE[pos] ?? 'bg-gray-600'} text-white text-xs font-bold px-1.5 py-0.5 rounded`}>
-      {pos}
-    </span>
-  )
-}
 
 // ─── Career Summary helpers ───────────────────────────────────────────────────
 
@@ -328,32 +309,10 @@ function TopPlayersTab({ owner }) {
 
 // ─── Vs Projection tab ────────────────────────────────────────────────────────
 
-// Starters / Bench / All switch (same look as the source pills on Dynasty Rankings)
-function ModeToggle({ mode, onChange }) {
-  const options = [['starter', 'Starters'], ['bench', 'Bench'], ['all', 'All']]
-  return (
-    <div style={{ display: 'flex', gap: '6px' }}>
-      {options.map(([id, label]) => (
-        <button
-          key={id}
-          onClick={() => onChange(id)}
-          style={{
-            padding: '4px 12px', borderRadius: '5px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-            border: mode === id ? '1px solid transparent' : '1px solid var(--border-mid)',
-            background: mode === id ? 'var(--brand-navy)' : 'var(--border)',
-            color: mode === id ? '#ffffff' : 'var(--text-muted)',
-          }}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // Every player this owner rostered in a season: actual points vs Sleeper's projection,
-// week by week and for the season. Starters/Bench filters which weeks count (a player can be
-// both: started some weeks, benched others). Bench weeks show faded in the "All" view.
+// week by week and for the season (the table itself is the shared PlayerProjectionTable).
+// Starters/Bench filters which weeks count (a player can be both: started some weeks,
+// benched others); bench weeks show faded in the "All" view.
 function VsProjectionTab({ owner }) {
   const [selectedSeason, setSelectedSeason] = useState(null)
   const [mode, setMode] = useState('starter')
@@ -367,52 +326,6 @@ function VsProjectionTab({ owner }) {
   const seasons = (profile?.seasons ?? []).map(s => s.season).sort((a, b) => b - a)
   const season = selectedSeason && seasons.includes(selectedSeason) ? selectedSeason : seasons[0]
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['owner-player-projection', owner, season],
-    queryFn: () => fetch(`/api/owners/${encodeURIComponent(owner)}/player-projection?season=${season}`).then(r => r.json()),
-    enabled: !!owner && !!season,
-  })
-
-  const weeks = data?.weeks ?? []
-
-  // One table row per player for the chosen mode; each week becomes a sortable w1, w2, ... column.
-  const rows = useMemo(() => (data?.rows ?? []).flatMap(p => {
-    const t = p.totals[mode]
-    if (t.games === 0) return []
-    const row = { player: p.player, position: p.position, games: t.games, projected: t.projected, actual: t.actual, diff: t.diff, avg_diff: t.avg_diff, _bench: {}, _np: {} }
-    for (const w of p.weeks) {
-      if (mode === 'all' || w.role === mode) {
-        row[`w${w.week}`] = w.diff
-        row._bench[w.week] = w.role === 'bench'
-        row._np[w.week] = w.projected == null   // no Sleeper projection that week
-      }
-    }
-    return [row]
-  }), [data, mode])
-
-  const totalDiff = rows.reduce((sum, r) => sum + (r.diff ?? 0), 0)
-
-  // Players with weeks Sleeper has no projection for, so the n/p cells get an explanation
-  const unprojected = rows
-    .map(r => ({ player: r.player, weeks: Object.values(r._np).filter(Boolean).length }))
-    .filter(p => p.weeks > 0)
-
-  const columns = [
-    { key: 'player', label: 'Player' },
-    { key: 'position', label: 'Pos', sortable: false, render: v => <OwnerPosBadge pos={v} /> },
-    { key: 'games', label: 'G', align: 'right' },
-    { key: 'projected', label: 'Proj', align: 'right', render: v => v == null ? '—' : fmt1(v) },
-    { key: 'actual', label: 'Actual', align: 'right', render: v => fmt1(v) },
-    { key: 'diff', label: '+/-', align: 'right', render: v => <DiffText value={v} bold /> },
-    { key: 'avg_diff', label: 'Per G', align: 'right', render: v => <DiffText value={v} /> },
-    ...weeks.map(w => ({
-      key: `w${w}`, label: `W${w}`, align: 'right',
-      render: (v, row) => row._np[w]
-        ? <span title="No Sleeper projection that week, so it's left out of +/-" style={{ fontSize: '11px', color: 'var(--text-faint)' }}>n/p</span>
-        : <WeekCell value={v} dim={row._bench[w]} />,
-    })),
-  ]
-
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -422,7 +335,7 @@ function VsProjectionTab({ owner }) {
           {mode === 'bench' ? ' · weeks on the bench' : mode === 'starter' ? ' · weeks in the starting lineup' : ' · bench weeks faded'}
         </p>
         <div className="flex items-center gap-3 ml-auto">
-          <ModeToggle mode={mode} onChange={setMode} />
+          <PillToggle options={[['starter', 'Starters'], ['bench', 'Bench'], ['all', 'All']]} value={mode} onChange={setMode} />
           <label className="text-gray-400 text-sm">Season</label>
           <select
             value={season ?? ''}
@@ -433,38 +346,7 @@ function VsProjectionTab({ owner }) {
           </select>
         </div>
       </div>
-
-      {isLoading || !season ? <LoadingSpinner /> : rows.length === 0 ? (
-        <p className="text-gray-500">No {mode === 'all' ? '' : mode === 'starter' ? 'starter ' : 'bench '}games with projections for {owner} in {season}.</p>
-      ) : (
-        <>
-          <p className="text-xs text-gray-500 mb-2">
-            {rows.length} players · {signed(totalDiff)} vs projection in total
-            {mode === 'starter' && ' (this matches the team total on the league Vs Projection page)'}
-            {' · n/p = no Sleeper projection that week, left out of +/-'}
-          </p>
-          {unprojected.length > 0 && (
-            <p className="text-xs mb-3" style={{ color: 'var(--text-faint)' }}>
-              <strong style={{ color: 'var(--text-muted)' }}>No Sleeper projection data:</strong>{' '}
-              {unprojected.map(p => `${p.player} (${p.weeks} wk${p.weeks === 1 ? '' : 's'})`).join(', ')}.
-              Sleeper doesn't list some players for older seasons (for example ones who have since retired or
-              been released), so those weeks show n/p and are left out of +/- rather than guessed at.
-            </p>
-          )}
-          <DataTable
-            minWidth="900px"
-            defaultSort="diff"
-            defaultDir="desc"
-            rows={rows}
-            rowClassName={(p) => {
-              const { border, bg } = POS_STYLE[p.position] ?? { border: 'border-l-gray-600', bg: 'bg-gray-800/40' }
-              return `border-l-4 ${border} ${bg}`
-            }}
-            columns={columns}
-            maxHeight="none"
-          />
-        </>
-      )}
+      <PlayerProjectionTable owner={owner} season={season} mode={mode} />
     </div>
   )
 }

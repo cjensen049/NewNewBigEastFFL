@@ -20,6 +20,8 @@ import {
 import { TabBar, TabPanel } from '../components/Tabs'
 import DataTable from '../components/DataTable'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { OwnerPosBadge, PillToggle } from '../components/PlayerProjectionTable'
+import { fmt1, DiffText } from '../components/DiffCells'
 
 // ---------------------------------------------------------------------------
 // Helper: format a win_pct decimal (0.634) → "63.4%"
@@ -646,6 +648,65 @@ function ChampionsTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Player Projections tab — all-time players over / under Sleeper's projection
+// ---------------------------------------------------------------------------
+
+// Top 10 players who most beat, and most missed, Sleeper's projection while in a starting
+// lineup (any owner, all seasons, regular season). "Raw" is actual minus projection.
+// "vs position avg" subtracts the average for starters at the same position that season,
+// because quarterbacks as a group run under Sleeper's projection in this league (so the raw
+// bottom 10 is nearly all QBs) while RBs run slightly over.
+function PlayerProjectionsTab() {
+  const [view, setView] = useState('raw')
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['history-projection-leaders'],
+    queryFn: () => fetch('/api/history/projection-leaders').then(r => r.json()),
+  })
+
+  if (isLoading) return <LoadingSpinner />
+  if (error) return <p className="text-red-400">Error: {error.message}</p>
+
+  const adj = view === 'adj'
+  const diffKey = adj ? 'adj_diff' : 'diff'
+  const perKey = adj ? 'avg_adj_diff' : 'avg_diff'
+
+  const columns = [
+    { key: '_rank', label: '#', sortable: false, render: (v, row, i) => i + 1 },
+    { key: 'player', label: 'Player' },
+    { key: 'position', label: 'Pos', sortable: false, render: v => <OwnerPosBadge pos={v} /> },
+    { key: 'starts', label: 'Starts', align: 'right' },
+    { key: 'projected', label: 'Proj', align: 'right', render: v => fmt1(v) },
+    { key: 'actual', label: 'Actual', align: 'right', render: v => fmt1(v) },
+    { key: diffKey, label: adj ? '+/- vs Pos' : '+/-', align: 'right', render: v => <DiffText value={v} bold /> },
+    { key: perKey, label: 'Per Start', align: 'right', render: v => <DiffText value={v} /> },
+    { key: 'seasons', label: 'Seasons', align: 'right' },
+  ]
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-4 mb-2">
+        <h2 className="text-base md:text-lg font-semibold">Players vs Projection</h2>
+        <div className="ml-auto">
+          <PillToggle options={[['raw', 'Raw'], ['adj', 'vs Position Avg']]} value={view} onChange={setView} />
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 mb-4">
+        Regular season starts only, all owners, Sleeper projections (estimated stand-ins are not counted).
+        {adj
+          ? ' Each start is compared with the average starter at that position that season, so this ranks players against their own position.'
+          : ' Quarterbacks as a group run under Sleeper’s projection in this league, so the bottom of this list is mostly QBs; try "vs Position Avg" for a like-for-like view.'}
+      </p>
+
+      <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--green)' }}>Top 10 over projection</h3>
+      <DataTable rows={data[adj ? 'over_adj' : 'over']} maxHeight="none" minWidth="640px" columns={columns} />
+
+      <h3 className="text-sm font-semibold mb-2 mt-8" style={{ color: 'var(--brand-red)' }}>Top 10 under projection</h3>
+      <DataTable rows={data[adj ? 'under_adj' : 'under']} maxHeight="none" minWidth="640px" columns={columns} />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // History page — assembles all tabs
 // ---------------------------------------------------------------------------
 
@@ -655,6 +716,7 @@ const TABS = [
   { id: 'records',   label: 'Records' },
   { id: 'weekly',    label: 'Weekly Scoring' },
   { id: 'startsit',  label: 'Start/Sit' },
+  { id: 'projection', label: 'Player Projections' },
   { id: 'playoff',   label: 'Playoff Records' },
   { id: 'champions', label: 'Champions' },
 ]
@@ -678,6 +740,7 @@ export default function History({ embedded = false }) {
       <TabPanel id="records"   activeTab={tab}><RecordsTab /></TabPanel>
       <TabPanel id="weekly"    activeTab={tab}><WeeklyScoringTab /></TabPanel>
       <TabPanel id="startsit"  activeTab={tab}><StartSitTab /></TabPanel>
+      <TabPanel id="projection" activeTab={tab}><PlayerProjectionsTab /></TabPanel>
       <TabPanel id="playoff"   activeTab={tab}><PlayoffRecordsTab /></TabPanel>
       <TabPanel id="champions" activeTab={tab}><ChampionsTab /></TabPanel>
     </div>

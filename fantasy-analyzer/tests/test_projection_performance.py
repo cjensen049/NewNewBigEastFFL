@@ -8,7 +8,10 @@ import pytest
 
 from fantasy_analyzer.analysis.projection_performance import (
     get_owner_player_performance,
+    get_projection_leaders,
     get_projection_performance,
+    get_projection_record_rows,
+    projection_luck_verdict,
 )
 from fantasy_analyzer.db.schema import DDL
 
@@ -51,7 +54,7 @@ class TestProjectionPerformance:
     def test_no_played_weeks_returns_empty(self, db):
         assert get_projection_performance(db, "L1", 2026) == {
             "season": 2026, "weeks": [], "league_avg_diff": None,
-            "excluded_pts": 0.0, "excluded_starters": 0, "rows": [],
+            "excluded_pts": 0.0, "excluded_starters": 0, "estimated_starters": 0, "rows": [],
         }
 
     def test_weekly_diff_is_actual_minus_projected_of_started_players(self, db):
@@ -60,7 +63,7 @@ class TestProjectionPerformance:
         rows = {r["owner"]: r for r in get_projection_performance(db, "L1", 2026)["rows"]}
         assert rows["Alice"]["weeks"][0] == {
             "week": 1, "actual": 130.0, "projected": 110.0, "diff": 20.0, "diff_vs_league": 15.0,
-            "unprojected_pts": 0.0, "unprojected_n": 0,
+            "estimated_n": 0, "unprojected_pts": 0.0, "unprojected_n": 0,
             "efficiency_pct": None, "pts_left_on_bench": None,
         }
         assert rows["Bob"]["weeks"][0]["diff"] == -10.0
@@ -154,7 +157,8 @@ class TestOwnerPlayerPerformance:
             (1, 30.0, 20.0, 10.0, "starter"), (2, 10.0, 25.0, -15.0, "starter"),
         ]
         assert a1["totals"]["starter"] == {
-            "games": 2, "compared_games": 2, "actual": 40.0, "projected": 45.0, "diff": -5.0, "avg_diff": -2.5,
+            "games": 2, "compared_games": 2, "estimated_games": 0,
+            "actual": 40.0, "projected": 45.0, "diff": -5.0, "avg_diff": -2.5,
         }
         assert a1["totals"]["bench"]["games"] == 0 and a1["totals"]["bench"]["avg_diff"] is None
 
@@ -171,7 +175,9 @@ class TestOwnerPlayerPerformance:
         db.execute("UPDATE matchups SET starters_json=? WHERE week=1", (json.dumps(["a1", "ghost"]),))
         db.commit()
         ghost = next(r for r in get_owner_player_performance(db, "Alice", 2026)["rows"] if r["player"] == "ghost")
-        assert ghost["weeks"] == [{"week": 1, "actual": 0.0, "projected": None, "diff": None, "role": "starter"}]
+        assert ghost["weeks"] == [
+            {"week": 1, "actual": 0.0, "projected": None, "diff": None, "role": "starter", "estimated": False},
+        ]
 
     def test_unprojected_player_who_scores_is_listed_but_not_counted_as_over_performance(self, db):
         self._games(db)
@@ -206,3 +212,125 @@ class TestOwnerPlayerPerformance:
         team = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")
         player_sum = sum(r["totals"]["starter"]["diff"] or 0 for r in rows.values())
         assert player_sum == pytest.approx(team["total_diff"])
+
+
+def _season_rate(db, pid, rate, season=2026):
+    db.execute("INSERT INTO player_season_projections (season, player_id, position, projected_pts, scraped_at) "
+               "VALUES (?, ?, 'RB', ?, 'x')", (season, pid, rate))
+    db.commit()
+
+
+class TestSeasonAverageStandIn:
+    """A starter with no weekly projection who scored gets his season-long per-game rate."""
+
+    def test_team_level_uses_the_stand_in_and_counts_it(self, db):
+        _season_rate(db, "a2", 20.0)
+        pool = {"u1": {"a1": 50.0, "a2": 30.0}, "u2": {"b1": 40.0, "b2": 40.0}}
+        _week(db, 1, {"u1": 80.0, "u2": 80.0}, {"a1": 60, "b1": 45, "b2": 45}, pool)   # a2: no weekly projection
+        week = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")["weeks"][0]
+        assert week["projected"] == 80.0                 # a1's 60 + a2's season rate of 20
+        assert week["diff"] == 0.0 and week["estimated_n"] == 1 and week["unprojected_n"] == 0
+
+    def test_inactive_starter_is_not_given_a_stand_in(self, db):
+        """Out/inactive (scored nothing, no weekly projection) must not read as -20 under projection."""
+        _season_rate(db, "a2", 20.0)
+        pool = {"u1": {"a1": 50.0, "a2": 0.0}, "u2": {"b1": 40.0, "b2": 40.0}}
+        _week(db, 1, {"u1": 50.0, "u2": 80.0}, {"a1": 60, "b1": 45, "b2": 45}, pool)
+        week = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")["weeks"][0]
+        assert week["projected"] == 60.0 and week["diff"] == -10.0 and week["estimated_n"] == 0
+
+    def test_player_tab_marks_the_estimated_week_and_counts_it(self, db):
+        _season_rate(db, "a2", 20.0)
+        pool = {"u1": {"a1": 50.0, "a2": 30.0}, "u2": {"b1": 40.0, "b2": 40.0}}
+        _week(db, 1, {"u1": 80.0, "u2": 80.0}, {"a1": 60, "b1": 45, "b2": 45}, pool)
+        a2 = next(r for r in get_owner_player_performance(db, "Alice", 2026)["rows"] if r["player"] == "a2")
+        assert a2["weeks"][0] == {"week": 1, "actual": 30.0, "projected": 20.0, "diff": 10.0, "role": "starter", "estimated": True}
+        assert a2["totals"]["starter"]["estimated_games"] == 1 and a2["totals"]["starter"]["diff"] == 10.0
+
+    def test_bench_player_never_gets_a_stand_in(self, db):
+        _season_rate(db, "bench", 12.0)
+        pool = {"u1": {"a1": 30.0, "a2": 20.0, "bench": 25.0}, "u2": {"b1": 40.0, "b2": 40.0}}
+        _week(db, 1, {"u1": 50.0, "u2": 80.0}, {"a1": 20, "a2": 25, "b1": 45, "b2": 45}, pool)
+        bench = next(r for r in get_owner_player_performance(db, "Alice", 2026)["rows"] if r["player"] == "bench")
+        assert bench["weeks"][0]["projected"] is None and bench["totals"]["bench"]["diff"] is None
+
+    def test_player_and_team_totals_still_agree_with_a_stand_in(self, db):
+        _season_rate(db, "a2", 20.0)
+        pool = {"u1": {"a1": 50.0, "a2": 30.0}, "u2": {"b1": 40.0, "b2": 40.0}}
+        _week(db, 1, {"u1": 80.0, "u2": 80.0}, {"a1": 60, "b1": 45, "b2": 45}, pool)
+        team = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")
+        player_sum = sum(r["totals"]["starter"]["diff"] or 0 for r in get_owner_player_performance(db, "Alice", 2026)["rows"])
+        assert player_sum == pytest.approx(team["total_diff"])
+
+
+class TestProjectionLuckVerdict:
+    def test_buckets_follow_standard_errors(self):
+        # 14 weeks: SE = 22/sqrt(14) ~ 5.9, so cutoffs sit near +/-5.9 and +/-11.8 per week.
+        assert projection_luck_verdict(12.5, 14) == "Very Lucky"
+        assert projection_luck_verdict(7.0, 14) == "Lucky"
+        assert projection_luck_verdict(0.0, 14) == "Average"
+        assert projection_luck_verdict(-7.0, 14) == "Unlucky"
+        assert projection_luck_verdict(-12.5, 14) == "Very Unlucky"
+
+    def test_a_hot_start_is_not_called_lucky_until_there_is_evidence(self):
+        assert projection_luck_verdict(10.0, 2) == "Average"      # +10/wk after 2 weeks is just noise
+        assert projection_luck_verdict(10.0, 14) == "Lucky"       # the same average over a season is not
+        assert projection_luck_verdict(-10.0, 2) == "Average"
+
+    def test_no_data_has_no_verdict(self):
+        assert projection_luck_verdict(None, 5) is None
+        assert projection_luck_verdict(3.0, 0) is None
+
+    def test_rows_carry_the_verdict_and_the_average_it_was_based_on(self, db):
+        _week(db, 1, {"u1": 130.0, "u2": 80.0}, {"a1": 60, "a2": 50, "b1": 45, "b2": 45})
+        alice = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")
+        assert alice["avg_vs_league"] == 15.0 and alice["luck_verdict"] == "Average"   # 1 week of evidence
+
+
+class TestLeadersAndRecords:
+    def _setup(self, db):
+        """Alice's QB a1 and WR a2, Bob's QB b1 and WR b2 over two weeks (all four started)."""
+        for pid, pos in [("a1", "QB"), ("a2", "WR"), ("b1", "QB"), ("b2", "WR")]:
+            db.execute("UPDATE players SET position=? WHERE player_id=?", (pos, pid))
+        # diffs: a1 -10, -2 | a2 +20, +4 | b1 -6, -2 | b2 +1, +3
+        games = {
+            1: ({"u1": {"a1": 20.0, "a2": 40.0}, "u2": {"b1": 24.0, "b2": 21.0}}, {"a1": 30, "a2": 20, "b1": 30, "b2": 20}),
+            2: ({"u1": {"a1": 28.0, "a2": 24.0}, "u2": {"b1": 28.0, "b2": 23.0}}, {"a1": 30, "a2": 20, "b1": 30, "b2": 20}),
+        }
+        for week, (pool, proj) in games.items():
+            _week(db, week, {u: sum(p.values()) for u, p in pool.items()}, proj, pool)
+
+    def test_leaders_rank_by_total_diff_and_by_position_adjusted_diff(self, db):
+        self._setup(db)
+        leaders = get_projection_leaders(db, top_n=10)
+        assert [p["player"] for p in leaders["over"]][:2] == ["a2", "b2"]        # +24, +4
+        assert leaders["under"][0]["player"] == "a1" and leaders["under"][0]["diff"] == -12.0
+        a1 = leaders["under"][0]
+        assert a1["starts"] == 2 and a1["avg_diff"] == -6.0 and a1["seasons"] == "2026"
+        # QBs average (-10 -2 -6 -2)/4 = -5 per start, so vs other QBs a1 is only -2 total and b1 is +2.
+        by = {p["player"]: p for p in leaders["over_adj"]}
+        assert by["a1"]["adj_diff"] == -2.0 and by["b1"]["adj_diff"] == 2.0
+
+    def test_estimated_stand_ins_never_reach_the_leaderboards(self, db):
+        self._setup(db)
+        db.execute("DELETE FROM player_projections WHERE player_id='a2'")
+        _season_rate(db, "a2", 5.0)
+        names = {p["player"] for p in get_projection_leaders(db)["over"]}
+        assert "a2" not in names
+
+    def test_records_cover_single_week_and_single_season_with_holder_and_value(self, db):
+        self._setup(db)
+        rec = {c: (v, rows) for c, v, rows in get_projection_record_rows(db)}
+        value, rows = rec["Player Most Over Projection, Single Week"]
+        assert rows == [("a2 (Alice)", 2026, 1)] and value == "+20.0 (40.0 vs 20.0 proj)"
+        value, rows = rec["Player Most Under Projection, Single Week"]
+        assert rows == [("a1 (Alice)", 2026, 1)] and value.startswith("-10.0")
+        value, rows = rec["Player Most Over Projection, Single Season"]
+        assert rows == [("a2 (Alice)", 2026, None)] and value == "+24.0 over 2 starts"
+        assert rec["Player Most Under Projection, Single Season"][1] == [("a1 (Alice)", 2026, None)]
+
+    def test_records_appear_in_the_history_records_table(self, db):
+        from fantasy_analyzer.analysis.history import get_league_records
+        self._setup(db)
+        categories = {r["Category"] for r in get_league_records(db)}
+        assert {"Player Most Over Projection, Single Week", "Player Most Under Projection, Single Season"} <= categories

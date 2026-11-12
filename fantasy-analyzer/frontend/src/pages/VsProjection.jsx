@@ -16,9 +16,10 @@
  *
  * Data: /api/in-season/projection-performance/{season}. Click any header to sort.
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import DataTable from '../components/DataTable'
+import PlayerProjectionTable from '../components/PlayerProjectionTable'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { fmt1, signed, DiffText, WeekCell } from '../components/DiffCells'
 
@@ -41,6 +42,16 @@ export default function VsProjection() {
 
   const weeks = data?.weeks ?? []
 
+  // Player detail below the table: which owner's players to list (defaults to the table's leader)
+  const [detailOwner, setDetailOwner] = useState(null)
+  const detailRef = useRef(null)
+  const ownerNames = (data?.rows ?? []).map(r => r.owner)
+  const activeDetailOwner = ownerNames.includes(detailOwner) ? detailOwner : ownerNames[0]
+  const showOwner = name => {
+    setDetailOwner(name)
+    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   // Flatten each owner's weekly list into w1, w2, ... keys so every week is a sortable column.
   const rows = useMemo(() => (data?.rows ?? []).map(r => {
     const flat = { ...r }
@@ -54,8 +65,19 @@ export default function VsProjection() {
   const worstEff = Math.min(...effs)
 
   const columns = [
-    { key: 'owner', label: 'Owner', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { key: 'total_diff', label: 'Season +/-', align: 'right', render: v => <DiffText value={v} bold /> },
+    {
+      key: 'owner', label: 'Owner',
+      render: v => (
+        <button onClick={() => showOwner(v)} title="Show this owner's players below"
+          style={{ fontWeight: 600, background: 'none', border: 'none', padding: 0, color: 'var(--text-primary)', cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: '3px' }}>
+          {v}
+        </button>
+      ),
+    },
+    {
+      key: 'total_diff', label: 'Season +/-', align: 'right',
+      render: (v, row) => <><DiffText value={v} bold />{row.estimated_n > 0 && <span title="Includes a season-average stand-in projection for a player Sleeper no longer lists" style={{ color: 'var(--text-faint)' }}>*</span>}</>,
+    },
     { key: 'total_vs_league', label: 'vs League', align: 'right', render: v => <DiffText value={v} /> },
     { key: 'avg_diff', label: 'Per Wk', align: 'right', render: v => <DiffText value={v} /> },
     { key: 'recent_avg_diff', label: 'Last 3', align: 'right', render: v => <DiffText value={v} /> },
@@ -107,6 +129,11 @@ export default function VsProjection() {
           beat their projections by 20 points that week. Lineup efficiency is separate: it shows how
           good the manager's start/sit choices were, not how the players performed.
         </p>
+        {data?.estimated_starters ? (
+          <p className="fs-label" style={{ margin: 0, padding: '6px 14px', color: 'var(--text-faint)', borderBottom: '1px solid var(--border)' }}>
+            * {data.estimated_starters} starter-weeks use a season-average stand-in projection, because Sleeper no longer has weekly projections for those players (retired or released since).
+          </p>
+        ) : null}
         {data?.excluded_pts ? (
           <p className="fs-label" style={{ margin: 0, padding: '6px 14px', color: 'var(--text-faint)', borderBottom: '1px solid var(--border)' }}>
             Left out: {data.excluded_starters} starter-weeks ({fmt1(data.excluded_pts)} pts) where Sleeper had no projection.
@@ -130,13 +157,34 @@ export default function VsProjection() {
         <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
             Projections are Sleeper's own for that week, summed over the players actually started.
-            A starter Sleeper has no projection for (inactive, or no longer listed, like some retired
-            players in older seasons) is left out of the comparison, so he can't show up as over-performance.
+            A starter with no weekly projection who scored (Sleeper drops players who later retire or get
+            released) uses his season-long per-game projection instead, marked *. One with no projection of
+            any kind, or who was inactive, is left out, so he can't show up as over-performance.
             vs League subtracts each week's league-wide average over/under, so seasons where
             Sleeper's projections ran high or low for everyone compare fairly. Efficiency is actual
             points as a % of the best possible lineup in hindsight; Left on Bench is the points
             between the two. Regular season only.
           </p>
+        </div>
+      </div>
+      {/* Player detail: same table as the owner dashboard, starters only, for one owner */}
+      <div ref={detailRef} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', marginTop: '20px' }}>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span className="fs-title" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Player detail</span>
+          <span className="fs-label" style={{ color: 'var(--text-faint)' }}>Starters only · weeks in the starting lineup</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-faint)' }}>Owner</span>
+            <select
+              value={activeDetailOwner ?? ''}
+              onChange={e => setDetailOwner(e.target.value)}
+              style={{ background: 'var(--bg-page)', border: '1px solid var(--border-mid)', borderRadius: '6px', padding: '4px 10px', fontSize: '13px', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', outline: 'none' }}
+            >
+              {[...ownerNames].sort().map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ padding: '14px' }}>
+          {activeDetailOwner && <PlayerProjectionTable owner={activeDetailOwner} season={season} mode="starter" />}
         </div>
       </div>
     </div>

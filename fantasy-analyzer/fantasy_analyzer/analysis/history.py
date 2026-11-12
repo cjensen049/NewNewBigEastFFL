@@ -7,6 +7,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from functools import cmp_to_key
 
+from fantasy_analyzer.analysis.projection_performance import get_projection_record_rows
 from fantasy_analyzer.analysis.start_sit import get_start_sit_leaderboard, get_start_sit_weeks
 
 
@@ -647,6 +648,10 @@ def get_league_records(con: sqlite3.Connection) -> list[dict]:
         worst_pct = min(w["pct"] for w in ss_weeks)
         rows = [(w["owner"], w["season"], w["week"]) for w in ss_weeks if w["pct"] == worst_pct]
         _add_event_record(records, "Worst Lineup Efficiency, Single Week", f"{worst_pct:.1f}%", rows)
+
+    # Players vs. Sleeper's projection while starting (single week / single season)
+    for category, value, rows in get_projection_record_rows(con):
+        _add_event_record(records, category, value, rows)
 
     # Career lineup efficiency — qualify with a minimum sample (~1 season) so a
     # short-tenured owner's small sample can't dominate a rate-based record.

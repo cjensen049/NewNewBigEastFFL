@@ -34,15 +34,18 @@ def last_completed_week(con: sqlite3.Connection, league_id: str) -> int:
 
 
 def team_actual_vs_projected(con: sqlite3.Connection, league_id: str, season: int, week: int) -> dict[str, dict]:
-    """Return {owner: {actual, projected, diff, unprojected_pts, unprojected_n}} --
+    """Return {owner: {actual, projected, diff, estimated_n, unprojected_pts, unprojected_n}} --
     each team's real score vs. the sum of their actual starters' own pre-game
     weekly projections. A team with no projection data for any starter is omitted.
 
-    A starter Sleeper has no projection for is left out of the comparison (his
-    points are not counted as over-performance; they're reported separately as
-    unprojected_pts). Otherwise players Sleeper no longer lists -- e.g. retired
-    players in old seasons -- would score as pure beats of a 0 projection.
-    `actual` stays the team's real score; diff compares only the projected starters.
+    A starter with no weekly Sleeper projection who SCORED gets a stand-in: his
+    season-long per-game rate (player_season_projections), counted in `projected`
+    and tallied in `estimated_n`. Sleeper drops players who retire or get released
+    from its old weekly feeds (Tom Brady's 2021), and counting them as "0 projected"
+    would score their whole season as over-performance. A starter with neither (or
+    who scored nothing, i.e. inactive) is left out entirely and reported as
+    unprojected_pts / unprojected_n. `actual` stays the team's real score; diff
+    compares only the starters that were projected or estimated.
     """
     rows = con.execute(
         """SELECT o.canonical_name, m.points, m.starters_json, m.players_points_json
@@ -50,6 +53,10 @@ def team_actual_vs_projected(con: sqlite3.Connection, league_id: str, season: in
            WHERE m.league_id=? AND m.week=? AND m.is_playoff=0 AND m.starters_json IS NOT NULL""",
         (league_id, week),
     ).fetchall()
+
+    season_rate = dict(con.execute(
+        "SELECT player_id, projected_pts FROM player_season_projections WHERE season=?", (season,)
+    ).fetchall())
 
     result: dict[str, dict] = {}
     for name, points, starters_raw, pp_raw in rows:
@@ -63,14 +70,17 @@ def team_actual_vs_projected(con: sqlite3.Connection, league_id: str, season: in
         ).fetchall())
         if not projected_by_player:
             continue
-        team_projected = sum(projected_by_player.values())
         player_pts = json.loads(pp_raw) if pp_raw else {}
-        unprojected = [p for p in starters if p not in projected_by_player]
+        missing = [p for p in starters if p not in projected_by_player]
+        estimated = [p for p in missing if p in season_rate and player_pts.get(p)]
+        unprojected = [p for p in missing if p not in estimated]
+        team_projected = sum(projected_by_player.values()) + sum(season_rate[p] for p in estimated)
         unprojected_pts = sum(player_pts.get(p) or 0.0 for p in unprojected)
         result[name] = {
             "actual": round(points, 1),
             "projected": round(team_projected, 1),
             "diff": round(points - unprojected_pts - team_projected, 1),
+            "estimated_n": len(estimated),
             "unprojected_pts": round(unprojected_pts, 1),
             "unprojected_n": sum(1 for p in unprojected if player_pts.get(p)),
         }

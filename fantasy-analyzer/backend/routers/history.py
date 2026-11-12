@@ -22,6 +22,7 @@ from fantasy_analyzer.analysis.history import (
     get_standings_history,
     get_weekly_scoring_extremes,
 )
+from fantasy_analyzer.analysis.projection_performance import get_projection_leaders
 from fantasy_analyzer.analysis.start_sit import get_start_sit_leaderboard, get_start_sit_weeks
 
 router = APIRouter()
@@ -183,6 +184,12 @@ def schedule(year: int, con: sqlite3.Connection = Depends(get_db)) -> dict:
     league_id, playoff_week_start = league
     sched = get_season_schedule(con, league_id, playoff_week_start)
     return {"season": year, "weeks": playoff_week_start - 1, "schedule": sched}
+
+
+@router.get("/projection-leaders")
+def projection_leaders(con: sqlite3.Connection = Depends(get_db)) -> dict:
+    """All-time top 10 players over and under Sleeper's projection while in a starting lineup."""
+    return get_projection_leaders(con, top_n=10)
 
 
 @router.get("/records")
