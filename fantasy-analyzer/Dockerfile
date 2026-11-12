@@ -6,7 +6,7 @@
 # Railway finds this file at fantasy-analyzer/Dockerfile.
 
 # ---- Stage 1: build React frontend ----
-FROM node:20-alpine AS frontend-build
+FROM node:22-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
