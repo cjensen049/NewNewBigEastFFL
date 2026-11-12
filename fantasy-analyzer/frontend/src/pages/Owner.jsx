@@ -379,29 +379,32 @@ function VsProjectionTab({ owner }) {
   const rows = useMemo(() => (data?.rows ?? []).flatMap(p => {
     const t = p.totals[mode]
     if (t.games === 0) return []
-    const row = { player: p.player, position: p.position, games: t.games, projected: t.projected, actual: t.actual, diff: t.diff, avg_diff: t.avg_diff, _bench: {} }
+    const row = { player: p.player, position: p.position, games: t.games, projected: t.projected, actual: t.actual, diff: t.diff, avg_diff: t.avg_diff, _bench: {}, _np: {} }
     for (const w of p.weeks) {
       if (mode === 'all' || w.role === mode) {
         row[`w${w.week}`] = w.diff
         row._bench[w.week] = w.role === 'bench'
+        row._np[w.week] = w.projected == null   // no Sleeper projection that week
       }
     }
     return [row]
   }), [data, mode])
 
-  const totalDiff = rows.reduce((sum, r) => sum + r.diff, 0)
+  const totalDiff = rows.reduce((sum, r) => sum + (r.diff ?? 0), 0)
 
   const columns = [
     { key: 'player', label: 'Player' },
     { key: 'position', label: 'Pos', sortable: false, render: v => <OwnerPosBadge pos={v} /> },
     { key: 'games', label: 'G', align: 'right' },
-    { key: 'projected', label: 'Proj', align: 'right', render: v => fmt1(v) },
+    { key: 'projected', label: 'Proj', align: 'right', render: v => v == null ? '—' : fmt1(v) },
     { key: 'actual', label: 'Actual', align: 'right', render: v => fmt1(v) },
     { key: 'diff', label: '+/-', align: 'right', render: v => <DiffText value={v} bold /> },
     { key: 'avg_diff', label: 'Per G', align: 'right', render: v => <DiffText value={v} /> },
     ...weeks.map(w => ({
       key: `w${w}`, label: `W${w}`, align: 'right',
-      render: (v, row) => <WeekCell value={v} dim={row._bench[w]} />,
+      render: (v, row) => row._np[w]
+        ? <span title="No Sleeper projection that week, so it's left out of +/-" style={{ fontSize: '11px', color: 'var(--text-faint)' }}>n/p</span>
+        : <WeekCell value={v} dim={row._bench[w]} />,
     })),
   ]
 
@@ -433,6 +436,7 @@ function VsProjectionTab({ owner }) {
           <p className="text-xs text-gray-500 mb-2">
             {rows.length} players · {signed(totalDiff)} vs projection in total
             {mode === 'starter' && ' (this matches the team total on the league Vs Projection page)'}
+            {' · n/p = no Sleeper projection that week, left out of +/-'}
           </p>
           <DataTable
             minWidth="900px"

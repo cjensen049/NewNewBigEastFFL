@@ -34,33 +34,45 @@ def last_completed_week(con: sqlite3.Connection, league_id: str) -> int:
 
 
 def team_actual_vs_projected(con: sqlite3.Connection, league_id: str, season: int, week: int) -> dict[str, dict]:
-    """Return {owner: {actual, projected, diff}} -- each team's real score vs.
-    the sum of their actual starters' own pre-game weekly projections. A team
-    with no projection data for any starter is omitted (diff would be meaningless)."""
+    """Return {owner: {actual, projected, diff, unprojected_pts, unprojected_n}} --
+    each team's real score vs. the sum of their actual starters' own pre-game
+    weekly projections. A team with no projection data for any starter is omitted.
+
+    A starter Sleeper has no projection for is left out of the comparison (his
+    points are not counted as over-performance; they're reported separately as
+    unprojected_pts). Otherwise players Sleeper no longer lists -- e.g. retired
+    players in old seasons -- would score as pure beats of a 0 projection.
+    `actual` stays the team's real score; diff compares only the projected starters.
+    """
     rows = con.execute(
-        """SELECT o.canonical_name, m.points, m.starters_json
+        """SELECT o.canonical_name, m.points, m.starters_json, m.players_points_json
            FROM matchups m JOIN owners o ON o.user_id = m.user_id
            WHERE m.league_id=? AND m.week=? AND m.is_playoff=0 AND m.starters_json IS NOT NULL""",
         (league_id, week),
     ).fetchall()
 
     result: dict[str, dict] = {}
-    for name, points, starters_raw in rows:
+    for name, points, starters_raw, pp_raw in rows:
         starters = json.loads(starters_raw)
         if not starters:
             continue
         placeholders = ",".join("?" * len(starters))
-        proj_rows = con.execute(
-            f"SELECT projected_pts FROM player_projections WHERE season=? AND week=? AND player_id IN ({placeholders})",
+        projected_by_player = dict(con.execute(
+            f"SELECT player_id, projected_pts FROM player_projections WHERE season=? AND week=? AND player_id IN ({placeholders})",
             (season, week, *starters),
-        ).fetchall()
-        if not proj_rows:
+        ).fetchall())
+        if not projected_by_player:
             continue
-        team_projected = sum(r[0] for r in proj_rows)
+        team_projected = sum(projected_by_player.values())
+        player_pts = json.loads(pp_raw) if pp_raw else {}
+        unprojected = [p for p in starters if p not in projected_by_player]
+        unprojected_pts = sum(player_pts.get(p) or 0.0 for p in unprojected)
         result[name] = {
             "actual": round(points, 1),
             "projected": round(team_projected, 1),
-            "diff": round(points - team_projected, 1),
+            "diff": round(points - unprojected_pts - team_projected, 1),
+            "unprojected_pts": round(unprojected_pts, 1),
+            "unprojected_n": sum(1 for p in unprojected if player_pts.get(p)),
         }
     return result
 

@@ -50,7 +50,8 @@ def _week(con, week, scores, projections, pool=None):
 class TestProjectionPerformance:
     def test_no_played_weeks_returns_empty(self, db):
         assert get_projection_performance(db, "L1", 2026) == {
-            "season": 2026, "weeks": [], "league_avg_diff": None, "rows": [],
+            "season": 2026, "weeks": [], "league_avg_diff": None,
+            "excluded_pts": 0.0, "excluded_starters": 0, "rows": [],
         }
 
     def test_weekly_diff_is_actual_minus_projected_of_started_players(self, db):
@@ -59,6 +60,7 @@ class TestProjectionPerformance:
         rows = {r["owner"]: r for r in get_projection_performance(db, "L1", 2026)["rows"]}
         assert rows["Alice"]["weeks"][0] == {
             "week": 1, "actual": 130.0, "projected": 110.0, "diff": 20.0, "diff_vs_league": 15.0,
+            "unprojected_pts": 0.0, "unprojected_n": 0,
             "efficiency_pct": None, "pts_left_on_bench": None,
         }
         assert rows["Bob"]["weeks"][0]["diff"] == -10.0
@@ -77,11 +79,20 @@ class TestProjectionPerformance:
         assert alice["recent_avg_diff"] == 0.0   # last 3 weeks: -10, +10, 0
         assert bob["recent_avg_diff"] == -3.3    # last 3 weeks: +10, +10, -30
 
-    def test_starter_without_a_projection_counts_as_zero_projected(self, db):
-        # a2 has no Sleeper projection (out/inactive): projected is just a1's 60.
-        _week(db, 1, {"u1": 100.0, "u2": 80.0}, {"a1": 60, "b1": 45, "b2": 45})
-        alice = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")
-        assert alice["weeks"][0]["projected"] == 60.0 and alice["weeks"][0]["diff"] == 40.0
+    def test_starter_sleeper_never_projected_is_left_out_not_counted_as_a_beat(self, db):
+        """Regression: Sleeper's 2021 feed had no projection for players since retired (Tom Brady,
+        13 starts on one team), and counting them as "0 projected" made their whole season read
+        as over-performance. a2 scored 30 with no projection: he must not move the diff at all."""
+        pool = {"u1": {"a1": 50.0, "a2": 30.0}, "u2": {"b1": 40.0, "b2": 40.0}}
+        _week(db, 1, {"u1": 80.0, "u2": 80.0}, {"a1": 60, "b1": 45, "b2": 45}, pool)
+        result = get_projection_performance(db, "L1", 2026)
+        alice = next(r for r in result["rows"] if r["owner"] == "Alice")
+        week = alice["weeks"][0]
+        assert week["actual"] == 80.0                    # the team's real score is unchanged
+        assert week["projected"] == 60.0
+        assert week["diff"] == -10.0                     # (80 - 30 unprojected) - 60, not +20
+        assert week["unprojected_pts"] == 30.0 and week["unprojected_n"] == 1
+        assert result["excluded_pts"] == 30.0 and result["excluded_starters"] == 1
 
     def test_team_week_with_no_projection_data_is_skipped(self, db):
         _week(db, 1, {"u1": 100.0, "u2": 90.0}, {"a1": 50, "a2": 50})   # only Alice's starters projected
@@ -142,7 +153,9 @@ class TestOwnerPlayerPerformance:
         assert [(w["week"], w["actual"], w["projected"], w["diff"], w["role"]) for w in a1["weeks"]] == [
             (1, 30.0, 20.0, 10.0, "starter"), (2, 10.0, 25.0, -15.0, "starter"),
         ]
-        assert a1["totals"]["starter"] == {"games": 2, "actual": 40.0, "projected": 45.0, "diff": -5.0, "avg_diff": -2.5}
+        assert a1["totals"]["starter"] == {
+            "games": 2, "compared_games": 2, "actual": 40.0, "projected": 45.0, "diff": -5.0, "avg_diff": -2.5,
+        }
         assert a1["totals"]["bench"]["games"] == 0 and a1["totals"]["bench"]["avg_diff"] is None
 
         bench = rows["bench"]   # sat both weeks: scored 25 vs 15 projected, then 0 vs 12 projected
@@ -158,19 +171,38 @@ class TestOwnerPlayerPerformance:
         db.execute("UPDATE matchups SET starters_json=? WHERE week=1", (json.dumps(["a1", "ghost"]),))
         db.commit()
         ghost = next(r for r in get_owner_player_performance(db, "Alice", 2026)["rows"] if r["player"] == "ghost")
-        assert ghost["weeks"] == [{"week": 1, "actual": 0.0, "projected": None, "diff": 0.0, "role": "starter"}]
+        assert ghost["weeks"] == [{"week": 1, "actual": 0.0, "projected": None, "diff": None, "role": "starter"}]
 
-    def test_unprojected_player_who_scores_counts_as_zero_projected(self, db):
+    def test_unprojected_player_who_scores_is_listed_but_not_counted_as_over_performance(self, db):
         self._games(db)
         db.execute("UPDATE matchups SET players_points_json=? WHERE week=1",
                    (json.dumps({"a1": 30.0, "a2": 20.0, "surprise": 14.0}),))
         db.commit()
         surprise = next(r for r in get_owner_player_performance(db, "Alice", 2026)["rows"] if r["player"] == "surprise")
-        assert surprise["weeks"][0]["projected"] is None and surprise["weeks"][0]["diff"] == 14.0
+        assert surprise["weeks"][0]["projected"] is None and surprise["weeks"][0]["diff"] is None
+        totals = surprise["totals"]["bench"]
+        assert totals["games"] == 1 and totals["compared_games"] == 0 and totals["actual"] == 14.0
+        assert totals["diff"] is None and totals["projected"] is None and totals["avg_diff"] is None
 
     def test_starter_diffs_add_up_to_the_team_level_over_under(self, db):
         self._games(db)
         # a1, a2 are Alice's only starters; every starter has a projection here, so the two views must agree.
         team = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")
-        player_sum = sum(r["totals"]["starter"]["diff"] for r in get_owner_player_performance(db, "Alice", 2026)["rows"])
+        player_sum = sum(r["totals"]["starter"]["diff"] or 0 for r in get_owner_player_performance(db, "Alice", 2026)["rows"])
+        assert player_sum == pytest.approx(team["total_diff"])
+
+    def test_unprojected_starter_is_listed_and_still_ties_out_to_the_team_total(self, db):
+        """The Brady case on the player tab: he shows up (13 games' worth of points) but with no
+        +/-, and the starters' diffs still equal the team-level over/under."""
+        self._games(db)
+        db.execute("UPDATE matchups SET starters_json=?, players_points_json=? WHERE week=1",
+                   (json.dumps(["a1", "brady"]), json.dumps({"a1": 30.0, "brady": 40.0, "bench": 25.0})))
+        db.execute("UPDATE matchups SET points=70.0 WHERE week=1")
+        db.commit()
+        rows = {r["player"]: r for r in get_owner_player_performance(db, "Alice", 2026)["rows"]}
+        assert rows["brady"]["totals"]["starter"]["games"] == 1
+        assert rows["brady"]["totals"]["starter"]["actual"] == 40.0 and rows["brady"]["totals"]["starter"]["diff"] is None
+
+        team = next(r for r in get_projection_performance(db, "L1", 2026)["rows"] if r["owner"] == "Alice")
+        player_sum = sum(r["totals"]["starter"]["diff"] or 0 for r in rows.values())
         assert player_sum == pytest.approx(team["total_diff"])

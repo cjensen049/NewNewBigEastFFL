@@ -107,6 +107,11 @@ export default function VsProjection() {
           beat their projections by 20 points that week. Lineup efficiency is separate: it shows how
           good the manager's start/sit choices were, not how the players performed.
         </p>
+        {data?.excluded_pts ? (
+          <p className="fs-label" style={{ margin: 0, padding: '6px 14px', color: 'var(--text-faint)', borderBottom: '1px solid var(--border)' }}>
+            Left out: {data.excluded_starters} starter-weeks ({fmt1(data.excluded_pts)} pts) where Sleeper had no projection.
+          </p>
+        ) : null}
         {isLoading ? (
           <div style={{ padding: '20px' }}><LoadingSpinner /></div>
         ) : rows.length === 0 ? (
@@ -124,8 +129,9 @@ export default function VsProjection() {
         )}
         <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
-            Projections are Sleeper's own for that week, summed over the players actually started
-            (a starter with no projection, such as an injured player, counts as 0 projected).
+            Projections are Sleeper's own for that week, summed over the players actually started.
+            A starter Sleeper has no projection for (inactive, or no longer listed, like some retired
+            players in older seasons) is left out of the comparison, so he can't show up as over-performance.
             vs League subtracts each week's league-wide average over/under, so seasons where
             Sleeper's projections ran high or low for everyone compare fairly. Efficiency is actual
             points as a % of the best possible lineup in hindsight; Left on Bench is the points
