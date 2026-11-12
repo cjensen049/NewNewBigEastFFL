@@ -8,6 +8,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import LoadingSpinner from '../components/LoadingSpinner'
 import PlayoffPctBadge from '../components/PlayoffPctBadge'
+import { DiffText } from '../components/DiffCells'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -153,6 +154,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
               {th('_winPctDiff',  'Diff',    'right')}
               {th('playoff_pct',  'Playoff%', 'right')}
               {th('luck_diff',    'Schedule Luck', 'right')}
+              {th('proj_vs_league', 'Proj vs League', 'right')}
               {th('proj_luck_avg', 'Projection Luck', 'right')}
               <th style={{ padding: '8px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-faint)', background: 'var(--bg-page)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
                 {oppHeader}
@@ -164,7 +166,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
               if (item._divider) {
                 return (
                   <tr key={item.key}>
-                    <td colSpan={10} style={{ padding: '6px 10px', background: item.zone.bg, borderTop: `2px solid ${item.zone.border}`, borderBottom: `1px solid ${item.zone.border}` }}>
+                    <td colSpan={11} style={{ padding: '6px 10px', background: item.zone.bg, borderTop: `2px solid ${item.zone.border}`, borderBottom: `1px solid ${item.zone.border}` }}>
                       <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: item.zone.color }}>
                         {item.zone.label}
                       </span>
@@ -203,6 +205,7 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
                       : <span style={{ color: 'var(--text-faint)' }}>—</span>}
                   </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: verdictColor(verdict), fontWeight: 500 }}>{verdict ?? '—'}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}><DiffText value={r.proj_vs_league} bold /></td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap', color: verdictColor(r.projection_luck), fontWeight: 500 }}>{r.projection_luck ?? '—'}</td>
                   <td style={{ padding: '8px 10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     {r.next_opponent ?? <span style={{ color: 'var(--text-faint)' }}>—</span>}
@@ -217,9 +220,10 @@ function PlayoffPicture({ zoneRows, nextWeek, finishEmoji = {} }) {
         <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
           All-Play / Diff / Schedule Luck: your cumulative record (and luck) if you'd played every team
           every week so far, not just your actual schedule — grows each week, and isn't a
-          projection. Projection Luck: your average weekly points over or under Sleeper's projections,
-          compared with the league average (Very Lucky +10 or more per week, Lucky +2.5 to +10, Average
-          within 2.5, Unlucky -2.5 to -10, Very Unlucky below -10; details on the Vs Projection page).
+          projection. Proj vs League: your season total points over or under Sleeper's projections, compared
+          with the league-wide average over/under (the same measure as the Vs League column on the Vs Projection
+          page). Projection Luck: that number per week played (Very Lucky +10 or more per week, Lucky +2.5 to +10,
+          Average within 2.5, Unlucky -2.5 to -10, Very Unlucky below -10).
           Playoff% is the same Monte Carlo odds shown on the Power Rankings page.
         </p>
       </div>
@@ -365,6 +369,7 @@ export default function InSeason({ embedded = false }) {
     const raw = (snapshotData?.rows ?? []).map(r => ({
       ...r,
       projection_luck: proj[r.owner]?.luck_verdict ?? null,
+      proj_vs_league: proj[r.owner]?.total_vs_league ?? null,
       proj_luck_avg: proj[r.owner]?.avg_vs_league ?? null,
       playoff_pct: odds[r.owner]?.playoff_pct ?? null,
       clinched: odds[r.owner]?.clinched ?? false,
