@@ -329,6 +329,26 @@ class TestLeadersAndRecords:
         assert by["a2"]["owners"] == "Alice (2), Bob (1)"     # most starts first, counts when more than one owner
         assert by["b2"]["owners"] == "Bob"                    # a single owner is just the name
 
+    def test_qualified_pool_is_everyone_with_enough_starts_not_just_the_top_n(self, db):
+        self._setup(db)                                  # a1, a2, b1, b2: 2 starts each
+        db.execute(
+            "INSERT INTO matchups (league_id, season, week, matchup_id, roster_id, user_id, points, is_playoff, "
+            "starters_json, players_points_json) VALUES ('L1', 2026, 3, 1, 1, 'u1', 18.0, 0, ?, ?)",
+            (json.dumps(["a2"]), json.dumps({"a2": 18.0})),
+        )
+        db.execute("INSERT INTO player_projections (season, week, player_id, position, projected_pts, scraped_at) "
+                   "VALUES (2026, 3, 'a2', 'WR', 20, 'x')")
+        db.commit()
+
+        everyone = get_projection_leaders(db, top_n=1, min_starts=2)
+        assert len(everyone["over"]) == 1                                             # top_n still caps the ranked lists
+        assert {p["player"] for p in everyone["qualified"]} == {"a1", "a2", "b1", "b2"}
+        assert everyone["min_starts"] == 2
+
+        full_season = get_projection_leaders(db, top_n=1, min_starts=3)
+        assert [p["player"] for p in full_season["qualified"]] == ["a2"]              # only a2 reached 3 starts
+        assert get_projection_leaders(db, min_starts=14)["qualified"] == []           # nobody has a full season here
+
     def test_estimated_stand_ins_never_reach_the_leaderboards(self, db):
         self._setup(db)
         db.execute("DELETE FROM player_projections WHERE player_id='a2'")

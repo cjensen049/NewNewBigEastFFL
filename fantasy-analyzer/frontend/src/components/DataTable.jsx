@@ -16,14 +16,22 @@
  *   rowClassName — optional (row, index) => string, replaces the default 'standings-row' class when provided
  *   minWidth    — optional CSS string forcing a minimum table width (for horizontal scroll on mobile)
  *   bordered    — set false to drop the outer border/radius when nesting inside a card that already has one (default true)
+ *   onSortChange — optional (sortKey, sortDir) => void, called whenever the sort changes, so a page can react
+ *                  to it (e.g. show more rows when a certain column is sorted)
  *
  * Clicking a header sorts by that column; clicking again reverses direction.
  * Sort indicator: ↑ ascending, ↓ descending, no icon when unsorted.
  */
+import { useEffect } from 'react'
 import { useSortableTable } from '../hooks/useSortableTable'
 
-export default function DataTable({ rows, columns, maxHeight = '420px', defaultSort = null, defaultDir = 'asc', rowStyle, rowClassName, minWidth, bordered = true }) {
+export default function DataTable({ rows, columns, maxHeight = '420px', defaultSort = null, defaultDir = 'asc', rowStyle, rowClassName, minWidth, bordered = true, onSortChange }) {
   const { sorted, sortKey, sortDir, handleSort } = useSortableTable(rows, defaultSort, defaultDir)
+
+  useEffect(() => {
+    if (onSortChange) onSortChange(sortKey, sortDir)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortKey, sortDir])
 
   if (!rows || rows.length === 0) {
     return <p style={{ color: 'var(--text-faint)', fontSize: '13px', padding: '16px 0', fontStyle: 'italic' }}>No data available.</p>

@@ -658,6 +658,10 @@ function ChampionsTab() {
 // for a like-for-like view when a position group ran over or under as a whole.
 function PlayerProjectionsTab() {
   const [view, setView] = useState('raw')
+  // Which column each table is sorted by. Sorting by Per Start swaps the top-10 list for every player
+  // with a full season of starts, so the per-start leaders aren't limited to the top 10 by total.
+  const [overSort, setOverSort] = useState(null)
+  const [underSort, setUnderSort] = useState(null)
   const { data, isLoading, error } = useQuery({
     queryKey: ['history-projection-leaders'],
     queryFn: () => fetch('/api/history/projection-leaders').then(r => r.json()),
@@ -667,6 +671,15 @@ function PlayerProjectionsTab() {
   if (error) return <p className="text-red-400">Error: {error.message}</p>
 
   const adj = view === 'adj'
+  const switchView = v => { setView(v); setOverSort(null); setUnderSort(null) }
+  const expanded = key => key === 'avg_diff' || key === 'avg_adj_diff'
+  const rowsFor = (list, sortKey) => (expanded(sortKey) ? data.qualified : data[list])
+  const note = sortKey => expanded(sortKey) && (
+    <p className="text-xs text-gray-500 mb-2">
+      Sorted by per-start average: showing all {data.qualified.length} players with {data.min_starts}+ starts
+      (a full regular season) instead of just the top 10 by total.
+    </p>
+  )
   const diffKey = adj ? 'adj_diff' : 'diff'
   const perKey = adj ? 'avg_adj_diff' : 'avg_diff'
 
@@ -688,7 +701,7 @@ function PlayerProjectionsTab() {
       <div className="flex flex-wrap items-center gap-4 mb-2">
         <h2 className="text-base md:text-lg font-semibold">Players vs Projection</h2>
         <div className="ml-auto">
-          <PillToggle options={[['raw', 'Raw'], ['adj', 'vs Position Avg']]} value={view} onChange={setView} />
+          <PillToggle options={[['raw', 'Raw'], ['adj', 'vs Position Avg']]} value={view} onChange={switchView} />
         </div>
       </div>
       <p className="text-xs text-gray-500 mb-4">
@@ -700,10 +713,22 @@ function PlayerProjectionsTab() {
       </p>
 
       <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--green)' }}>Top 10 over projection</h3>
-      <DataTable rows={data[adj ? 'over_adj' : 'over']} maxHeight="none" minWidth="760px" columns={columns} />
+      {note(overSort)}
+      <DataTable
+        key={`over-${view}`}
+        rows={rowsFor(adj ? 'over_adj' : 'over', overSort)}
+        maxHeight={expanded(overSort) ? '560px' : 'none'} minWidth="760px" columns={columns}
+        onSortChange={setOverSort}
+      />
 
       <h3 className="text-sm font-semibold mb-2 mt-8" style={{ color: 'var(--brand-red)' }}>Top 10 under projection</h3>
-      <DataTable rows={data[adj ? 'under_adj' : 'under']} maxHeight="none" minWidth="760px" columns={columns} />
+      {note(underSort)}
+      <DataTable
+        key={`under-${view}`}
+        rows={rowsFor(adj ? 'under_adj' : 'under', underSort)}
+        maxHeight={expanded(underSort) ? '560px' : 'none'} minWidth="760px" columns={columns}
+        onSortChange={setUnderSort}
+      />
     </div>
   )
 }

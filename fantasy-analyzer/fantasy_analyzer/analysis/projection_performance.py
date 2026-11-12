@@ -301,10 +301,13 @@ def _starter_events(con: sqlite3.Connection) -> list[dict]:
     return events
 
 
-def get_projection_leaders(con: sqlite3.Connection, top_n: int = 10) -> dict:
+def get_projection_leaders(con: sqlite3.Connection, top_n: int = 10, min_starts: int = 14) -> dict:
     """All-time top players over and under Sleeper's projection while in a starting lineup.
 
-    Returns {over, under, over_adj, under_adj}, each a list of up to top_n rows: player,
+    Returns {over, under, over_adj, under_adj, qualified, min_starts}. The first four are
+    each a list of up to top_n rows ranked by total; `qualified` is every player with at
+    least min_starts starts (one regular season), so the page can show the whole pool when
+    sorted by per-start average. Rows have: player,
     position, owners, starts, projected, actual, diff (total over/under), avg_diff (per
     start), adj_diff / avg_adj_diff and seasons (e.g. "2021-2024"). owners lists everyone
     who started him, most starts first, with the start count when there's more than one
@@ -352,6 +355,8 @@ def get_projection_leaders(con: sqlite3.Connection, top_n: int = 10) -> dict:
         "under": sorted(rows, key=lambda r: r["diff"])[:top_n],
         "over_adj": sorted(rows, key=lambda r: -r["adj_diff"])[:top_n],
         "under_adj": sorted(rows, key=lambda r: r["adj_diff"])[:top_n],
+        "qualified": sorted((r for r in rows if r["starts"] >= min_starts), key=lambda r: -r["diff"]),
+        "min_starts": min_starts,
     }
 
 
