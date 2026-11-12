@@ -170,7 +170,13 @@ def fetch_week_projections(season: int, week: int) -> list[dict]:
 
 
 def store_week_projections(con: sqlite3.Connection, projections: list[dict], season: int, week: int) -> int:
-    """Upsert into player_projections. Returns count stored."""
+    """Upsert into player_projections. Returns count stored.
+
+    Only ever adds or updates rows, never deletes: the stored weeks are the permanent
+    record. Sleeper's feed later drops players who retire or get released (that's how
+    Tom Brady's 2021 ended up with no projections), so a week must be saved while
+    its players are still listed, and a later re-fetch must not remove what we saved.
+    """
     if not projections:
         return 0
 

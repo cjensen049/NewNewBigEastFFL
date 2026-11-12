@@ -392,6 +392,11 @@ function VsProjectionTab({ owner }) {
 
   const totalDiff = rows.reduce((sum, r) => sum + (r.diff ?? 0), 0)
 
+  // Players with weeks Sleeper has no projection for, so the n/p cells get an explanation
+  const unprojected = rows
+    .map(r => ({ player: r.player, weeks: Object.values(r._np).filter(Boolean).length }))
+    .filter(p => p.weeks > 0)
+
   const columns = [
     { key: 'player', label: 'Player' },
     { key: 'position', label: 'Pos', sortable: false, render: v => <OwnerPosBadge pos={v} /> },
@@ -438,6 +443,14 @@ function VsProjectionTab({ owner }) {
             {mode === 'starter' && ' (this matches the team total on the league Vs Projection page)'}
             {' · n/p = no Sleeper projection that week, left out of +/-'}
           </p>
+          {unprojected.length > 0 && (
+            <p className="text-xs mb-3" style={{ color: 'var(--text-faint)' }}>
+              <strong style={{ color: 'var(--text-muted)' }}>No Sleeper projection data:</strong>{' '}
+              {unprojected.map(p => `${p.player} (${p.weeks} wk${p.weeks === 1 ? '' : 's'})`).join(', ')}.
+              Sleeper doesn't list some players for older seasons (for example ones who have since retired or
+              been released), so those weeks show n/p and are left out of +/- rather than guessed at.
+            </p>
+          )}
           <DataTable
             minWidth="900px"
             defaultSort="diff"
